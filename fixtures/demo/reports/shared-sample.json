@@ -1,0 +1,84 @@
+{
+  "submission": {
+    "id": "sub_demo",
+    "sid": "DEMO",
+    "filename": "demo.pdf"
+  },
+  "batch": {
+    "id": "bat_demo",
+    "name": "Demo batch",
+    "unit": null
+  },
+  "status": "confirmed",
+  "locked": false,
+  "audience": "internal",
+  "final_total": 68,
+  "band": "CR",
+  "ai_total": 72,
+  "adjustment": -4,
+  "confirmed_at": "2026-10-12T05:18:00Z",
+  "marker": {
+    "id": "usr_jalvarez",
+    "name": "J. Alvarez"
+  },
+  "summary": "A sound response with accurate concepts; the final application needs more explicit reasoning.",
+  "strengths": [
+    "Accurate core concepts"
+  ],
+  "improvements": [
+    "Explain the causal link in Q3"
+  ],
+  "next_steps": [
+    "Use one concrete example for each applied claim"
+  ],
+  "criteria": [
+    {
+      "criterion_id": "crt_shortanswer_1",
+      "name": "Concept accuracy",
+      "score": 24,
+      "max_score": 30,
+      "comment": "Accurate and concise.",
+      "ai_score": 24,
+      "confidence": "high",
+      "internal_rationale": "Evidence matches.",
+      "evidence": [
+        {
+          "page": 1,
+          "quote": "The response defines the concept accurately."
+        }
+      ]
+    },
+    {
+      "criterion_id": "crt_shortanswer_2",
+      "name": "Application",
+      "score": 29,
+      "max_score": 40,
+      "comment": "Relevant application.",
+      "ai_score": 29,
+      "confidence": "high",
+      "internal_rationale": "Application is relevant.",
+      "evidence": [
+        {
+          "page": 1,
+          "quote": "The example applies the concept to the scenario."
+        }
+      ]
+    },
+    {
+      "criterion_id": "crt_shortanswer_3",
+      "name": "Clarity",
+      "score": 15,
+      "max_score": 30,
+      "comment": "Make the final reasoning explicit.",
+      "ai_score": 19,
+      "confidence": "medium",
+      "internal_rationale": "Tutor reduced score by four.",
+      "evidence": [
+        {
+          "page": 2,
+          "quote": "The final conclusion is asserted rather than explained."
+        }
+      ]
+    }
+  ]
+}

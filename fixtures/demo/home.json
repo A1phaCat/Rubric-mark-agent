@@ -1,0 +1,107 @@
+{
+  "summary": {
+    "ready_for_review": {
+      "count": 853,
+      "by_batch": [
+        {
+          "batch_id": "bat_asgn2",
+          "batch_name": "ASGN2 — Critical Essay",
+          "count": 825
+        },
+        {
+          "batch_id": "bat_asgn1",
+          "batch_name": "ASGN1 — Literature Review",
+          "count": 28
+        }
+      ],
+      "next_submission_id": "sub_asgn2_000001"
+    },
+    "low_confidence": {
+      "count": 50,
+      "by_batch": [
+        {
+          "batch_id": "bat_asgn2",
+          "batch_name": "ASGN2 — Critical Essay",
+          "count": 44
+        },
+        {
+          "batch_id": "bat_asgn1",
+          "batch_name": "ASGN1 — Literature Review",
+          "count": 6
+        }
+      ]
+    },
+    "needs_manual": {
+      "count": 11,
+      "by_batch": [
+        {
+          "batch_id": "bat_asgn2",
+          "batch_name": "ASGN2 — Critical Essay",
+          "count": 11
+        }
+      ]
+    },
+    "confirmed_this_week": {
+      "count": 312,
+      "average_seconds": 144,
+      "week_started_at": "2026-10-12T13:00:00Z"
+    }
+  },
+  "queue": [
+    {
+      "submission_id": "sub_asgn2_000001",
+      "sid": "SID-40219",
+      "batch_id": "bat_asgn2",
+      "batch_name": "ASGN2 — Critical Essay",
+      "reason": "low_confidence",
+      "criterion_id": null,
+      "criterion_name": null,
+      "confidence": "low",
+      "ai_total": 80
+    },
+    {
+      "submission_id": "sub_asgn2_000004",
+      "sid": "SID-40222",
+      "batch_id": "bat_asgn2",
+      "batch_name": "ASGN2 — Critical Essay",
+      "reason": "low_confidence",
+      "criterion_id": null,
+      "criterion_name": null,
+      "confidence": "low",
+      "ai_total": 55
+    },
+    {
+      "submission_id": "sub_asgn2_000005",
+      "sid": "SID-40225",
+      "batch_id": "bat_asgn2",
+      "batch_name": "ASGN2 — Critical Essay",
+      "reason": "ready",
+      "criterion_id": null,
+      "criterion_name": null,
+      "confidence": "high",
+      "ai_total": 70
+    },
+    {
+      "submission_id": "sub_asgn2_000006",
+      "sid": "SID-40227",
+      "batch_id": "bat_asgn2",
+      "batch_name": "ASGN2 — Critical Essay",
+      "reason": "ready",
+      "criterion_id": null,
+      "criterion_name": null,
+      "confidence": "high",
+      "ai_total": 66
+    },
+    {
+      "submission_id": "sub_asgn2_000002",
+      "sid": "SID-40218",
+      "batch_id": "bat_asgn2",
+      "batch_name": "ASGN2 — Critical Essay",
+      "reason": "ready",
+      "criterion_id": null,
+      "criterion_name": null,
+      "confidence": "high",
+      "ai_total": 74
+    }
+  ]
+}

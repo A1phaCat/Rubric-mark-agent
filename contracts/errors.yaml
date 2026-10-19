@@ -1,0 +1,16 @@
+version: 1
+errors:
+  not_found: {status: 404, description: The requested resource does not exist.}
+  validation_error: {status: 422, description: Request data is invalid.}
+  invalid_transition: {status: 409, description: The requested lifecycle transition is not allowed.}
+  version_conflict: {status: 409, description: The supplied entity version is stale.}
+  rubric_invalid: {status: 422, description: Rubric structure or weights are invalid.}
+  rubric_in_use: {status: 409, description: The rubric is referenced by a batch.}
+  manifest_unresolved: {status: 422, description: File/SID/duplicate issues must be fixed before start.}
+  submission_locked: {status: 423, description: The batch is finalised.}
+  claim_conflict: {status: 409, description: Another marker holds the active claim.}
+  batch_incomplete: {status: 409, description: The batch cannot be finalised yet.}
+  feature_not_enabled: {status: 501, description: The post-MVP feature is deliberately unavailable.}
+  provider_error: {status: 502, description: The configured AI provider could not complete the request.}
+  job_failed: {status: 500, description: A background job exhausted its retries.}
+

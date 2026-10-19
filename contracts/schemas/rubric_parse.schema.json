@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rubric_parse.schema.json",
+  "title": "RubricParse",
+  "type": "object",
+  "required": ["title", "criteria", "warnings"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {"type": "string", "minLength": 1},
+    "criteria": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/criterion"}},
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "criterion": {
+      "type": "object",
+      "required": ["name", "weight", "grading_mode", "aspects", "levels"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "weight": {"type": "number", "minimum": 0},
+        "grading_mode": {"enum": ["analytic", "binary", "holistic"]},
+        "aspects": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/aspect"}
+        },
+        "levels": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "points", "min_score", "max_score", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {"type": "string"},
+              "label": {"type": "string"},
+              "points": {"type": "number", "minimum": 0},
+              "min_score": {"type": "number", "minimum": 0},
+              "max_score": {"type": "number", "minimum": 0},
+              "description": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "aspect": {
+      "type": "object",
+      "required": ["id", "label", "description", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "label": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "source": {"enum": ["explicit", "derived"]}
+      }
+    }
+  }
+}
+

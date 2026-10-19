@@ -1,0 +1,47 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Python environments, bytecode, package metadata and tooling caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# JavaScript dependencies and test/build output
+node_modules/
+test-results/
+playwright-report/
+coverage/
+dist/
+build/
+
+# Local runtime state (databases, uploads, embeddings, reports and logs)
+/data/*
+!/data/.gitkeep
+/backend/data/
+*.log
+*.pid
+
+# Evaluation output and developer scratch files
+/eval/datasets/*
+!/eval/datasets/.gitkeep
+/tmp/
+/prototype/screenshots/*.actual.png
+/prototype/screenshots/*.diff.png
+
+# Editor and operating-system metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+

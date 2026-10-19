@@ -1,0 +1,456 @@
+{
+  "submission": {
+    "id": "sub_demo",
+    "batch_id": "bat_demo",
+    "sid": "DEMO",
+    "filename": "DEMO_DEMO.pdf",
+    "status": "ai_done",
+    "version": 1
+  },
+  "batch": {
+    "id": "bat_demo",
+    "name": "Demo batch",
+    "status": "in_review"
+  },
+  "document": {
+    "id": "doc_sub_demo",
+    "version": 1,
+    "page_count": 6,
+    "word_count": 2180,
+    "content_url": "/api/v1/submissions/sub_demo/file",
+    "mime_type": "application/pdf",
+    "title": "Decentralised Governance and the Hidden Cost of Coordination",
+    "paragraphs": [
+      {
+        "page": 1,
+        "label": "¶1",
+        "text": "Over the past decade, decentralised governance has moved from the margins of political theory into the everyday operating models of cooperatives, open-source foundations and blockchain-based organisations. Its appeal is easy to understand: distributing authority promises resilience, legitimacy and a genuine voice for every participant."
+      },
+      {
+        "page": 1,
+        "label": "¶2",
+        "text": "This essay argues that decentralised governance models, while promising in theory, consistently underperform in practice due to coordination costs that scale non-linearly with participant count. Section 2 sets out the theoretical case for decentralisation, Section 3 reviews the empirical evidence, and Section 4 considers an alternative explanation before the conclusion returns to the central claim."
+      },
+      {
+        "page": 2,
+        "label": "¶1",
+        "text": "Proponents of decentralisation draw heavily on Ostrom's work on common-pool resources, which showed that communities can govern shared assets without a central authority when rules are designed locally and monitored by the people who use them."
+      },
+      {
+        "page": 2,
+        "label": "¶2",
+        "text": "Later advocates extended this argument to digital organisations, claiming that transparent protocols could replace managerial hierarchy altogether. On this view, coordination stops being a social problem and becomes a technical one that better tooling can solve."
+      },
+      {
+        "page": 2,
+        "label": "¶3",
+        "text": "These claims deserve to be taken seriously. The evidence for this optimism, however, comes mostly from small and stable communities, which, it should be noted, is not to say that the model does not have merit in certain more smaller-scale contexts where trust is already established and membership changes slowly."
+      },
+      {
+        "page": 3,
+        "label": "¶1",
+        "text": "Studies of large open-source projects show that decision latency grows sharply as contributor numbers rise. In one widely cited analysis, the median time to resolve a governance proposal tripled once a project passed two hundred active contributors."
+      },
+      {
+        "page": 3,
+        "label": "¶2",
+        "text": "Blockchain-based organisations display a similar pattern. Voter turnout on most proposals falls below ten per cent, and the small group that does vote tends to be the same few large holders each time."
+      },
+      {
+        "page": 3,
+        "label": "¶3",
+        "text": "The common thread is that every additional participant adds not one new relationship but many, because each person must, in principle, be informed, consulted and persuaded."
+      },
+      {
+        "page": 3,
+        "label": "¶4",
+        "text": "A 2019 study (Kessler & Boone) found similar coordination overhead in cooperative networks, though the sample was limited to twelve organisations. Even so, its findings point in the same direction as the open-source data."
+      },
+      {
+        "page": 4,
+        "label": "¶1",
+        "text": "Yet this reading understates a second possibility: coordination costs may not be intrinsic to decentralisation itself, but to the specific incentive structures layered on top of it."
+      },
+      {
+        "page": 4,
+        "label": "¶2",
+        "text": "Where participants are rewarded for activity rather than outcomes, proposals multiply and attention fragments. Where voting power tracks token holdings, the few who hold the most have little reason to build consensus with everyone else."
+      },
+      {
+        "page": 4,
+        "label": "¶3",
+        "text": "If this is right, the underperformance documented in Section 3 says more about how decentralised systems are designed than about decentralisation as such — and better-designed incentives could narrow the gap considerably."
+      },
+      {
+        "page": 5,
+        "label": "¶1",
+        "text": "Some critics respond that hierarchies face coordination costs too, and that the comparison is therefore unfair. Large firms spend heavily on meetings, reporting lines and middle management simply to keep their parts aligned."
+      },
+      {
+        "page": 5,
+        "label": "¶2",
+        "text": "It is, perhaps, worth considering that the costs that are borne by hierarchical organisations, which are themselves not insignificant, may in some respects be comparable, although not necessarily in every respect, to those that have been described above."
+      },
+      {
+        "page": 5,
+        "label": "¶3",
+        "text": "Hierarchies, however, can choose to cap how many people are involved in a decision. Decentralised systems, by design, cannot."
+      },
+      {
+        "page": 6,
+        "label": "¶1",
+        "text": "In conclusion, the evidence reviewed here supports the claim that decentralised governance tends to underperform as it scales, because the cost of coordinating many participants grows faster than the benefit of including them."
+      },
+      {
+        "page": 6,
+        "label": "¶2",
+        "text": "This does not make decentralisation a failed idea. It suggests that future designs should treat coordination as the central constraint — limiting the size of decision groups, rewarding outcomes over activity, and accepting that some decisions are better delegated than shared."
+      }
+    ]
+  },
+  "rubric": {
+    "id": "rub_criticalessay",
+    "version": 1,
+    "title": "Critical Essay — HD/D/C/P",
+    "criteria": [
+      {
+        "definition": {
+          "id": "crt_criticalessay_1",
+          "name": "Argument structure",
+          "weight": 30,
+          "description": "",
+          "levels": [
+            {
+              "id": "hd",
+              "label": "HD",
+              "points": 30,
+              "min_score": 0,
+              "max_score": 30,
+              "description": "Clear, well-sequenced thesis throughout."
+            },
+            {
+              "id": "di",
+              "label": "DI",
+              "points": 25.2,
+              "min_score": 0,
+              "max_score": 30,
+              "description": "Clear thesis with minor gaps."
+            },
+            {
+              "id": "cr",
+              "label": "CR",
+              "points": 22.2,
+              "min_score": 0,
+              "max_score": 30,
+              "description": "Generally coherent argument."
+            },
+            {
+              "id": "ps",
+              "label": "PS",
+              "points": 19.2,
+              "min_score": 0,
+              "max_score": 30,
+              "description": "Basic argument with gaps."
+            },
+            {
+              "id": "fl",
+              "label": "FL",
+              "points": 14.7,
+              "min_score": 0,
+              "max_score": 30,
+              "description": "No sustained argument."
+            }
+          ]
+        },
+        "ai_score": 26,
+        "score": 26,
+        "confidence": "high",
+        "status": "ai_suggested",
+        "rationale": "Thesis is stated early and returned to in the conclusion.",
+        "comment": "",
+        "evidence_ids": [
+          "e1",
+          "e2"
+        ],
+        "version": 1
+      },
+      {
+        "definition": {
+          "id": "crt_criticalessay_2",
+          "name": "Evidence & sources",
+          "weight": 25,
+          "description": "",
+          "levels": [
+            {
+              "id": "hd",
+              "label": "HD",
+              "points": 25,
+              "min_score": 0,
+              "max_score": 25,
+              "description": "Current, credible sources are integrated."
+            },
+            {
+              "id": "di",
+              "label": "DI",
+              "points": 21.0,
+              "min_score": 0,
+              "max_score": 25,
+              "description": "Credible sources are mostly integrated."
+            },
+            {
+              "id": "cr",
+              "label": "CR",
+              "points": 18.5,
+              "min_score": 0,
+              "max_score": 25,
+              "description": "Adequate sources, sometimes listed."
+            },
+            {
+              "id": "ps",
+              "label": "PS",
+              "points": 16.0,
+              "min_score": 0,
+              "max_score": 25,
+              "description": "Few weakly connected sources."
+            },
+            {
+              "id": "fl",
+              "label": "FL",
+              "points": 12.25,
+              "min_score": 0,
+              "max_score": 25,
+              "description": "Little or no evidence."
+            }
+          ]
+        },
+        "ai_score": 15,
+        "score": 15,
+        "confidence": "low",
+        "status": "ai_suggested",
+        "rationale": "One direct source is integrated; an important claim lacks a citation.",
+        "comment": "",
+        "evidence_ids": [
+          "e3",
+          "e4"
+        ],
+        "version": 1
+      },
+      {
+        "definition": {
+          "id": "crt_criticalessay_3",
+          "name": "Critical analysis",
+          "weight": 30,
+          "description": "",
+          "levels": [
+            {
+              "id": "hd",
+              "label": "HD",
+              "points": 30,
+              "min_score": 0,
+              "max_score": 30,
+              "description": "Insightfully weighs competing explanations."
+            },
+            {
+              "id": "di",
+              "label": "DI",
+              "points": 25.2,
+              "min_score": 0,
+              "max_score": 30,
+              "description": "Strong analysis with alternatives."
+            },
+            {
+              "id": "cr",
+              "label": "CR",
+              "points": 22.2,
+              "min_score": 0,
+              "max_score": 30,
+              "description": "Some analysis beyond description."
+            },
+            {
+              "id": "ps",
+              "label": "PS",
+              "points": 19.2,
+              "min_score": 0,
+              "max_score": 30,
+              "description": "Mostly descriptive."
+            },
+            {
+              "id": "fl",
+              "label": "FL",
+              "points": 14.7,
+              "min_score": 0,
+              "max_score": 30,
+              "description": "No meaningful analysis."
+            }
+          ]
+        },
+        "ai_score": 27,
+        "score": 27,
+        "confidence": "high",
+        "status": "ai_suggested",
+        "rationale": "Weighs an alternative explanation and draws out its consequence.",
+        "comment": "",
+        "evidence_ids": [
+          "e5",
+          "e6"
+        ],
+        "version": 1
+      },
+      {
+        "definition": {
+          "id": "crt_criticalessay_4",
+          "name": "Writing clarity",
+          "weight": 15,
+          "description": "",
+          "levels": [
+            {
+              "id": "hd",
+              "label": "HD",
+              "points": 15,
+              "min_score": 0,
+              "max_score": 15,
+              "description": "Precise, concise and nearly error-free."
+            },
+            {
+              "id": "di",
+              "label": "DI",
+              "points": 12.6,
+              "min_score": 0,
+              "max_score": 15,
+              "description": "Clear with minor errors."
+            },
+            {
+              "id": "cr",
+              "label": "CR",
+              "points": 11.1,
+              "min_score": 0,
+              "max_score": 15,
+              "description": "Generally readable."
+            },
+            {
+              "id": "ps",
+              "label": "PS",
+              "points": 9.6,
+              "min_score": 0,
+              "max_score": 15,
+              "description": "Frequent clarity problems."
+            },
+            {
+              "id": "fl",
+              "label": "FL",
+              "points": 7.35,
+              "min_score": 0,
+              "max_score": 15,
+              "description": "Unclear throughout."
+            }
+          ]
+        },
+        "ai_score": 12,
+        "score": 12,
+        "confidence": "medium",
+        "status": "ai_suggested",
+        "rationale": "Generally clear, with two long and heavily qualified sentences.",
+        "comment": "",
+        "evidence_ids": [
+          "e7",
+          "e8"
+        ],
+        "version": 1
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "id": "e1",
+      "criterion_id": "crt_criticalessay_1",
+      "document_version": 1,
+      "page": 1,
+      "paragraph": "¶2",
+      "start_offset": 339,
+      "end_offset": 533,
+      "quote": "This essay argues that decentralised governance models, while promising in theory, consistently underperform in practice due to coordination costs that scale non-linearly with participant count.",
+      "label": "primary"
+    },
+    {
+      "id": "e2",
+      "criterion_id": "crt_criticalessay_1",
+      "document_version": 1,
+      "page": 6,
+      "paragraph": "¶1",
+      "start_offset": 3669,
+      "end_offset": 3895,
+      "quote": "In conclusion, the evidence reviewed here supports the claim that decentralised governance tends to underperform as it scales, because the cost of coordinating many participants grows faster than the benefit of including them.",
+      "label": "supporting"
+    },
+    {
+      "id": "e3",
+      "criterion_id": "crt_criticalessay_2",
+      "document_version": 1,
+      "page": 3,
+      "paragraph": "¶4",
+      "start_offset": 2193,
+      "end_offset": 2339,
+      "quote": "A 2019 study (Kessler & Boone) found similar coordination overhead in cooperative networks, though the sample was limited to twelve organisations.",
+      "label": "primary"
+    },
+    {
+      "id": "e4",
+      "criterion_id": "crt_criticalessay_2",
+      "document_version": 1,
+      "page": 3,
+      "paragraph": "¶1",
+      "start_offset": 1566,
+      "end_offset": 1673,
+      "quote": "Studies of large open-source projects show that decision latency grows sharply as contributor numbers rise.",
+      "label": "supporting"
+    },
+    {
+      "id": "e5",
+      "criterion_id": "crt_criticalessay_3",
+      "document_version": 1,
+      "page": 4,
+      "paragraph": "¶1",
+      "start_offset": 2416,
+      "end_offset": 2597,
+      "quote": "Yet this reading understates a second possibility: coordination costs may not be intrinsic to decentralisation itself, but to the specific incentive structures layered on top of it.",
+      "label": "primary"
+    },
+    {
+      "id": "e6",
+      "criterion_id": "crt_criticalessay_3",
+      "document_version": 1,
+      "page": 4,
+      "paragraph": "¶3",
+      "start_offset": 2837,
+      "end_offset": 2990,
+      "quote": "If this is right, the underperformance documented in Section 3 says more about how decentralised systems are designed than about decentralisation as such",
+      "label": "supporting"
+    },
+    {
+      "id": "e7",
+      "criterion_id": "crt_criticalessay_4",
+      "document_version": 1,
+      "page": 2,
+      "paragraph": "¶3",
+      "start_offset": 1384,
+      "end_offset": 1504,
+      "quote": "which, it should be noted, is not to say that the model does not have merit in certain more smaller-scale contexts where",
+      "label": "primary"
+    },
+    {
+      "id": "e8",
+      "criterion_id": "crt_criticalessay_4",
+      "document_version": 1,
+      "page": 5,
+      "paragraph": "¶2",
+      "start_offset": 3286,
+      "end_offset": 3540,
+      "quote": "It is, perhaps, worth considering that the costs that are borne by hierarchical organisations, which are themselves not insignificant, may in some respects be comparable, although not necessarily in every respect, to those that have been described above.",
+      "label": "supporting"
+    }
+  ],
+  "can_edit": true,
+  "claim": null,
+  "demo_banner": "Demo sample content — not this student's real work",
+  "_mock": true
+}

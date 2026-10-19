@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evidence_gate.schema.json",
+  "title": "EvidenceGate",
+  "type": "object",
+  "required": ["evidence", "notes"],
+  "additionalProperties": false,
+  "properties": {
+    "evidence": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {"$ref": "#/$defs/evidence"}
+    },
+    "notes": {"type": "string"}
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "required": ["passage_id", "quote", "role", "relevance", "aspect_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "passage_id": {"type": "string"},
+        "quote": {"type": "string", "minLength": 1},
+        "role": {"enum": ["primary", "supporting"]},
+        "relevance": {"enum": ["direct", "partial", "contradictory"]},
+        "aspect_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "report_text.schema.json",
+  "title": "ReportText",
+  "type": "object",
+  "required": ["summary", "strengths", "improvements", "next_steps"],
+  "additionalProperties": false,
+  "properties": {
+    "summary": {"type": "string"},
+    "strengths": {"type": "array", "items": {"type": "string"}},
+    "improvements": {"type": "array", "items": {"type": "string"}},
+    "next_steps": {"type": "array", "items": {"type": "string"}}
+  }
+}

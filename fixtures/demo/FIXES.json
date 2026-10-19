@@ -1,0 +1,10 @@
+{
+  "changes": [
+    "ASGN2 reconciled to 825 ready + 411 processing + 11 needs_manual = 1247; low confidence is a 44-item subset and processed is 836.",
+    "ASGN2 review queue uses ASGN2 IDs and counts; prototype 48-item modes moved to e2e fixtures.",
+    "Quiz 3 is finalised and locked; Quiz 2 is completed and editable.",
+    "Every route preserves batch/submission identity.",
+    "Lightweight rows are explicitly _mock=true and use a visible Demo sample content banner.",
+    "Canvas fixture data was removed; settings say enabled=false."
+  ]
+}

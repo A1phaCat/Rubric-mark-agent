@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "criterion_grade.schema.json",
+  "title": "CriterionGrade",
+  "type": "object",
+  "required": ["score", "level", "rationale", "confidence"],
+  "additionalProperties": false,
+  "properties": {
+    "score": {"type": "number", "minimum": 0},
+    "level": {"type": "string", "minLength": 1},
+    "rationale": {"type": "string"},
+    "confidence": {"enum": ["high", "medium", "low", "none"]}
+  }
+}

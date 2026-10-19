@@ -1,0 +1,343 @@
+openapi: 3.1.0
+info:
+  title: AI-assisted marker API
+  version: 0.1.0
+  description: Contract-first local MVP. Named schemas are normative and use UTC ISO-8601 timestamps.
+servers:
+  - url: http://127.0.0.1:8000
+paths:
+  /api/v1/me/summary:
+    get: {operationId: getMySummary, responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
+  /api/v1/me/queue:
+    get:
+      operationId: getMyQueue
+      parameters: [{$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}}
+  /api/v1/batches:
+    get:
+      operationId: listBatches
+      parameters:
+        - {name: active, in: query, schema: {type: boolean}}
+        - {name: term, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {$ref: '#/components/schemas/BatchStatus'}}
+        - {name: q, in: query, schema: {type: string}}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses: {'200': {description: Batch page, content: {application/json: {schema: {$ref: '#/components/schemas/BatchPage'}}}}}
+    post:
+      operationId: createBatch
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BatchCreate'}}}}
+      responses: {'201': {description: Draft created, content: {application/json: {schema: {type: object, required: [batch], properties: {batch: {$ref: '#/components/schemas/BatchSummary'}}}}}}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    get: {operationId: getBatch, responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}}
+  /api/v1/batches/{batch_id}/submissions:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    get:
+      operationId: listSubmissions
+      parameters:
+        - {name: filter, in: query, schema: {type: string, enum: [all, ready, low_confidence, needs_manual, processing, failed, confirmed, adjusted]}}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses: {'200': {description: Submission page, content: {application/json: {schema: {$ref: '#/components/schemas/SubmissionPage'}}}}}
+  /api/v1/batches/{batch_id}/events:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    get: {operationId: streamBatchEvents, responses: {'200': {description: batch_progress, submission_updated and review_ready events, content: {text/event-stream: {schema: {type: string}}}}}}
+  /api/v1/batches/{batch_id}/files:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    post:
+      operationId: uploadBatchFiles
+      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [files], properties: {files: {type: array, items: {type: string, format: binary}}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/files/{file_id}:
+    parameters: [{$ref: '#/components/parameters/BatchId'}, {name: file_id, in: path, required: true, schema: {type: string, pattern: '^fil_'}}]
+    delete: {operationId: deleteBatchFile, responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}}
+  /api/v1/batches/{batch_id}/submissions/{submission_id}:
+    parameters: [{$ref: '#/components/parameters/BatchId'}, {$ref: '#/components/parameters/SubmissionId'}]
+    patch:
+      operationId: patchSubmissionManifest
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SubmissionPatch'}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/start:
+    parameters:
+      - {$ref: '#/components/parameters/BatchId'}
+      - {name: sample, in: query, schema: {type: [integer, 'null'], minimum: 1}}
+    post:
+      operationId: startBatch
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BatchStart'}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/submissions/{submission_id}/retry:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}]
+    post:
+      operationId: retrySubmission
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [stage, version], properties: {stage: {enum: [extract, ocr, mark]}, reason: {type: [string, 'null']}, version: {type: integer}}}}}}
+      responses: {'202': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/submissions/{submission_id}/review:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}]
+    get: {operationId: getSubmissionReview, responses: {'200': {description: Complete review bundle, content: {application/json: {schema: {$ref: '#/components/schemas/ReviewBundle'}}}}, '404': {$ref: '#/components/responses/Error'}}}
+  /api/v1/submissions/{submission_id}/file:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}]
+    get: {operationId: getSubmissionFile, responses: {'200': {description: Original or normalized file, content: {application/octet-stream: {schema: {type: string, format: binary}}}}, '404': {$ref: '#/components/responses/Error'}}}
+  /api/v1/submissions/{submission_id}/regrade:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}]
+    post:
+      operationId: regradeSubmission
+      description: Re-run local retrieval and criterion grading with the currently configured provider.
+      responses: {'202': {$ref: '#/components/responses/JsonObject'}, '423': {$ref: '#/components/responses/Error'}}
+  /api/v1/submissions/{submission_id}/criteria/{criterion_id}:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}, {name: criterion_id, in: path, required: true, schema: {type: string, pattern: '^crt_'}}]
+    patch:
+      operationId: saveCriterionReview
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [score, comment, version], properties: {score: {type: [number, 'null']}, comment: {type: string}, version: {type: integer}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}, '423': {$ref: '#/components/responses/Error'}}
+  /api/v1/submissions/{submission_id}/confirm:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}]
+    post:
+      operationId: confirmSubmission
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version], properties: {version: {type: integer}}}}}}
+      responses: {'200': {description: Atomic confirm result, content: {application/json: {schema: {$ref: '#/components/schemas/ConfirmResult'}}}}, '409': {$ref: '#/components/responses/Error'}, '423': {$ref: '#/components/responses/Error'}}
+  /api/v1/submissions/{submission_id}/claim:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}]
+    post:
+      operationId: claimSubmission
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [version, ttl_seconds], properties: {version: {type: integer}, ttl_seconds: {type: integer, minimum: 30, maximum: 3600}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/queue/next:
+    parameters: [{$ref: '#/components/parameters/BatchId'}, {name: after, in: query, schema: {type: [string, 'null']}}]
+    get: {operationId: getNextSubmission, responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
+  /api/v1/batches/{batch_id}/results:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    get: {operationId: getBatchResults, responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}}
+  /api/v1/batches/{batch_id}/export.csv:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    get: {operationId: exportBatchCsv, responses: {'200': {description: CSV export, content: {text/csv: {schema: {type: string}}}}}}
+  /api/v1/batches/{batch_id}/finalise:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    post:
+      operationId: finaliseBatch
+      requestBody: {$ref: '#/components/requestBodies/Version'}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/reopen:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    post:
+      operationId: reopenBatch
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [reason, version], properties: {reason: {type: string, minLength: 1}, version: {type: integer}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/report-export:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    post: {operationId: createBatchPdfExport, description: Post-MVP stub, responses: {'501': {$ref: '#/components/responses/Error'}}}
+  /api/v1/submissions/{submission_id}/report:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}, {$ref: '#/components/parameters/Audience'}]
+    get: {operationId: getSubmissionReport, responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
+  /api/v1/submissions/{submission_id}/report.pdf:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}, {$ref: '#/components/parameters/Audience'}]
+    get: {operationId: getSubmissionReportPdf, responses: {'200': {description: PDF report, content: {application/pdf: {schema: {type: string, format: binary}}}}}}
+  /api/v1/rubrics:
+    get:
+      operationId: listRubrics
+      parameters: [{name: q, in: query, schema: {type: string}}, {name: source, in: query, schema: {type: string}}, {$ref: '#/components/parameters/Page'}, {$ref: '#/components/parameters/PageSize'}]
+      responses: {'200': {description: Rubric page, content: {application/json: {schema: {$ref: '#/components/schemas/RubricPage'}}}}}
+    post:
+      operationId: createRubric
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RubricWrite'}}}}
+      responses: {'201': {$ref: '#/components/responses/JsonObject'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/rubrics/parse:
+    post:
+      operationId: parseRubricText
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [text], properties: {text: {type: string}, source_name: {type: [string, 'null']}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}}
+  /api/v1/rubrics/parse-file:
+    post:
+      operationId: parseRubricFile
+      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [file], properties: {file: {type: string, format: binary}, use_ai: {type: boolean}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '202': {$ref: '#/components/responses/JsonObject'}}
+  /api/v1/rubrics/{rubric_id}:
+    parameters: [{$ref: '#/components/parameters/RubricId'}]
+    get: {operationId: getRubric, responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}}
+    put:
+      operationId: updateRubric
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RubricWrite'}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+    delete:
+      operationId: deleteRubric
+      parameters: [{name: version, in: query, required: true, schema: {type: integer}}]
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/settings/ai:
+    get:
+      operationId: getAiSettings
+      responses:
+        '200':
+          description: Safe AI settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AISettings'}
+    put:
+      operationId: updateAiSettings
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AISettingsWrite'}}}}
+      responses:
+        '200':
+          description: Safe AI settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AISettings'}
+  /api/v1/settings/ai/test:
+    post:
+      operationId: testAiSettings
+      requestBody: {required: false, content: {application/json: {schema: {type: object, properties: {provider: {type: [string, 'null']}, model: {type: [string, 'null']}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}}
+  /api/v1/settings/canvas:
+    get:
+      operationId: getCanvasSettings
+      responses:
+        '200':
+          description: Disabled Canvas settings
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CanvasSettings'}
+    put:
+      operationId: updateCanvasSettings
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CanvasSettings'}}}}
+      responses: {'501': {$ref: '#/components/responses/Error'}}
+components:
+  parameters:
+    BatchId: {name: batch_id, in: path, required: true, schema: {type: string, pattern: '^bat_'}}
+    SubmissionId: {name: submission_id, in: path, required: true, schema: {type: string, pattern: '^sub_'}}
+    RubricId: {name: rubric_id, in: path, required: true, schema: {type: string, pattern: '^rub_'}}
+    Page: {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+    PageSize: {name: page_size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 5}}
+    Audience: {name: audience, in: query, schema: {type: string, enum: [internal, student], default: internal}}
+  requestBodies:
+    Version: {required: true, content: {application/json: {schema: {type: object, required: [version], properties: {version: {type: integer}}}}}}
+  responses:
+    JsonObject: {description: JSON response, content: {application/json: {schema: {type: object}}}}
+    Error: {description: Stable error envelope, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  schemas:
+    BatchStatus: {type: string, enum: [draft, processing, in_review, completed, finalised, failed_all]}
+    SubmissionStatus: {type: string, enum: [uploaded, extracting, needs_ocr, ocr_running, ocr_failed, queued, marking, ai_done, in_review, confirmed, failed, excluded]}
+    Confidence: {type: [string, 'null'], enum: [high, medium, low, none, null]}
+    Level: {type: string, enum: [HD, DI, CR, PS, FL]}
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, details]
+          properties: {code: {type: string}, message: {type: string}, details: {type: [object, array, 'null']}}
+    Counts:
+      type: object
+      required: [total, processed, ready, low_confidence, needs_manual, processing, confirmed, adjusted, failed, excluded]
+      properties:
+        total: {type: integer, minimum: 0}
+        processed: {type: integer, minimum: 0}
+        ready: {type: integer, minimum: 0}
+        low_confidence: {type: integer, minimum: 0}
+        needs_manual: {type: integer, minimum: 0}
+        processing: {type: integer, minimum: 0}
+        confirmed: {type: integer, minimum: 0}
+        adjusted: {type: integer, minimum: 0}
+        failed: {type: integer, minimum: 0}
+        excluded: {type: integer, minimum: 0}
+    RubricSummary:
+      type: object
+      required: [id, version, title, source, criteria_count, total_weight, used_by_count, updated_at]
+      properties:
+        id: {type: string, pattern: '^rub_'}
+        version: {type: integer, minimum: 1}
+        title: {type: string}
+        source: {type: string}
+        criteria_count: {type: integer}
+        total_weight: {type: number}
+        used_by_count: {type: integer}
+        updated_at: {type: string, format: date-time}
+    CriterionDefinition:
+      type: object
+      required: [id, name, weight, description, levels]
+      properties:
+        id: {type: string, pattern: '^crt_'}
+        name: {type: string}
+        weight: {type: number}
+        description: {type: string}
+        levels:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            required: [id, label, points, min_score, max_score, description]
+            properties: {id: {type: string}, label: {type: string}, points: {type: number}, min_score: {type: number}, max_score: {type: number}, description: {type: string}}
+    CriterionWrite:
+      type: object
+      required: [name, weight, levels]
+      properties:
+        name: {type: string}
+        weight: {type: number}
+        description: {type: string}
+        levels:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            required: [label, points, description]
+            properties: {id: {type: string}, label: {type: string}, points: {type: number}, min_score: {type: number}, max_score: {type: number}, description: {type: string}}
+    BatchSummary:
+      type: object
+      required: [id, name, unit, term, due_at, status, display_status, rubric, counts, eta_seconds, created_at, started_at, completed_at, finalised_at, version]
+      properties:
+        id: {type: string, pattern: '^bat_'}
+        name: {type: string}
+        unit: {type: [string, 'null']}
+        term: {type: object, required: [id, label], properties: {id: {type: string}, label: {type: string}}}
+        due_at: {type: [string, 'null'], format: date-time}
+        status: {$ref: '#/components/schemas/BatchStatus'}
+        display_status: {type: string}
+        rubric: {anyOf: [{$ref: '#/components/schemas/RubricSummary'}, {type: 'null'}]}
+        counts: {$ref: '#/components/schemas/Counts'}
+        eta_seconds: {type: [integer, 'null']}
+        created_at: {type: string, format: date-time}
+        started_at: {type: [string, 'null'], format: date-time}
+        completed_at: {type: [string, 'null'], format: date-time}
+        finalised_at: {type: [string, 'null'], format: date-time}
+        version: {type: integer}
+    SubmissionRow:
+      type: object
+      required: [id, batch_id, sid, filename, status, ai_total, final_total, confidence, marker, flags, error, updated_at, version, _mock]
+      properties:
+        id: {type: string, pattern: '^sub_'}
+        batch_id: {type: string, pattern: '^bat_'}
+        sid: {type: [string, 'null']}
+        filename: {type: string}
+        status: {$ref: '#/components/schemas/SubmissionStatus'}
+        ai_total: {type: [number, 'null']}
+        final_total: {type: [number, 'null']}
+        confidence: {$ref: '#/components/schemas/Confidence'}
+        marker: {type: [object, 'null']}
+        flags: {type: array, items: {type: string}}
+        error: {type: [object, 'null']}
+        updated_at: {type: string, format: date-time}
+        version: {type: integer}
+        _mock: {type: boolean}
+    BatchPage: {type: object, required: [items, page, page_size, total], properties: {items: {type: array, items: {$ref: '#/components/schemas/BatchSummary'}}, page: {type: integer}, page_size: {type: integer}, total: {type: integer}, _mock: {type: boolean}}}
+    SubmissionPage: {type: object, required: [items, page, page_size, total, filter_counts], properties: {items: {type: array, items: {$ref: '#/components/schemas/SubmissionRow'}}, page: {type: integer}, page_size: {type: integer}, total: {type: integer}, filter_counts: {$ref: '#/components/schemas/Counts'}, _mock: {type: boolean}}}
+    RubricPage: {type: object, required: [items, page, page_size, total], properties: {items: {type: array, items: {$ref: '#/components/schemas/RubricSummary'}}, page: {type: integer}, page_size: {type: integer}, total: {type: integer}}}
+    BatchCreate: {type: object, required: [name, term_id], properties: {name: {type: string}, unit: {type: [string, 'null']}, term_id: {type: string}, due_at: {type: [string, 'null'], format: date-time}, rubric_id: {type: [string, 'null']}, rubric_version: {type: [integer, 'null']}}}
+    BatchStart: {type: object, required: [provider, model, concurrency, external_processing_acknowledged, estimated_cost_acknowledged], properties: {provider: {type: string}, model: {type: string}, concurrency: {type: integer, minimum: 1}, external_processing_acknowledged: {type: boolean}, estimated_cost_acknowledged: {type: boolean}}}
+    SubmissionPatch: {type: object, required: [version], properties: {student_id: {type: [string, 'null']}, excluded: {type: [boolean, 'null']}, excluded_reason: {type: [string, 'null']}, selected_file_id: {type: [string, 'null']}, version: {type: integer}}}
+    RubricWrite: {type: object, required: [title, source, criteria], properties: {title: {type: string}, source: {type: string}, version: {type: integer}, criteria: {type: array, minItems: 1, items: {$ref: '#/components/schemas/CriterionWrite'}}}}
+    ReviewBundle:
+      type: object
+      required: [submission, batch, document, rubric, evidence, can_edit, claim, _mock]
+      properties: {submission: {type: object}, batch: {type: object}, document: {type: object}, rubric: {type: object}, evidence: {type: array, items: {type: object}}, can_edit: {type: boolean}, claim: {type: [object, 'null']}, demo_banner: {type: [string, 'null']}, _mock: {type: boolean}}
+    ConfirmResult:
+      type: object
+      required: [submission_id, status, confirmed_at, next_id, batch_status, remaining]
+      properties:
+        submission_id: {type: string, pattern: '^sub_'}
+        status: {const: confirmed}
+        confirmed_at: {type: string, format: date-time}
+        next_id: {type: [string, 'null']}
+        batch_status: {$ref: '#/components/schemas/BatchStatus'}
+        remaining: {type: object, required: [ready, processing, failed], properties: {ready: {type: integer}, processing: {type: integer}, failed: {type: integer}}}
+    AISettings: {type: object, required: [provider, model, base_url, uses_university_gateway, has_api_key, available_models], properties: {provider: {type: string}, model: {type: string}, base_url: {type: [string, 'null']}, uses_university_gateway: {type: boolean}, has_api_key: {type: boolean}, available_models: {type: array, items: {type: string}}}}
+    AISettingsWrite: {type: object, required: [provider, model, uses_university_gateway], properties: {provider: {type: string}, model: {type: string}, base_url: {type: [string, 'null']}, api_key: {type: [string, 'null']}, uses_university_gateway: {type: boolean}, clear_api_key: {type: boolean}}}
+    CanvasSettings: {type: object, required: [enabled, base_url, has_token], properties: {enabled: {const: false}, base_url: {type: [string, 'null']}, has_token: {type: boolean}}}

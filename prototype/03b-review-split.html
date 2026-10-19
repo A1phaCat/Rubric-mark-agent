@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SID-40219 — Review — AI-assisted marker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* USyd layered palette */
+    --paper:#F3EEE8; --surface:#FFFFFF; --tint:#FAF6F1;
+    --ink:#424242; --ink-soft:#6E655E; --border:#E2D8CE; --border-strong:#D3C7BB;
+    --primary:#E64626; --primary-soft:#FBE4DB; --primary-wash:#FDF2EC;
+    --chrome:#424242; --on-chrome:#FFFFFF; --on-chrome-soft:#BDBDBD;
+    --track:#E9E2DA; --hover:#ECE4DB;
+    --info:#007DC1; --info-bg:#DFF4FF;
+    --ai:#8F3F24; --ai-bg:#F6E7DC; --ai-ink:#4E3B31;
+    --risk:#C8102E; --risk-bg:#FBE5E8;
+    --conf-high:#2F7A45; --conf-high-bg:#E3F1E5;
+    --conf-med:#7A5A00;  --conf-med-dot:#F2A900; --conf-med-bg:#FFF3CC;
+    --conf-low:#C8102E;  --conf-low-bg:#FBE5E8;
+    /* evidence highlight (Youdao-style warm peach) */
+    --hl-idle:#FBEDE3; --hl-line:#E9B99A; --hl-active:#FFDDB8; --hl-ring:#E64626;
+    --head-h:68px; --foot-h:68px;
+  }
+  *{box-sizing:border-box;}
+  html,body{ height:100%; }
+  @media (min-width:901px){ html{ overflow:hidden; } }
+  body{ margin:0; background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif; font-size:14.5px; line-height:1.5; overflow:hidden; }
+  button, input, textarea{ font:inherit; color:inherit; }
+
+  /* ---------- Top bar ---------- */
+  header{ height:var(--head-h); display:flex; align-items:center; justify-content:space-between; gap:20px; padding:0 28px; background:var(--chrome); }
+  .hleft{ display:flex; align-items:center; gap:18px; min-width:0; }
+  .back{ color:var(--on-chrome-soft); text-decoration:none; font-size:13px; white-space:nowrap; }
+  .back:hover{ color:var(--on-chrome); }
+  .brand-mark{ font-family:'Source Serif 4',serif; font-weight:600; font-size:17px; color:var(--on-chrome); }
+  .sub-meta{ font-size:12px; color:var(--on-chrome-soft); font-family:'IBM Plex Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hright{ display:flex; align-items:center; gap:22px; }
+  .totalbox{ text-align:right; }
+  .totalbox .lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--on-chrome-soft); }
+  .totalbox .lbl .ai{ text-transform:none; letter-spacing:0; font-size:12.5px; }
+  .totalbox .num{ font-family:'IBM Plex Mono',monospace; font-size:19px; color:var(--on-chrome); font-weight:500; line-height:1.2; }
+  .totalbox .num span{ color:var(--on-chrome-soft); font-weight:400; }
+  .btn{ font-weight:500; font-size:13.5px; border:none; border-radius:7px; padding:10px 18px; cursor:pointer; white-space:nowrap; }
+  .btn-primary{ background:var(--primary); color:#fff; }
+  .btn-primary:hover{ opacity:.9; }
+
+  /* ---------- Split layout ---------- */
+  .split{ height:calc(100% - var(--head-h) - var(--foot-h)); display:grid; grid-template-columns:var(--left, 46%) 10px minmax(0,1fr); grid-template-rows:100%; overflow:hidden; }
+  .split.collapsed{ grid-template-columns:44px 0 minmax(0,1fr); }
+
+  /* Left: submission */
+  .doc-pane{ display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; background:#E9E2D9; border-right:1px solid var(--border); }
+  .doc-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px; background:var(--surface); border-bottom:1px solid var(--border); flex:none; }
+  .doc-bar .file{ display:flex; align-items:center; gap:10px; min-width:0; }
+  .doc-bar .file b{ font-weight:500; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .doc-bar .file span{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft); white-space:nowrap; }
+  .doc-tools{ display:flex; align-items:center; gap:10px; flex:none; }
+  .switch{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-soft); cursor:pointer; user-select:none; }
+  .switch input{ accent-color:var(--primary); width:15px; height:15px; }
+  .icon-btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px; height:30px; padding:0 10px; border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); cursor:pointer; font-size:12px; color:var(--ink-soft); }
+  .icon-btn:hover{ color:var(--ink); background:var(--tint); }
+  .doc-scroll{ flex:1; min-height:0; overflow:auto; padding:22px 22px 60px; scroll-behavior:smooth; }
+  .sheet{ max-width:700px; margin:0 auto 18px; background:var(--surface); box-shadow:0 1px 3px rgba(66,66,66,.12), 0 6px 20px rgba(66,66,66,.06); padding:46px 54px 40px; position:relative; }
+  .sheet .pno{ position:absolute; top:14px; right:18px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); }
+  .sheet h1{ font-family:'Source Serif 4',serif; font-weight:600; font-size:21px; line-height:1.3; margin:0 0 6px; }
+  .sheet .byline{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft); margin:0 0 22px; }
+  .sheet h2{ font-family:'Source Serif 4',serif; font-weight:600; font-size:15.5px; margin:20px 0 8px; }
+  .sheet p{ font-family:'Source Serif 4',serif; font-size:15.5px; line-height:1.75; margin:0 0 14px; position:relative; }
+  .sheet p::before{ content:attr(data-p); position:absolute; left:-38px; top:4px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#B5A99D; }
+
+  mark.ev{ background:transparent; color:inherit; border-radius:3px; padding:1px 0; transition:background .15s, box-shadow .15s; cursor:pointer; }
+  .show-all mark.ev{ background:var(--hl-idle); box-shadow:inset 0 -2px 0 var(--hl-line); }
+  mark.ev .tag{ display:none; }
+  .show-all mark.ev .tag, mark.ev.on .tag{ display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:9.5px; line-height:1; vertical-align:super; color:#fff; background:var(--ai); border-radius:3px; padding:2px 4px; margin-right:3px; font-style:normal; }
+  mark.ev.on{ background:var(--hl-active) !important; box-shadow:0 0 0 2px var(--hl-active), inset 0 -2px 0 var(--hl-ring) !important; }
+  mark.ev.pulse{ animation:pulse 1s ease 2; }
+  @keyframes pulse{ 0%,100%{ outline:0 solid transparent; } 50%{ outline:4px solid rgba(230,70,38,.35); outline-offset:2px; } }
+
+  .rail{ display:none; }
+  .split.collapsed .doc-pane > *{ display:none; }
+  .split.collapsed .doc-pane{ background:var(--surface); }
+  .split.collapsed .rail{ display:flex; flex-direction:column; align-items:center; gap:12px; padding-top:14px; height:100%; cursor:pointer; border:0; background:transparent; width:100%; }
+  .rail span{ writing-mode:vertical-rl; transform:rotate(180deg); font-size:12px; color:var(--ink-soft); letter-spacing:.04em; }
+
+  /* Divider */
+  .divider{ cursor:col-resize; background:transparent; position:relative; }
+  .divider::after{ content:""; position:absolute; top:50%; left:3px; width:4px; height:44px; margin-top:-22px; border-radius:3px; background:var(--border-strong); }
+  .divider:hover::after, .divider.drag::after{ background:var(--primary); }
+  .split.collapsed .divider{ visibility:hidden; pointer-events:none; }  /* keep its grid slot so the marking pane stays in column 3 */
+
+  /* Right: marking */
+  .mark-pane{ overflow:auto; scroll-behavior:smooth; min-width:0; min-height:0; }
+  .crit-strip{ position:sticky; top:0; z-index:5; display:flex; gap:6px; flex-wrap:wrap; padding:12px 28px; background:rgba(243,238,232,.94); backdrop-filter:blur(4px); border-bottom:1px solid var(--border); }
+  .crit-strip a{ display:inline-flex; align-items:center; gap:7px; padding:6px 11px; border-radius:20px; border:1px solid var(--border); background:var(--surface); font-size:12.5px; color:var(--ink-soft); text-decoration:none; }
+  .crit-strip a:hover, .crit-strip a.on{ border-color:var(--primary); color:var(--ink); }
+  .crit-strip .st{ width:7px; height:7px; border-radius:50%; background:var(--ai); }
+  .crit-strip .st.done{ background:var(--info); }
+  .crit-strip .w{ font-family:'IBM Plex Mono',monospace; font-size:11px; }
+  .mark-inner{ padding:20px 28px 40px; max-width:900px; }
+  .doc-header h1{ font-family:'Source Serif 4',serif; font-size:22px; margin:0 0 4px; font-weight:600; }
+  .doc-header p{ margin:0 0 20px; color:var(--ink-soft); font-size:13px; }
+
+  .crit-card{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:22px 24px; margin-bottom:18px; scroll-margin-top:64px; transition:box-shadow .15s, border-color .15s; }
+  .crit-card.flagged{ border-color:var(--risk); box-shadow:0 0 0 1px var(--risk) inset; }
+  .crit-card.linked{ box-shadow:0 0 0 3px var(--hl-active); }
+  .crit-card.flagged.linked{ box-shadow:0 0 0 1px var(--risk) inset, 0 0 0 3px var(--hl-active); }
+  .crit-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px; }
+  .crit-title{ font-family:'Source Serif 4',serif; font-size:17px; font-weight:600; margin:0 0 3px; }
+  .crit-desc{ font-size:12.5px; color:var(--ink-soft); margin:0; }
+  .crit-weight-badge{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--primary); background:var(--primary-soft); padding:3px 10px; border-radius:20px; flex:none; }
+  .conf-tag{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; padding:3px 9px; border-radius:20px; font-weight:500; margin-bottom:14px; }
+  .conf-tag .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .conf-tag.high{ background:var(--conf-high-bg); color:var(--conf-high); }
+  .conf-tag.medium{ background:var(--conf-med-bg); color:var(--conf-med); }
+  .conf-tag.medium .dot{ background:var(--conf-med-dot); }
+  .conf-tag.low{ background:var(--conf-low-bg); color:var(--conf-low); }
+
+  .evidence{ background:var(--tint); border:1px solid var(--border); border-radius:8px; padding:16px 18px; margin-bottom:10px; position:relative; cursor:pointer; transition:background .15s, border-color .15s; }
+  .evidence:hover, .evidence.on{ background:#FFF6EC; border-color:var(--hl-line); }
+  .evidence .tab{ position:absolute; top:-9px; left:16px; background:var(--chrome); color:#fff; font-size:10.5px; font-family:'IBM Plex Mono',monospace; padding:2px 8px; border-radius:4px; }
+  .evidence .jump{ position:absolute; top:10px; right:12px; font-size:11.5px; color:var(--ink-soft); opacity:0; transition:opacity .15s; }
+  .evidence:hover .jump, .evidence.on .jump{ opacity:1; }
+  .evidence blockquote{ margin:8px 0 0; font-family:'Source Serif 4',serif; font-style:italic; font-size:14.5px; line-height:1.6; border-left:2px solid var(--primary); padding-left:14px; }
+  .evidence.on blockquote{ border-left-color:var(--hl-ring); background:linear-gradient(90deg, var(--hl-active), transparent 85%); }
+  .also{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:0 0 14px; font-size:12px; color:var(--ink-soft); }
+  .also .chip{ display:inline-flex; align-items:center; gap:6px; max-width:100%; padding:4px 10px; border:1px solid var(--border); border-radius:20px; background:var(--surface); cursor:pointer; font-size:12px; color:var(--ink); }
+  .also .chip b{ font-family:'IBM Plex Mono',monospace; font-weight:500; font-size:11px; color:var(--ink-soft); }
+  .also .chip i{ font-family:'Source Serif 4',serif; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:300px; }
+  .also .chip:hover, .also .chip.on{ border-color:var(--hl-line); background:#FFF6EC; }
+
+  .ai-box{ display:flex; gap:14px; padding:14px 16px; background:var(--ai-bg); border-radius:8px; margin-bottom:16px; }
+  .ai-box .badge{ font-size:10.5px; font-weight:600; color:#fff; background:var(--ai); padding:3px 8px; border-radius:5px; flex:none; height:fit-content; font-family:'IBM Plex Mono',monospace; }
+  .ai-box .reason{ font-size:13px; color:var(--ai-ink); line-height:1.55; }
+  .ai-box .reason b{ font-family:'IBM Plex Mono',monospace; font-weight:500; }
+  .ai-box .reason a{ color:var(--ai); font-family:'IBM Plex Mono',monospace; font-size:12px; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+
+  .marker-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-top:12px; border-top:1px dashed var(--border); }
+  .marker-row label{ font-size:12.5px; color:var(--ink-soft); }
+  .score-input{ width:64px; padding:8px 10px; border-radius:6px; border:1.5px solid var(--primary); font-family:'IBM Plex Mono',monospace; font-size:14px; text-align:center; background:#fff; }
+  .score-input.confirmed{ border-color:var(--info); background:var(--info-bg); }
+  .score-max{ font-size:12.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; }
+  .accept-btn{ font-size:12.5px; font-weight:500; padding:8px 14px; border-radius:6px; border:1px solid var(--info); background:#fff; color:var(--info); cursor:pointer; }
+  .accept-btn:hover{ background:var(--info-bg); }
+  .status-text{ font-size:12px; color:var(--ink-soft); margin-left:auto; }
+  .status-text.confirmed{ color:var(--info); }
+  .comment-field{ margin-top:14px; }
+  .comment-field .lbl{ display:flex; align-items:baseline; gap:6px; font-size:12.5px; font-weight:500; color:var(--ink); margin-bottom:6px; }
+  .comment-field .lbl span{ font-weight:400; font-size:11.5px; color:var(--ink-soft); }
+  .comment-field textarea{ width:100%; min-height:64px; border:1px solid var(--border-strong); border-radius:7px; padding:10px 12px; font-size:13px; line-height:1.5; resize:vertical; background:var(--surface); transition:border-color .15s, box-shadow .15s; }
+  .comment-field textarea:focus{ outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-wash); }
+  .comment-field .cm-hint{ display:none; margin-top:6px; font-size:12px; color:var(--conf-med); }
+  .comment-field.needs textarea{ border-color:var(--conf-med-dot); background:var(--conf-med-bg); }
+  .comment-field.needs .cm-hint{ display:block; }
+  .crit-sum .cm{ color:var(--ink); }
+
+  /* Footer */
+  footer.actionbar{ height:var(--foot-h); background:var(--surface); border-top:1px solid var(--border); padding:0 28px; display:flex; justify-content:space-between; align-items:center; gap:16px; }
+  .final{ display:flex; align-items:center; gap:12px; font-size:13.5px; color:var(--ink-soft); }
+  .final b{ font-family:'IBM Plex Mono',monospace; font-size:18px; color:var(--primary); }
+  .hint{ font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px; }
+  .hint kbd{ font-family:'IBM Plex Mono',monospace; font-size:11px; border:1px solid var(--border-strong); border-bottom-width:2px; border-radius:4px; padding:0 5px; background:var(--tint); }
+
+  /* Small screens: stack, submission on top */
+  @media (max-width:900px){
+    body{ overflow:auto; }
+    .split{ overflow:visible; }
+    .mark-pane{ overflow:visible; }
+    header{ padding:0 16px; }
+    .sub-meta, .totalbox .lbl, .hint{ display:none; }
+    .totalbox{ display:none; }  /* total is shown in the footer on phones */
+    .doc-bar{ padding:8px 12px; }
+    .doc-bar .file span, .doc-bar .file svg{ display:none; }
+    .doc-bar .file b{ font-size:12px; }
+    .switch{ white-space:nowrap; }
+    .split, .split.collapsed{ display:block; height:auto; }
+    .divider{ display:none; }
+    .doc-pane{ height:52vh; border-right:0; border-bottom:1px solid var(--border); }
+    .split.collapsed .doc-pane{ height:44px; }
+    .split.collapsed .rail{ flex-direction:row; justify-content:center; padding:0; }
+    .rail span{ writing-mode:horizontal-tb; transform:none; }
+    .doc-scroll{ padding:14px 10px 30px; }
+    .sheet{ padding:30px 22px 26px 34px; }
+    .sheet p::before{ left:-26px; }
+    .crit-strip{ padding:10px 16px; }
+    .mark-inner{ padding:16px 16px 30px; }
+    footer.actionbar{ position:sticky; bottom:0; padding:0 16px; }
+  }
+
+  /* ---- Collapsible criteria + highlight-all ---- */
+  .crit-top{ border-radius:6px; }
+  .crit-title{ cursor:pointer; }
+  .crit-top{ justify-content:flex-start; }
+  .crit-top > div:not(.crit-ctl){ flex:1; min-width:0; }
+  .split.collapsed .mark-inner{ margin:0 auto; }
+  .crit-top:hover .crit-title{ color:var(--primary); }
+  .crit-top:focus-visible{ outline:2px solid var(--primary); outline-offset:4px; }
+  .crit-ctl{ display:flex; align-items:center; gap:8px; flex:none; }
+  .hl-group{ display:inline-flex; align-items:center; gap:6px; }
+  .hl-btn{ display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); font-size:12px; color:var(--ink-soft); cursor:pointer; white-space:nowrap; }
+  .hl-btn:hover{ color:var(--ink); border-color:var(--hl-line); background:#FFF6EC; }
+  .hl-btn[aria-pressed="true"]{ background:var(--hl-active); border-color:var(--hl-ring); color:var(--ink); }
+  .hl-step{ display:none; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft); }
+  .crit-card.hl-active .hl-step{ display:inline-flex; }
+  .hl-step button{ width:24px; height:28px; border:1px solid var(--border-strong); background:var(--surface); border-radius:6px; cursor:pointer; font-size:14px; line-height:1; color:var(--ink); }
+  .hl-step button:hover{ background:var(--tint); }
+  .fold-btn{ width:26px; height:26px; flex:none; margin-top:-1px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); color:var(--ink-soft); cursor:pointer; padding:0; }
+  .fold-btn svg{ transition:transform .15s; }
+  .fold-btn:hover{ color:var(--primary); border-color:var(--primary); background:var(--primary-wash); }
+  .fold-btn:focus-visible{ outline:2px solid var(--primary); outline-offset:2px; }
+  .crit-card.closed .fold-btn svg{ transform:rotate(-90deg); }
+  .crit-top{ gap:12px; }
+  .crit-card.closed .crit-body{ display:none; }
+  .crit-card.closed .crit-top{ margin-bottom:0; }
+  .crit-card.closed{ padding-top:16px; padding-bottom:16px; }
+  .crit-sum{ display:none; margin:6px 0 0; font-size:12.5px; color:var(--ink-soft); }
+  .crit-sum b{ font-family:'IBM Plex Mono',monospace; font-weight:500; color:var(--ink); }
+  .crit-card.closed .crit-sum{ display:block; }
+  .crit-card.hl-active{ box-shadow:0 0 0 2px var(--hl-ring); }
+  .crit-card.flagged.hl-active{ box-shadow:0 0 0 1px var(--risk) inset, 0 0 0 2px var(--hl-ring); }
+  .doc-header{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .fold-all{ height:30px; padding:0 12px; border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); font-size:12px; color:var(--ink-soft); cursor:pointer; flex:none; }
+  .fold-all:hover{ color:var(--ink); background:var(--tint); }
+
+  /* Criterion mode on the left: only that criterion's passages stay lit */
+  .doc-pane{ position:relative; }
+  .crit-mode mark.ev{ background:transparent !important; box-shadow:none !important; }
+  .crit-mode mark.ev .tag{ display:none !important; }
+  .crit-mode mark.ev.crit-on{ background:var(--hl-active) !important; box-shadow:inset 0 -2px 0 var(--hl-ring) !important; }
+  .crit-mode mark.ev.crit-on .tag{ display:inline-block !important; }
+  .crit-mode mark.ev.on{ background:var(--hl-active) !important; box-shadow:0 0 0 2px var(--hl-active), inset 0 -2px 0 var(--hl-ring) !important; }
+  .crit-notice{ flex:none; align-self:center; margin:10px 12px 0; display:flex; align-items:center; gap:8px; padding:6px 6px 6px 14px; background:var(--chrome); color:var(--on-chrome); border-radius:999px; font-size:12.5px; box-shadow:0 6px 20px rgba(66,66,66,.25); z-index:6; white-space:nowrap; max-width:calc(100% - 24px); }
+  .crit-notice[hidden]{ display:none; }
+  .crit-notice b{ font-weight:500; overflow:hidden; text-overflow:ellipsis; }
+  .crit-notice .pos{ font-family:'IBM Plex Mono',monospace; color:var(--on-chrome-soft); }
+  .crit-notice button{ width:28px; height:28px; border-radius:50%; border:0; background:rgba(255,255,255,.12); color:#fff; cursor:pointer; font-size:14px; line-height:1; }
+  .crit-notice button:hover{ background:rgba(255,255,255,.22); }
+  @media (max-width:900px){
+    .crit-top{ flex-wrap:wrap; }
+    .crit-ctl{ order:3; width:100%; justify-content:flex-start; }
+    .doc-header{ flex-direction:column; gap:8px; }
+  }
+
+  /* ===== Shared top bar (logo · AI-assisted marker · Prototype · user) ===== */
+  header.app-bar{ flex-wrap:nowrap; display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:20px; height:68px; min-height:68px; padding:0 28px; background:var(--chrome); }
+  .ab-left{ display:flex; align-items:center; gap:16px; min-width:0; flex:1 1 auto; }
+  .ab-right{ display:flex; align-items:center; gap:18px; flex:none; }
+  .ab-back{ display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:7px; border:1px solid rgba(255,255,255,.2); color:var(--on-chrome-soft); text-decoration:none; font-family:'Inter',sans-serif; font-size:13px; white-space:nowrap; flex:none; }
+  .ab-back:hover{ color:var(--on-chrome); border-color:rgba(255,255,255,.45); }
+  .ab-brand{ display:flex; align-items:center; gap:12px; text-decoration:none; flex:none; }
+  .ab-brand img{ height:46px; width:auto; display:block; }
+  .ab-div{ width:1px; height:26px; background:rgba(255,255,255,.28); }
+  .ab-name{ font-family:'Source Serif 4',serif; font-weight:600; font-size:16px; color:var(--on-chrome); white-space:nowrap; }
+  .ab-proto{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; color:#F4A68F; border:1px solid rgba(230,70,38,.75); border-radius:4px; padding:2px 6px; white-space:nowrap; cursor:help; }
+  .ab-meta{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--on-chrome-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .ab-nav{ display:flex; gap:4px; }
+  .ab-nav a{ padding:7px 11px; border-radius:7px; color:var(--on-chrome-soft); text-decoration:none; font-family:'Inter',sans-serif; font-size:13.5px; white-space:nowrap; }
+  .ab-nav a:hover{ color:var(--on-chrome); background:rgba(255,255,255,.06); }
+  .ab-nav a.current{ color:var(--on-chrome); background:rgba(255,255,255,.12); font-weight:500; }
+  .ab-actions{ display:flex; align-items:center; gap:16px; }
+  .ab-user{ display:flex; align-items:center; gap:10px; padding-left:18px; border-left:1px solid rgba(255,255,255,.16); font-family:'Inter',sans-serif; }
+  .ab-uname{ font-size:13px; color:var(--on-chrome); white-space:nowrap; }
+  .ab-role{ padding:3px 9px; border-radius:6px; border:1px solid rgba(255,255,255,.22); font-size:12px; color:var(--on-chrome-soft); }
+  .ab-avatar{ width:32px; height:32px; border-radius:50%; background:#9A8F86; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; flex:none; }
+  /* Step tracker sits in a light strip under the bar */
+  .ab-steps{ background:var(--surface); border-bottom:1px solid var(--border); }
+  .ab-steps-in{ max-width:1180px; margin:0 auto; padding:10px 40px; }
+  .ab-steps .step-track, .ab-steps .steps{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft) !important; }
+  .ab-steps .step-track *, .ab-steps .steps *{ color:var(--ink-soft); }
+  .ab-steps .current{ color:var(--primary) !important; font-weight:500; border-bottom:2px solid var(--primary); padding-bottom:1px; }
+  .ab-steps .done, .ab-steps .ok{ color:var(--conf-high) !important; }
+  .ab-steps .done::before{ color:var(--conf-high) !important; }
+  @media (max-width:1250px){ .ab-meta{ display:none; } }
+  @media (max-width:1080px){ .ab-uname{ display:none; } }
+  @media (max-width:900px){
+    header.app-bar{ height:60px; min-height:60px; padding:0 14px; gap:10px; flex-direction:row; align-items:center; }
+    .ab-left{ gap:10px; }
+    .ab-name, .ab-div, .ab-role, .ab-nav, .ab-meta{ display:none; }
+    .ab-brand img{ height:38px; }
+    .ab-back{ padding:6px 9px; }
+    .ab-back .lbl{ display:none; }
+    .ab-user{ padding-left:10px; }
+    .ab-actions.hide-sm{ display:none; }
+    .ab-steps-in{ padding:8px 16px; }
+  }
+  @media (max-width:420px){ .ab-brand img{ height:34px; } .ab-proto{ font-size:9.5px; padding:1px 4px; } }
+
+  /* Breadcrumb after the Prototype tag — logo + name never move between pages */
+  .ab-crumbs{ display:flex; align-items:center; gap:0; min-width:0; font-family:'Inter',sans-serif; font-size:13.5px; padding-left:16px; border-left:1px solid rgba(255,255,255,.18); height:26px; }
+  .ab-crumbs ol{ display:flex; align-items:center; list-style:none; margin:0; padding:0; min-width:0; }
+  .ab-crumbs li{ display:flex; align-items:center; min-width:0; white-space:nowrap; }
+  .ab-crumbs li + li::before{ content:""; width:6px; height:6px; margin:0 11px 0 9px; border-right:1.5px solid rgba(255,255,255,.35); border-top:1.5px solid rgba(255,255,255,.35); transform:rotate(45deg); flex:none; }
+  .ab-crumbs a{ color:var(--on-chrome-soft); text-decoration:none; padding:4px 6px; margin:0 -6px; border-radius:6px; }
+  .ab-crumbs a:hover{ color:var(--on-chrome); background:rgba(255,255,255,.08); }
+  .ab-crumbs [aria-current]{ color:var(--on-chrome); font-weight:500; overflow:hidden; text-overflow:ellipsis; }
+  .ab-crumbs .bc-up{ display:none; }
+  @media (max-width:1250px){ .ab-crumbs li.bc-home{ display:none; } .ab-crumbs li.bc-home + li::before{ display:none; } }
+  @media (max-width:900px){
+    .ab-crumbs{ padding-left:10px; font-size:13px; }
+    .ab-crumbs ol{ display:none; }
+    .ab-crumbs .bc-up{ display:inline-flex; align-items:center; gap:6px; color:var(--on-chrome-soft); text-decoration:none; white-space:nowrap; max-width:40vw; min-width:0; }
+  }
+  .ab-crumbs .bc-up .t{ overflow:hidden; text-overflow:ellipsis; }
+  @media print{ header.app-bar, .ab-steps{ display:none; } }
+
+  /* ---- Review progress (top right) ---- */
+  .rv-prog{ min-width:190px; font-family:'Inter',sans-serif; cursor:help; }
+  .rv-top{ display:flex; align-items:baseline; gap:7px; }
+  .rv-lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--on-chrome-soft); }
+  .rv-num{ font-family:'IBM Plex Mono',monospace; font-size:18px; color:var(--on-chrome); line-height:1.1; }
+  .rv-num b{ font-weight:500; }
+  .rv-num .sl{ color:var(--on-chrome-soft); margin:0 2px; }
+  .rv-num #pgReady{ transition:color .4s; }
+  .rv-num #pgReady.bump{ color:#F4A68F; }
+  .rv-unit{ font-size:11.5px; color:var(--on-chrome-soft); }
+  .rv-bar{ position:relative; height:4px; margin:5px 0 4px; background:rgba(255,255,255,.14); border-radius:2px; overflow:hidden; }
+  .rv-bar s{ position:absolute; inset:0 auto 0 0; background:rgba(255,255,255,.28); transition:width .5s; }
+  .rv-bar i{ position:absolute; inset:0 auto 0 0; background:var(--primary); z-index:1; transition:width .4s; }
+  .rv-sub{ font-size:11px; color:var(--on-chrome-soft); display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .rv-sub .dot{ width:6px; height:6px; border-radius:50%; background:#F2A900; animation:rvpulse 1.4s ease-in-out infinite; }
+  .rv-sub.done .dot{ background:#7BC48E; animation:none; }
+  @keyframes rvpulse{ 50%{ opacity:.25; } }
+
+  /* ---- Footer nav ---- */
+  .final .ai-sug{ font-size:12px; color:var(--ink-soft); padding:2px 8px; border-radius:999px; background:var(--ai-bg, #F6E7DC); }
+  .nav-btns{ display:flex; align-items:center; gap:8px; }
+  .btn-ghost{ background:var(--surface); color:var(--ink); border:1px solid var(--border-strong); padding:9px 14px; }
+  .btn-ghost:hover{ background:var(--tint); }
+  .btn-ghost:disabled{ opacity:.45; cursor:default; background:var(--surface); }
+  .toast{ position:fixed; left:50%; bottom:calc(var(--foot-h) + 14px); transform:translate(-50%,8px); background:var(--chrome); color:#fff; font-size:13px; padding:9px 16px; border-radius:999px; box-shadow:0 8px 24px rgba(66,66,66,.28); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:50; white-space:nowrap; }
+  .toast.show{ opacity:1; transform:translate(-50%,0); }
+  @media (max-width:1180px){ footer.actionbar .hint{ display:none; } }
+  @media (max-width:900px){
+    .rv-prog{ min-width:0; }
+    .rv-lbl, .rv-unit, .rv-sub, .rv-bar{ display:none; }
+    .rv-num{ font-size:15px; }
+    .final .ai-sug{ display:none; }
+    .final{ gap:6px; font-size:12.5px; }
+    .btn-ghost{ padding:8px 10px; }
+    #btnPrev .t{ display:none; }
+  }
+  @media (max-width:520px){
+    footer.actionbar{ gap:8px; }
+    .final{ display:none; }
+    .nav-btns{ width:100%; }
+    .nav-btns .btn{ flex:1; padding:9px 6px; font-size:13px; }
+  }
+
+  /* ---- End card: batch complete / waiting for the AI ---- */
+  .end-card{ position:fixed; inset:0; z-index:80; background:rgba(40,36,33,.42); display:flex; align-items:center; justify-content:center; padding:20px; }
+  .end-card[hidden]{ display:none; }
+  .ec-box{ width:min(460px, 100%); background:var(--surface); border-radius:14px; box-shadow:0 24px 60px rgba(40,36,33,.3); padding:30px 30px 22px; text-align:center; font-family:'Inter',sans-serif; }
+  .ec-icon{ width:56px; height:56px; border-radius:50%; margin:0 auto 14px; display:flex; align-items:center; justify-content:center; }
+  .ec-icon.ok{ background:var(--conf-high-bg); color:var(--conf-high); }
+  .ec-icon.wait{ background:var(--conf-med-bg); }
+  .ec-spin{ width:24px; height:24px; border-radius:50%; border:3px solid rgba(242,169,0,.3); border-top-color:var(--conf-med-dot); animation:ecspin .9s linear infinite; }
+  @keyframes ecspin{ to{ transform:rotate(360deg); } }
+  .ec-kicker{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); }
+  .end-card[data-kind="done"] .ec-kicker{ color:var(--conf-high); }
+  .ec-box h2{ font-family:'Source Serif 4',serif; font-weight:600; font-size:24px; margin:4px 0 8px; }
+  .ec-sub{ font-size:14px; color:var(--ink-soft); margin:0 auto 16px; max-width:360px; }
+  .ec-sub b{ color:var(--ink); font-weight:600; }
+  .ec-stats{ display:flex; justify-content:center; gap:0; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:18px; background:var(--tint); }
+  .ec-stats span{ flex:1; padding:10px 6px; font-size:12px; color:var(--ink-soft); display:flex; flex-direction:column; }
+  .ec-stats span + span{ border-left:1px solid var(--border); }
+  .ec-stats b{ font-family:'IBM Plex Mono',monospace; font-weight:500; font-size:18px; color:var(--ink); }
+  .ec-actions{ display:flex; flex-direction:column; gap:8px; }
+  .ec-actions .btn{ width:100%; justify-content:center; text-align:center; text-decoration:none; display:inline-flex; align-items:center; }
+  .ec-actions .btn-primary:disabled{ background:#C9BFB6; cursor:default; opacity:1; }
+  .ec-actions .btn.pulse{ animation:ecpulse 1.4s ease-in-out 3; }
+  @keyframes ecpulse{ 50%{ box-shadow:0 0 0 6px var(--primary-soft); } }
+  .ec-links{ display:flex; justify-content:center; gap:18px; margin-top:14px; font-size:12.5px; }
+  .ec-links a, .ec-links button{ color:var(--ink-soft); background:none; border:0; padding:0; font:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+  .ec-links a:hover, .ec-links button:hover{ color:var(--primary); }
+  footer.actionbar .btn:disabled{ opacity:.45; cursor:default; }
+</style>
+</head>
+<body>
+
+<header class="app-bar">
+  <div class="ab-left">
+    <a class="ab-brand" href="00-home.html" aria-label="AI-assisted marker — home">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAACwCAYAAACmXEQkAAAxVElEQVR42u2dd5hdVbn/P+dMz6R3SCAhgRAEFAihSQldhYACekFUbHgRLqhXuaBeNerPeq8UK4KKcEE6KE06KBB6J5QAgRQIpE0ymWT6rN8f73d5Vvbs02bOJGdm9vs8+5k5++yzy9rf9a63vynnHAl1ozRQBVQHWz0wAhgODAOG6m8aGAtUAIUMZgpoA9bo+A1AI9CufU3AOh3Trr+tQEfyWvJT5SAGbA1QBwwBxgNbAROBcfo8DhgTbEME8iqNW2UwfhU9uIdO/e3Q1iXwdujvWm1rgBXAamAV8B7wLrBc3zUDG/WbQU+pAc6hK8RZ64EJwDRgm2CbDGwtblsrkFeV8fN0iWu3Ai3i5MuApfq7BFisbaW4f0uBK0cC6DKjWokAE4DtgenatgemAKME7Fpx6GKpQ0DyIkCruOYGcdIOcdDOHJPLiyYjdK9jNIlqJNbU9HLV7BDH3gC8A7wOLAJeAd4A3tS9bhyoIO+vgK4RILYC3qdtB2BHYJK+6wlw2/WyN2hZX6bNL/HvCsQrJfd2SiZ2AmqbPldHztumY6oFulQA8uGBeDNBYs/WWj0m63N9IPL0hNr0TCsF7peBF4AX9XzrBoqM3h8AndLLHAPMBN6vbWeBd4TAW+zSvRFYrxf6mjjZ68BbWrIbA+ClxeG9jD1a9zNS168XMFO6l5HBb524ol/6GwWuddq/WrLwSk2YBt2f/+1wrTBTtdpsp7/bauIO6eGK06rrvwk8DzwFPCNOvi7HSpMAuhfy7weBQ4A9BOBxAk+xL7BFL++tgDu9LAA3BBNnrMSUKRFZeysBqzawelSU6Dk7xUHbdJ+NWg2WBttiAW2VQO40qbYHdtIKtbPAPrIHE9yLKw3AQuAJ4BbgH/0N2OUM6HrgMuD4In/nxH1XaEl9TtvzAkRKIsv2wAyJKTOkMI6TgljXQ67XV4pgs8x5K7WSLNRk9JOyRceO1er1AW27yGIzJFgxCqUbgc9oNUnMdiUSNaoLPLZZ5iy/dD4pLtykZ5wM7APsqhc9XSJDPeVvukxHLDW7BJy9SSLLG5q0CzQG/xDHHabj9wRmCewTNGHzUVUPJkEC6F5QkzjwfOBhyX8NmgQ7irN/ANhNgB5exATZUuSKAJG3lozQ6nK4lNpGiSnPA89qcv9eMvMoYHeJcvsJ7EMHkpWjPwP6MuC7+n8KcCSwl7iRV5hKITZ0SWlsFHcbpxWhUUppg5S5NsmxdUWef4Nk1gbgYIlDG8k4fYqhKjKOoN2AT0nxfRt4XNd5FHhAx/8AOCMBdHnQCi2rVwD7Shkq9fM4ya3nAdeIw82WzLpcS/jTUtp2AH6nfYXeRwdwvn53jkSFqyQnTwW+Kk7aG3HFc/H3AZ+WcjxfYF/BAKP+7vqu0xI6tg/OvVqTZYFk760EtuuCY56UbPsxYH9ZBv4KnCTrQzZ5v0EK6pvAxeKiD4ljrpZolBbn7yqhgloh7r17D1aSBND9mBYD3wAeAS7FTGRDgWOAL0nx9AA5U9x1AXCExKATgV8DBwTnbARulfXAy/veLt0FXK/JsZd+P0dcOpW8jgTQvVU2vyeA7SGLyB+BYwXqIRGZdZQ46AsSRfYDrhTQL5Niulygv0EK6oGS88dJWWvSecZJPHgQOBc4FTguAXUC6N7QrYFY8Z7AeDbmUTxFYoanFuD74rRn6PP1+vycrAu/AH4pceWzwLcF6soYef1B4A6B+kcSddLJK0kA3VNqBW6XlQFZB64QIP+GxUHU6DjPoR1wrcSE1yIy9t2Y6exGgfRMiRFxlJIcvi/xMRudAnfCrRNAFyVuvBLZNwwzra2WPN0h0D8LnI6ZDOfL2jGGTV3Fq2WxqJCsfKPk8ZEBMH0UX4ssKmv0uwb97wP9GyTy1Ov3UzE78raUv309AfRmoGZZF8YF4PLxxiH52JFXMW/byWTiLU4UGC/EnBvbR7hrh0B4KjAP+LFEj+lkYkHWY+azBjIBTD4eoU3HVeq+OnXOTq0UE4GPaGLtksB5cAP6QeB/JavO1r4h4nzPBse9IFDtKWVxOzIBTkuAP2CxFXtJRGkJfjtc4P2QwH4z8BIWf9Go70fqnPtijhofxee5uE/3aggUyGW6/r2YDfsx4E9SQBNADxJ6A7haXG8OcIlk3OmYXbZS3PgMge0+/e4BiRPHy0rRhLmOJ2BRbaswL+U04FfiuGBRevO0vwaYC3xYK0OrOG6lOLoP8i9GAeySAnmy7u/aBNCDC9ALgJ8JcL8JOOk7Apgfi8PEQX3o5GrgNuA7mBfwOSl3teKS7wGfkPx7T3C9fcXVr5II4bNVvHgTxk27wNJRKKUln3uZvUH/VySAHhy0hwD5sEDqqVGArg/27Y9ljSwV4B7WMUcCl2MOlF2Am/S7fcTJ3xXQKjQx/oqZ9XxSbhj0X0HvItp8xniLLChzBjuYBxugJwP/ruW5Odj/BPBT4AsSPyqx+Oi54uofxBwkVwOfE5jfwdzcnwa+Iq7/f8DRkoFfkAJ5lkSDLvouxWky8E3M8ZMohYPoWV/DbMrN4pbjJQ83YM6Pv4mrHipufqaUxImYae4mzNExE4u/eE5AOhRzc+8I/KfEiPeksD1V5D0OkWjiLS/LNXmyiSJjMBv5R0ns04MO0FVYxNlQLc/HipN+SaBZqO3PUvh2FbCPwDI3jhewxmDmtzYyQVGna+m/VpaLFllQWgq8t+HAUbrGnhIh0CQ7nYyjJ0qj9UwJmAchoKcCP9fSXysQdAk86yWP+uTZN7XdIgXyYCl5dZgT4yPixLdgJrQ3ZRVZEFgq2gu8r12B/5aI04kF5s/HAvbH55GLF2Hu+AMletRoMn5Y/yeAHgRcuiry+aeY0+R7EdnaK14rxXmvwwL4vydg/wqzYa8PRALvxXu3gHsZJpn7XIkrt2OxH09IAb1Y8vs2mO06jjoxG/RjmkhOYtPBCaAHJ03SdgHmXNlHcut9+tslDjkBCx09Xcv8tzE3eDSBdHvJ0w9jpr6FktNbBbhaiSn7Yqa+QzWJviMArwvOdYuu+W3g/8ni4t9ZncC8ikzJgy6JLl8NRJYE0IOUjsTc2BMlGz+PeRJ92tW+ElkeEqjnB0AKaXdZN/aXbO7FkRVaDSZjjpatBO41WPz0pTHy9q2ynHxBE+3lALSTMNPj5yPce9DL0gmgM6avO7RMHyDFbE9914YF5H8Fsyuvy6Kc/ZvEB58JMkrbrvrcIZGgKqIMnoQ5caJiRRPmzTwCMydOi3w/QZPM/65aHN/rBukE0IOXmrG8wWclg54rhewJiQ73istGzWcTgY9jKVj7kr3ASwsWwPQslsv3IYkynZg58d1ABj9YHHiswLytvmvVZKrVRHhHsn8o72+DxZQM2hjqBNBGYzBb7vNa6h8RJ10bEQVG6a8P5fw58Enye+i8eHE15lE8Wxz2LixgaW0gslys71KBCLFcCug/tJocKjn9Tb3Dg4G9NQk6B/OLTABtVCE5dWssjmN1zDHVknfbpcRNEjcvxN3cKrGhVtz4mwKrTxSoE6ffivggpSpZUxZhpsE7g9ViOmZa3CF5jQmgPb0IfE1gDqlG4sHOUgSnC8R14uKFKGFLNAHuCADs45xPEse9WcrkqcSb28ZKJBotK0roRl+JufMTQCeA/hc9I86ZwtzOG7RNwtzi0yWzepPZGZj3sL6Ac9+D5Rk2S0zxDhwnuftMzDnSTu4Q0lVYuKsH81Aylf6vx0x8dQmgEwLLrJ6GOSj2kHXhL5J73xagtw6OT0kxK4TmCqzLJNbciFUvag/k3Z0LOM9yLKbEA98n7j6MOWaSZNoE0P+ieswr98HAerGtOHdvud44zCbtJ8IhkofXBkpmIbQvFlvdqM9bi9OfKW5fk7zGBNDZaCbmnWugNF63UNau0za+yHP4rJZwZUgzwIotJoDuW8vH2GQYEkCXihzx7uXNQT77uz2QdX3LtTXat15bikyHgHz3mxLHH6LnG6atShaMCsw86HMN/ZbIxwMA0O1kHA6lBmoLZkLbiJm9VpHpdeLrYqwl0wdlI5kaGW3BuboEQN9j0BdpT8VMTt84qIpMg6F0AFYPZF+IfaTAP1L7RpPp7eKTAIbod3V9AHxviUkAXSLqpPAA+ehEaNbmrRTLyXSxeg9zY/tmlr5Fmy/oUsiq8H4sMMiDLh2IKWPo7mzxybadAVj8ZPkT5qH0tDjLNcPutl6eHi1wb0Wmg9ZWweYbhnrAF0Nr6IfNPMsd0I0FHPMaVu3oLcyJsSzY1mhSNAuspeI42wFfpDA7dC7aANwfAXQujuknny+V8HaMSFMlAHvA+wajk2W5mUomjiQXtdAP3ejlrhSuyyOPrsKi3FoD0G4u+b5czxWKRSvYtLRZCPZV5PZ0rtqCOsyABfRKKWKVWQDtjylHekcTbEqZ6SWFTvqG/qgUlrv2/C6Z+IdypjguewOWutUfqVW6RgLoEtMyuuf5lSM1SRZeFXy+TdvaQMmar+/KnZqlRPc7KneR4z0phuXu4KjBIuZ+gAUaTcAi4Nqw/MR24CKs2tKsfoCLjWImCaBLTBswM9a0Mr/Paiye+SrgNFkX1kip8sUfq7GE1/4Qc7GS0vsAEpFDy/Pr/WQsZ2H1MFq1XHdKtn5XHO8IMsFP5U4L+4lo1O84dAeb5s2V86S7D6vElI3exGpJz8Hs2OUcVLSon+gu/Q7QYNkkvjh4Ocqaf8IKxCwkd0HGJ7Bw1B0wL+OXKM9qoa15JmYC6BIsf6tiAF0OAK/F0qh2xpJfb8Jy/uJoGpaIexiWRFBPz1z7paS41suNZK/UlAC6BLRCXDqqGI7EPF/tW/De0liQ0KFYcZklOQC9LxZjXVdG7350zP63yFRpSpTCPrJ0PBOzf2yZWQwWYPmDlVo9fBmCYdr3AFb9qFzIlxSO0jP91cLRXwAN8DiZgBxPk8he2KWvKexU5ZXXqzXJ/gcrKzBc24VYK4wxwDUROTt6ns0tLk2I7GvXWHf0V0D3l4yV5zB7dNi6bIK432jgIDLVN/uaurCCMFWRVWQ2VvduKhYHcTFmujtW93gcVjlpYyD/V2FlEiZsJubiy4T9Q/L71pHvVwnQJIDuezn60Qigh2LhkLXiisM2A6DDakZhpNoIzLHiaRRWANIFcupUuneRrQG+vBm5dQozM56kFW9YjLjxVgLovqd2LFbiU4GYMQxLZr1bHLLYZNYNOlehprMucTCfmRIHPt/MvhoLa/XxxG3i2u1ZQOb0m7FFcOpOMrU+in3u17Ai6dHfzo8R7RJA9xHNlxVhRiD/74wVIl8Ys3zme6l/EledmOfYVzBHw0ysAulTOUA3XBaPb2C1otE9/w9W8LExx2SZJXn7FVl0Zua5r9XAlVi1pWJA/Zom5s6R979aTIME0JuHlslSMCPYt7s43HOYBy4bNelZPXdfhHVg3Q6rou+5aBNmDgwB+yhWHOYciT7LyR4Y/44sGQ2YsyWFtZv4P3IH07vg3BdJ3p4Z+b6RTEsMsCyXP2oCvV/7Wsi0Y85Gz+rvbpH9T5Pd5JgAug+oAwvHPJlM6tMMLHfuESwoKJsZ73mB8mNS3h4QJ3wAc3S8gMUuz8Yq64f0CSl2rVrmd5XcW5OF016OVRVdrIlxJ1Zz+jNZOHurJlcnVqHpsphzp3TOx4ATNJHvJWMq3AnzRF6vybB/lnFo1Tkm6jfhfd9B7gyhBNB9QI8IfPvo82j9f6+443ZZfreTQH0p1oxnkbjerViI6t16yWeUSPHqINOIvp3SVNafjZXUvULP8KT2Xy0x6G4yDYiy0XtaceZgZkRPSzVh+j855/rbdo5zrtNl6Ern3Ejn3FUuN13lnBuS5ZyVzrnzs/zuUufcXOfcQ865vQu8x7HOuae0jS3wN3vrGnN1zTg6X/ca9/u6AsbgBo3VpTHPWN0PsdBt64+Vk27FOsJ6bryfOPVdWJ+/qixK4Fhxpbief3WykqyJkaH3wTxqEyQW7ID1Y6mOWDq8jfdmrQChNWIWVh00HfObNnHZTl3jNLq7+R3mvRute42zRIzS820gPhu9Q2M0gk3DWJuwdLG2gcCg+yOgX5Us/R/6PAlzrDwgG2pYJ3m5XtatUnrW5FAavyqF7MMC7I4C3ExtPgt6pGTYuhhwdkosWhQ5/ziBuiLmN82SXzt17o9EgPyqLDm3SeFsyiFOnKx7O0qydmj5WSJ5++CIPfwxrBkSCaC3nHJ4lV7YRHHkY6X03RkBtO+x3UYm4D4b+bZr0TG5V3Ln0fruccwxkctmPipy3rvymMRasd4ob8s6so+sFyHwa/LYzF0gu3fS3X19tyblUcEq1qaxXJsAesvSUwLJZ/R5f9lVbxCXGhVw769i8cePyDrxZsz56rHC5idgDptQiVuPZZ34QjXbYF7AqpgJ4jC38orIvhlaRVIxCmQ7mRYT7brW+uD7mVjq1lmatGdm4dJbaYU5gExwlKd14vIzdR/hON7GAKL+CuhWmceOJlPv7ePAPAHqo5Hjhwss2USOjbKSDIsB3Ue1rRLn2wZrFDQkBtCdZEqOhavEDODTMRw2pWu/JM46FetQG2c5GS6xIlvf77XiuHEe0wcE3u9I/PH3ejWFdb3tN5RyzvXXe6/Botq+oM+LsWr5U7Dq+2GcQqM494NaypfI7DUdK0B+hwBzc4xC9raA5CfN0zEcMCqPDwvMYEeI4w7NISo0YkH/12EeuwlaXUJ6SxNrDRbQdB/whkSV7fQMB2Dew+GRFeZkzJv690CZfkQr0jsDCdD9uUxrK+Yp8y9kClZC4CG97JBe1PfXC+ynCpAfEke8RcrYkzHXuVliy1LJ7OOlENbGbN5a4i0gvtroiDy/Ga9zL9W1bo65j8c1OW7RPR+tZ/isVqvrBdaot+8+4J9SdKcGsvNlAw3M/Z1De5Hpp8DXI1x6ayk7owIu5Rv+eEvJxzFHxdzgJce5vtdp/xhx0lzmrZSO/yfmgfQevgN0L7kGu1qcdbW4+YiI2LJW+6sD8+XZmIfTd6uNur7XSYFdinXBnR6A/KSIrD8waAAY02c6514MnAS/ds4Nc85dnMPBsME5d55z7h3XN9Ql50+n/u8LWu6cu8A5tz7HMX/UWFwY7FvnnDtuIDhR4rb+zqE9nY718avBiqScJLn3etmT46jY8NFyI18/O1tJ34VahUZKNvfpVpdiLv5mBiANFECPkkzoxYe/S54+DrhAwHWBjbY3sRVO4ktNnvMs0vI/I8+5WnVcb+M9UhKpfIfab2ApX5dhziKkRH5Ciu2ApIHSNKgB67u9m8xqhwGfw9KgDtTnyzCvWFsvwdOJZXB/nUw4qos5503igv8dA+JUoNj+QhaHihK8yz2lJD5AJlb6sEBH+A3xCceJDF2GW1qBS22SFZc65w50zk13zh2WI6inJ9vciOy6zjl3q3PubX1e75z7kAKOVmvfe865u5xzDcHv1utcpbqvCj3rDOfcARoDTzcqMImBvA2k7kpdMuPdoc+TsWqgHVgMQykzmVMRjjxE5sLjsF7cd8uR8TLmBfwD5p6/jU3rcqQoTWhpuHrcI9FqnsbAiz8/ZQC5uAcDh/bbns65V8WVOp1zv5emX8prHOOca4pYFJ52zm2jlWC0VoyUwkdrnHNjFB4aUpPOVcp7G+qc+10QYtvknPuS7oWEQ/c/ehKrULRO9uTPYPEPVX183Z0lr/pehr4t2irJyodg3sC+pCo96ylkQlUvlzztGAQ0UBs6XiMFqEOK29nEx1L0eoGTQvow8BMpneQwo52HJfuu7QOApbGs+K8HYs19WJGbDQwSGqitkduA87G4jBNli/2JXuw1JbxOM5YSdRH5q48+h6WP7YBF/Z1a4mf+mJ7Rp1YtAM4le9/DBND9jFZhYZdby3Q3XtyqHfgbpenBVyfO7/MaryGTVR0nkhyP5QO+T7/dWCLOPFfmP1/a613gW8THpiQiRz+mRZiDwTe2nAL8VnJ1KSZzStx/NvA14AM5jp0lkO2PhbyWwrpRqQn1WzLt49ZiYaK3MghpMDRFf0Jg82lRE7DCL2fR+06wIT0lk2ENlr+Y0viOlrJ2l44pFdVjLuz/JZNqtR4LuLqcftg0MwF04XS/QO3lyTGYjfqn5K+cVAi1Y9kyUzE79O/INJ6/GAv3nIJFAJai7+JE3fuPyHQIa9FE/RUDJOE1kaFzWyNu0f+/FLjqsaCmGcD3ZKHoqeWhGUsc+Lq45bpA/DhM4J6LxVC00PO61imJNz+QLO4Z0gZZdS6gfzQqTQBdYlBfgAXDp7Gg+RlYXbk/0zNv2jA2zdYeoc8dZOKat9bW00kzEovTOItNC+o0ilP/hkFknksAvSmoN2I2YR8YPxUzeR0iYD9UJKeLU/BOIN6MV6wyWI3VHvm6uH1txJLzQ4k1LSQ0aGToKKjvwezAYT2KWokFfxGoZ9E77+I0coeOFsJsdsPs6ddgKVchmN/CqqH+NgHz4Aa0p8ewENNrIkrUeKzl2k0STQ6IsYa0UZoA+eYYBa5e1zwfS5v6Mt17oTwBfFFKZkcC42D5GyAB/r2hMVhi6n9ITo1y89Xi5LdhJRKWYE6Rg7DYjB21jRcHrRajqCYTbN8l4LZgeXyvanta52zGsrznSPY+SPcVFU9aBfJ5WPXUhBJAx1INViLgu5gXL47asZIGj2BJsE9iZsAOLEZkCGbjHitRZaz2rxQQV+v/RgG8EktG2EsceS+sxUZ1luu/J1HodwyGMNAE0CWhXYFvCty5+gl2YKY5X+B8EZZZ/Z7A1hBYM1JYitgIzH68jeTrnWT1GJFHOe8QF/+J/iYiRgLoomg4lmR7lkBXqFWiS5y4nUzZMA/oKm01ReotS2XB+AMDrMJRAujNPC5YHbgvY9F64zbz9Rsls/9SCmBn8koSQJdKtv6grB4fpu/7i2/A3PSXYNF7G5JXkAC6L6gec22fjDk3Rpf4/GslH1+B2cgTpS8B9GahIVjs88exuniT6bm3tQPr7HUXVhDnUfp5j8AE0P2XqrA6cYcL2LMwu3FlASBeTSbU9G6s+Et7MqQJoMuFhmFpVftI3t4Nc5L4golNmP36KXHhR7Hmlwk3TgBd9lSL2Zx3JNMH8GXMK7iGQR7amQA6oYSKpHQyBAklgE4ooQTQCSWUADqhhBJAJ5QAOqGEEkAnlFAC6IQSSgCdUEIJoBNKAJ1QQgmgE0ooAXRCCSWATiihBNAJDTZAj6ewooTD6fus581xjXKkerqXIevNO/XdvqoLeLd1WFJCqoDzjiF7ZadSUAU971RWAUxMOecewNqSLSPT2843eE/rbyeW9fwIlge3D5v2q74fq/nmaQ8szy485j79fwiZxu8VwTH+Go9hbRaiNA44EktURff5EtYmzWcpbAscTKag+HIsW2RfvbjVWGP7puC8lfrNdsG93ouV8podeYaHdNx0XbMLq0t3F1bmCx2/H1ZSLK17eBqrV1cfjKtfHbuwMmDLsb7gO2CpXJWRMXJYZabH9K7ixucojXu1jh2q9/X3LOP3gibSf+iZW3WtLr2PigATPvN9ns41Scd1aTxvwcoubIvV6KvWM7whfGSr+FSNpa0drrF1WEexO/V+OyLvaWowhhXBs4wATq7Ujc0kU5h7vAbmXT1ku256e6xVmNOMPgcrh/W/dC/i3RUcswSrx+aPqQFO04u7QYORCq7xcpYHd3qIT2rC/FL3E6UarI7Gy8DVwez9JLA78F/A79m0B0kX1ilrJlapiMhzLsHK1noQH4G1UbuD+KaWXVj526lYE1B/7ycJrHdh5XD9c88gk57lBLJv6WXeRqaY437A6wJg2IR+G6zu3W7AzVhpsgN0rYU5xu85TfSpmoBtwQSbhdXwe0n3OYRM7T0njBylZ/lzzDs4DUs7+58cXHUs1tTpROBNrF5gJXCM3uGfsBYf64NxfT9WefV1MRjf4HQYsC1q17uPWuem9H+DmrGPUEN0nHPznHPf1f+TnXPvOOeeVOvfuDa1k51zy51ztzjn6oP99dq33Dk3RS2EK2Ouka05++91f3vmaA18o3Pu9Mj+s9QqeJFzbr+Y352u3w0t4BnmqGH9/Vkawtc7526KPEuFc+4i51yLc+5j2uef+zTn3PnBZz++TznnJmiMhjrnznHOtTvnLlW7ZX/uc5xzGyMtkEc75652zp2RZ/yOcc79Wc/h3/UPNFZf1ue0c26inmm29u2hsXzVOfeByPMfJmx8MMe7HO6cu8Q516hxGqP9KT3z+c659c65HzvnaoPfzXXONeu3NbrntLD0Uhrr5feqUO7FDT+jO4LPVwPX9lC+SWX5v1MzrKOIa6ToWdP3VqzE1rbA94GtevEMT0v82kviTJRmabW5Pcs5/Jj6575D3KgzZlXqDJb1a7AM8g9q9fAy8Cyd6+VgtViLld5dkGf8nsAaDTUF1++K3GeXuO3PxBnRCvEriQnnBrrPaKw88Z1Yhns2Ohlrr3edVvnVwTO/h/WRuRerMTg35v67Anx2YWWKz0pjFXsaCniJr9C3NYmHSo7sq2ukgccl5swB/rMXCk4j1gewTqJHVWTMjhG4FhRwrjqJbi+Sv/9Kq8SCsOhjh5bkYRInRgcgvFbvNxctx0os5Ktq2iaANgTAu1ST9jhd2wN1mMS6zhyixikSpS4jvgFpg85fgfWWGZrn3Q4B/lEKs11v0sYrghfzccm3FX0E6JSA81Nxl3/Xi+gp3SlZ9QgpiZ4mYc01byZ7lf90cE+HYH1ShhQwvgdKXn5ekwrpODdh/Va+KE6/nyZZF33btH6tuOtKrD3GvwnYF0WMBFHaRTL7q3km/dNYyeI99NzRMazU37FYx4M9etM0qEsv79sxM8xrncOzDKhXfH4g7uKksL1IaTqs5prJr2Jt3C7X31fI3s44F70pUeEMWQ9eCaw4AA/k0OpPxWrkIeW4Kea5vVJ6lCbiDgLsW1irjKbI5DpXiuSxwN4C9m8lovQlzZfiNg/rxHWTRJ1cNFVWkxXkrlWyUZNlF4mKLwei0H4ah06daxZQvaUcKylxloWaoQu09G2OIiFpAeACcdbvaPIVe+0OiR0bZdEYjhWaOVrL/Ns5GMHS4LmX5pj0o7Di6z+W/PqkVpX7Ise2a3k+QVaaGgH8SoG7L6kL+D8xowqslnVzAe8gVcSYp9jUCZiSSPKSxvBVf83KXgLjbaxH3uqY7ydLjMjGcTdIfvI21VVYZftiHrI3L+EiLWVzJX70pAnQ41Kq9pHNukGmv1/meI52meJ8z8Q54tZdMeO7WEv5QZJJR4tjuSzP9IyUqJvEMQ/S+/mElLq+FD2Wa8UuZEVYovc/Oo/jp1bixAZN/HBsXtQK1KmJPwFoKlUD91LQrbrRfMW9nTjQ+BxL+gjytzpbLdn1fdLKn6T4lsJrtLweKOWwUaLIswVYacIl+8ksE6pTK8ANAv3JwBdk2w0nwEitGE1awu/Qcn4lsCewM/BgH6+4xdACrL7fTFmDnshy3G5Y246HYmTy8JrrJD42l1MsR4tAumuOAeoUJ6iV6Sru/ncVp3i5gGs+Gyhkc+lZX8I7xEn/DThenLepiN+36bp7Z7G6pAT28zRZzpT8GCrWZ+vaIb2oFaSC8ovZWa7VeTjwqSzjPlRmvRTmuGnMs+I2Au3pLBww3Eph5XAFHn841jswl6XjdilGnxVX9M0oK7H+2t/HXLovZHmuKN2AVczPx2my3fcbZFzlXfo/1zni7mO6LDzDc1z3eSlfEzHv2ujgnseIm4WmrWlSpl4n4y2kyHfbl5auK7S6nYJ5BcNekCO0ah4l4N8cc63Ya1bMmzcvnBEnSkv3HKBKXGNx8JvZko0P0vfNmnFrsxxToRf9rpbGk7R8ThBn3A+LEZiD1VpuEmi7cszu1TKNnSDt9gMyF52FGeW/HchytdL852IuZm+4Xxtw/ZckT3dgxcfbsjzDe3Svru/v81jZfa+LGezxeu4jpa3XYC7cQ7H4hCOkc1wtC8CJ2h8d39ckIh2l86Q1uY+UODJbk+NIzGU/QRP8kcg9TNZ5WyNL+c5SOg+VVaVZ76yB7F0Fpuq8h2tiNWt7Jw+gm7G4lDHA57VCbSPx7b+wfo2XagVdq7E4Ukqyf1ddmqz/qq9dGRG0R8mM9jPtG6It1EjrdOz5EdCH5I85L/hcFfx/nc5ZGXDFtB7w0Rxg9gC6UuLCsQLzbgLwz7BAnFWR5xqhJfhFXT96v29jgUH7BjJ83DNU5zBd/UXKWJwOUCnuexcWLBQGZaWkGD8k5adW+86LGd814s4P6Xw+/uZ+KYRjNRa1uqfrsMCz8B7u1AaZYKkwzmaM3sHjGusxeUSxao3NtcF41xXIpZcAXwNu1KTeV/fzgt7l/EAXSmEOm2VYfAz6vMlqPhDK6dbqoVroXbeolF5OWw+W0JTA0cyW6ViVDu65Vp9b6F/ds9KB+NiSh6llfxFJfeiEBhIlGSsJJYBOKKFypcpkCBLqhc4xLNA71rN5Qhd6DOgUZsqrD45zEtg36O8QmYu2xeyvDyTvedBQLfBdzAR7L2Ylai5HQNdh9szD9HeaQO3Tj5ZjxvoHMdPZaZhdsFOATmE24p0L1FRTmhy3k8nLi9JOOmc6BxdIYTbsv2Lu4mLuIdv51mOmpTcovotVPWYzHRpzz2mN4f09sETUYm2aJ+R5tjTmUn5Kn8dhtt3aEnHSWsz2/H6NUWg+myXsFPr+2zUpFmc5ZgpmG6/Ke+9BaktKaTlXOOdWufzUphScNfo8L5Lm46nLOdcR2Toj51oZpPbEbf+u34UUns/TUufcJD3L7yPHd2a5j7jNf9+i53vJOXe5c+5TzrmtgjSnXNtk3U/cOHQ65xY75w4t4DzRbaxz7vEsYxEd13nB72ZrnPO9l64iNk83R1LXvpfnOtF32aRUsGzPfIyOyfb+/3UvlcEsORoL1p4RiBc+Y/l1iRmTxPV2EufZLm6OiHunMW/Orpg3MHQrv4M5GVp13Poc3BnMk3dJwKGHYd6yEVrm7tDvG8g0fPf30KWZfYhmuqcurQxxM95nLNdoG6Vn/jjmgr4McySsynHPGzAH0GgyCcBzAk62rZbs13NwpjhqwRw4z4m7D9VKUK/z3CeOV4EFPXlaicWAD9P9TNWYhE6TtcTHZmfjrKPJ2I5Degr4o95/9LnRuP1dK6m3mecag8VYfHet7n2IVqmxeta7tEqk/Aw43Dn3ZoD+ZufcZUqErFcSIs65KufcOOfccc65O8XB4rhBWpw6pXO8GpldK5xzHw44ekUerpcKjks7505VUqhzzv1NCZbpIMkzvIe0kn1vidzDQufcyUq6PCbYjnXOfcY595/i8i9EntPp821BcnGupF5/D9Occw9GztPlnLswkgRayBaO2RTn3DKd7xY9a/jscWOIc+6jEa7XoWTbiVpdcm2TnHMznHN3ZeHQ4fW3V7JvSI1a7dI9eP8p59wnlKTslKi8tT8XzrmpMQN9iQYm16COds59wzm3OgbQ0e20AICe7tHgFbvkznDOPatzvOOcO7CA39QL+CE9HmQaZ9sq9QJPcc7Nj1kqF+nFVBR478fFLJ3rnXOf7cE4xIk2f4tkp1PEMt6hrPFCrxuOaRTQ0e2kAICentIkL/Z5t3LO/VPnaBBD+tf3aSwQZq8Ie78QizHNRWuwsL5FBSxPV9E9A3qOFMqKIpXYL2HxG11Y8Mr8ApfHVJb9uagDix24DAsPvYBNe3Rvh8VcfKbA51gSYwkYCnxTSlQpTGl9mcLW02vdhMW6hLQ7Vl+kmETlNBZl6TPtr8ZiYzY5YG7kpI9Jqy+UCtGY1wE/j4C/AssUmVPEtfbH4me9nHYx+bOVS0VLsXStH7JpbO44LPH2hAJBEEczsAyT8f3IbBeWvOjMg4MWrOTBgshYfE66UKE0C8vHrMRyOH9NJJEjLbNLSG8XYU90gWkmn4nmCSyJsj3YNxELFSzkRY7CSg9MkMJ1YZHKVCmoGUuv+nlkIMdjCb+ze8EIjsTSrar6CaDbsDS20/U3X7bPSzI6hAnVI7Hcx2kFmkG/olWxTWBeEMfCo/UOhhXhQdyAhfmdjuXJ5XuBl0eXCCzu93Pkd8OfhIUYIlvz37bQi2wVqK+N4bLZgvTj6ElZkaIr1jH9BNDtWBjq7/S3vYDfXE/3jPDZwJcLmMhHYeHCyGZ9VTaZJI6tF1pVyJuQfhcY8HPRKi3PYbHBKqwUwH45fjdTk6YGS0O6kOLSnEpN6yU7vxbZ/xGZPwuhuzRuoWNljDxuOw1Q72KTuPTCiOhxipw02WgbLINlKJYr+QuyJP2m6Z6J8H5xipo+eqj5WKp7Z+SGvyl5NEpVmsE7S16+pMDJ09f0vLhEKDoM0csZUeCS/esYZXk3gXrEAAX1M1rhWiN6yDfpXkzGr1yfl+HCr/L/zKU1PhNzgjOxzIhhffBAnVhK/gOR/YcLDFHF6TAyZabmy7LSVQYvxml1iqYa7R2xGuVSEBskey+MfHe8lJ9yjIaslENlTBanSiF0ZcxE3k8rdVT02AvLdK8QVi/KJd6kxWU2RPYPx/LyLsByy0pN70qxWhHDiWdHZu7XMI/QWi01y8vo5b5KJsXJ0wjpBYVaPJ4EfhIRoWq0xB5choCegRWNvB3z1vWE1kr3WhLB4ucizzxU47CNFPJfk8cCl8byzv4e812dLnCNTGVDSzww92N25JDbTpPWO1KfP0nGrHe15M5yomYBuiuGSxcjMlyNuXZD8WWSuPd2ZfbM9ZgNeU96Z2Z8AisU0x6xFv2XrF9gLn1v1rtFSiX5AL0WK9LxYBYusruUl4vEPUtVTLFdD/RYjDZ7ChYDcpo4d6zNsUzoRTZ1toDFL4wp4hwtUjKj72BfrObGkDJ63kJLUuSjLk3ieyL752DOsx3EnevFyS+IGeesVo6XJL/cl0U+HYrFPd8g8E8p0eAswaoAhYppNWZv/IWsG1ltjmVCS+lerHIYxdefXoyVHFgWYSif1kq1OTyAo8QdJ2fZtsL8AKWS7VdK9IwzX15AxiP8hxjGlxPQYKnjnxc3bsxhPvmWgF0qMeQ2KXrhbN+OTHXOrDbHMqH1MZyjikwhmGLFsPMiFoBSusZzUYXEvSewMgZx2+Piqj0pbpmNHqR7LemtMRNopQwBlxZqCEjHcImzpWE/kkWbrMBs1Rdh7szeKo1tEj2ejRF3ctocy4Q66B730tOYCoeFXUadNtPEvSf08bOMkOy+dZZtkhT1UlpfOjFTbFxMTqM49bJiTDBxis61usCnsWCQ7WMeol7fvU9c+75ezNrXMIP7JRF58WbyV6AvBzPWsBhg9tS02Cirxy7SXzwdjlWG+j7FF5UsVKa9CjOnpnNMuO10H3UlvPY7Ej13i4zl/WSK4vQY0J6WybRyg4D7aclRUdpLQPwKmRKxPV16GiKAfpvNF3zUU6qlu7u7ldzB//noZVk4LsFMln5l/DJmi72+D57DYQ6LP+Q5bk+t4HUlvv4zWulCQL9LkXmK6QJm7UIss+J4mZfiLrCdOOzsXg5of6x6s23My22i9/by2+juGh+ld7HLFnzeUJxKbYZrUUpAh3Li49I+zya+f4YPzqlncNFOMRz6DbIXNyyU2ol3je+KucZHbqHn9WGjbRQWkLRZqVjhvlFc4wuY/TVKB0sOGixUJZErapt/jPwJEoXQCuJd4x8TcymmrUOpaLEY16l0b43R7wDtxZB7gK/Tvf3AGPq+p0e5iRsHRPatJ0fwTA8ozjVejTkdDtsCgF6JZfBcgZXy7feA9nQPZh+MDugUNl8a0JamD9PdNf04uRtO9oTiXOMTsSyX6ZRHsFbZAPprWtaOLhLgXVhflDUxWn/FIBi7KVguYWgpahbw1pb4Wtlc43tjhc2HJFDOAPobWK7c3B5w1mV09yq2DQKOUYUlHMyK7L+b/Jk7vZFdo67xCqzrwZgEyhlA9wZ8FXS3ZS8d4IBOYelgX4qsaIuwbJx1fXjtONd4xRYU8XbEnGrf0v9bnCojIkSxtCuZJupoqX1iAIO5UhaGH7Kp2WytuOejfXx97xrfHXN0bWmaicXNQ6YBZtkohVPIxKEWQiPp3lT8Max02ECkUdI3fiPrhqd1WHPLqzaTxcG7xp8pgzEpVShpnwD6cMwUM7cAJWMiFkYaZig3YDbqdWUIxmxeyHwvoQILCDoBSxv6IZvmPS7DzJe/ZPM6GbxrfFWZjmtfTJiiRY5KLLh6N8w7db247QadOK2XeQAWn7tf8PtWLPLu7z2Qwb24EycLpmKOc0VMVu94qIyx4IyUQtUYc90aTdoZWJD9TpFJ3iaLw4+w4KmuAp8xTXe3cU+eDTKu8W9RmFUp7JfdSbxFy8dDF1LGohOLM+mNHubHI9v7T0fuJW/QV3hwkz6PFGCPxTxVq3WiKnGrMWxaaalRYP4FxUWBDcWScaeRqaI5MnLMUVhajh+0v1BYi9+0nuEgMtVHd40cMx2rvOSy/L4m5qW3ijv+WSLGigLElHPIVCAdTyY0oKfP5sm7xnfTqpqPpmi8w+qj1ZGJdy5WnitVIPes07ahB2CuAb6o+8/2/vcXtpzu76+YqTjHXWUqV16loooPxxRWjKMWFTA80TlXV+I6x3H1jjtUJ7rQ6py9qQ/tj92oYpQLnHOXqjDj1gXWh46rEe1K8GzRbc+gumuuool9UR/aj9XaaNHEArahut9C33++gqA456jEAutXYPWGL8FS8+dgcRk7SQEKW1KsxGpSPIAlrb7bQzmqScrNhAKWLL8sPVTgubukDzzTw+XQX69BZsjFmAOp2DjkBnG9oeTuPFDMs0XpSeDHkqlX53jetzCfQ6kq+If33y5MFEOtUrBvL/AdpQuxoKWcc6PINK5siogjw8h0VPXUIjGjL4LME+oZVUm/aQtExEFJ/x9BytT11SSKsAAAAABJRU5ErkJggg==" alt="The University of Sydney" width="47" height="46">
+      <span class="ab-div" aria-hidden="true"></span>
+      <span class="ab-name">AI-assisted marker</span>
+      <span class="ab-proto" title="Internal coursework demo — not an official University of Sydney service">Prototype</span>
+    </a>
+    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><a href="02-batch-status.html">ASGN2 Critical Essay</a></li><li><span aria-current="page" id="bcCur">SID-40219</span></li></ol><a class="bc-up" href="02-batch-status.html"><span aria-hidden="true">‹</span><span class="t">ASGN2 Critical Essay</span></a></nav>
+  </div>
+  <div class="ab-right">
+    <div class="ab-actions">
+      <div class="rv-prog" title="Reviewed / ready for review. Submissions still being marked by AI are added to the queue as they finish.">
+        <div class="rv-top">
+          <span class="rv-lbl">Reviewed</span>
+          <span class="rv-num"><b id="pgDone">15</b><span class="sl">/</span><span id="pgReady">34</span></span>
+          <span class="rv-unit">ready</span>
+        </div>
+        <div class="rv-bar" aria-hidden="true"><i id="pgFill"></i><s id="pgReadyFill"></s></div>
+        <div class="rv-sub" id="pgSub"><span class="dot"></span><span id="pgProc">14</span> still with AI · 48 in batch</div>
+      </div>
+    </div>
+    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+  </div>
+</header>
+
+<div class="split" id="split">
+  <!-- ===== Left: original submission ===== -->
+  <section class="doc-pane" id="docPane" aria-label="Original submission">
+    <button class="rail" type="button" id="expand" aria-label="Show submission">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6E655E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      <span>Show submission</span>
+    </button>
+    <div class="doc-bar">
+      <div class="file">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E64626" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></svg>
+        <b>SID-40219_ASGN2.pdf</b><span>6 pages · 8 evidence spans</span>
+      </div>
+      <div class="doc-tools">
+        <label class="switch"><input type="checkbox" id="showAll" checked>Show all evidence</label>
+        <button class="icon-btn" type="button" id="collapse" title="Hide the original submission (the marking panel stays)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Hide submission
+        </button>
+      </div>
+    </div>
+    <div class="crit-notice" id="critNotice" hidden>
+      <span>Highlighting <b></b></span><span class="pos"></span>
+      <button type="button" class="n-prev" aria-label="Previous passage">‹</button>
+      <button type="button" class="n-next" aria-label="Next passage">›</button>
+      <button type="button" class="n-close" aria-label="Stop highlighting">×</button>
+    </div>
+    <div class="doc-scroll show-all" id="doc">
+
+      <article class="sheet" data-page="1">
+        <span class="pno">p.1</span>
+        <h1>Decentralised Governance and the Hidden Cost of Coordination</h1>
+        <p class="byline">SID-40219 · ASGN2 Critical Essay · 2,180 words</p>
+        <p data-p="¶1">Over the past decade, decentralised governance has moved from the margins of political theory into the everyday operating models of cooperatives, open-source foundations and blockchain-based organisations. Its appeal is easy to understand: distributing authority promises resilience, legitimacy and a genuine voice for every participant.</p>
+        <p data-p="¶2"><mark class="ev" data-ev="e1"><span class="tag">1</span>This essay argues that decentralised governance models, while promising in theory, consistently underperform in practice due to coordination costs that scale non-linearly with participant count.</mark> Section 2 sets out the theoretical case for decentralisation, Section 3 reviews the empirical evidence, and Section 4 considers an alternative explanation before the conclusion returns to the central claim.</p>
+      </article>
+
+      <article class="sheet" data-page="2">
+        <span class="pno">p.2</span>
+        <h2>2. The theoretical case</h2>
+        <p data-p="¶1">Proponents of decentralisation draw heavily on Ostrom's work on common-pool resources, which showed that communities can govern shared assets without a central authority when rules are designed locally and monitored by the people who use them.</p>
+        <p data-p="¶2">Later advocates extended this argument to digital organisations, claiming that transparent protocols could replace managerial hierarchy altogether. On this view, coordination stops being a social problem and becomes a technical one that better tooling can solve.</p>
+        <p data-p="¶3">These claims deserve to be taken seriously. The evidence for this optimism, however, comes mostly from small and stable communities, <mark class="ev" data-ev="e7"><span class="tag">4</span>which, it should be noted, is not to say that the model does not have merit in certain more smaller-scale contexts where</mark> trust is already established and membership changes slowly.</p>
+      </article>
+
+      <article class="sheet" data-page="3">
+        <span class="pno">p.3</span>
+        <h2>3. What the evidence shows</h2>
+        <p data-p="¶1"><mark class="ev" data-ev="e4"><span class="tag">2</span>Studies of large open-source projects show that decision latency grows sharply as contributor numbers rise.</mark> In one widely cited analysis, the median time to resolve a governance proposal tripled once a project passed two hundred active contributors.</p>
+        <p data-p="¶2">Blockchain-based organisations display a similar pattern. Voter turnout on most proposals falls below ten per cent, and the small group that does vote tends to be the same few large holders each time.</p>
+        <p data-p="¶3">The common thread is that every additional participant adds not one new relationship but many, because each person must, in principle, be informed, consulted and persuaded.</p>
+        <p data-p="¶4"><mark class="ev" data-ev="e3"><span class="tag">2</span>A 2019 study (Kessler &amp; Boone) found similar coordination overhead in cooperative networks, though the sample was limited to twelve organisations.</mark> Even so, its findings point in the same direction as the open-source data.</p>
+      </article>
+
+      <article class="sheet" data-page="4">
+        <span class="pno">p.4</span>
+        <h2>4. An alternative explanation</h2>
+        <p data-p="¶1"><mark class="ev" data-ev="e5"><span class="tag">3</span>Yet this reading understates a second possibility: coordination costs may not be intrinsic to decentralisation itself, but to the specific incentive structures layered on top of it.</mark></p>
+        <p data-p="¶2">Where participants are rewarded for activity rather than outcomes, proposals multiply and attention fragments. Where voting power tracks token holdings, the few who hold the most have little reason to build consensus with everyone else.</p>
+        <p data-p="¶3"><mark class="ev" data-ev="e6"><span class="tag">3</span>If this is right, the underperformance documented in Section 3 says more about how decentralised systems are designed than about decentralisation as such</mark> — and better-designed incentives could narrow the gap considerably.</p>
+      </article>
+
+      <article class="sheet" data-page="5">
+        <span class="pno">p.5</span>
+        <h2>5. A counter-argument</h2>
+        <p data-p="¶1">Some critics respond that hierarchies face coordination costs too, and that the comparison is therefore unfair. Large firms spend heavily on meetings, reporting lines and middle management simply to keep their parts aligned.</p>
+        <p data-p="¶2"><mark class="ev" data-ev="e8"><span class="tag">4</span>It is, perhaps, worth considering that the costs that are borne by hierarchical organisations, which are themselves not insignificant, may in some respects be comparable, although not necessarily in every respect, to those that have been described above.</mark></p>
+        <p data-p="¶3">Hierarchies, however, can choose to cap how many people are involved in a decision. Decentralised systems, by design, cannot.</p>
+      </article>
+
+      <article class="sheet" data-page="6">
+        <span class="pno">p.6</span>
+        <h2>6. Conclusion</h2>
+        <p data-p="¶1"><mark class="ev" data-ev="e2"><span class="tag">1</span>In conclusion, the evidence reviewed here supports the claim that decentralised governance tends to underperform as it scales, because the cost of coordinating many participants grows faster than the benefit of including them.</mark></p>
+        <p data-p="¶2">This does not make decentralisation a failed idea. It suggests that future designs should treat coordination as the central constraint — limiting the size of decision groups, rewarding outcomes over activity, and accepting that some decisions are better delegated than shared.</p>
+      </article>
+
+    </div>
+  </section>
+
+  <div class="divider" id="divider" role="separator" aria-orientation="vertical" aria-label="Resize panels" tabindex="0"></div>
+
+  <!-- ===== Right: marking ===== -->
+  <section class="mark-pane" id="markPane" aria-label="Marking">
+    <nav class="crit-strip" aria-label="Criteria">
+      <a href="#c1" data-c="c1"><span class="st" id="nav1"></span>Argument structure <span class="w">30%</span></a>
+      <a href="#c2" data-c="c2"><span class="st" id="nav2"></span>Evidence &amp; sources <span class="w">25%</span></a>
+      <a href="#c3" data-c="c3"><span class="st" id="nav3"></span>Critical analysis <span class="w">30%</span></a>
+      <a href="#c4" data-c="c4"><span class="st" id="nav4"></span>Writing clarity <span class="w">15%</span></a>
+    </nav>
+    <div class="mark-inner">
+      <div class="doc-header">
+        <div>
+          <h1>Review — SID-40219</h1>
+          <p>4 criteria · 8 evidence spans across 6 pages · 1 criterion flagged low-confidence</p>
+        </div>
+        <button class="fold-all" type="button" id="foldAll">Collapse all</button>
+      </div>
+
+      <section class="crit-card" id="c1">
+        <div class="crit-top">
+          <div><h2 class="crit-title">Argument structure</h2><p class="crit-desc">HD band: a clear, well-sequenced thesis carried consistently through each section.</p></div>
+          <span class="crit-weight-badge">30 pts</span>
+        </div>
+        <span class="conf-tag high"><span class="dot"></span>High confidence</span>
+        <div class="evidence" data-ev="e1"><span class="tab">p.1 ¶2</span><span class="jump">Show in submission ↗</span>
+          <blockquote>"This essay argues that decentralised governance models, while promising in theory, consistently underperform in practice due to coordination costs that scale non-linearly with participant count."</blockquote></div>
+        <div class="also">Also used: <span class="chip" data-ev="e2"><b>p.6 ¶1</b><i>"In conclusion, the evidence reviewed here supports the claim…"</i></span></div>
+        <div class="ai-box"><span class="badge">AI · 26/30</span>
+          <div class="reason">Thesis is stated early and referenced again in the conclusion (<a data-ev="e2">p.6 ¶1</a>). Section transitions are explicit. <b>Minor:</b> the counter-argument in section 5 is introduced without a clear link back to the thesis.</div></div>
+        <div class="marker-row">
+          <label>Your score</label>
+          <input class="score-input" type="number" value="26" data-max="30" data-ai="26">
+          <span class="score-max">/ 30</span>
+          <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <span class="status-text">Not yet confirmed</span>
+        </div>
+        <div class="comment-field"><label class="lbl" for="cm1">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm1" placeholder="e.g. Clear thesis throughout — tie the counter-argument in section 5 back to it."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+      </section>
+
+      <section class="crit-card flagged" id="c2">
+        <div class="crit-top">
+          <div><h2 class="crit-title">Evidence &amp; sources</h2><p class="crit-desc">HD band: sources are current, credible, and integrated — not just listed.</p></div>
+          <span class="crit-weight-badge">25 pts</span>
+        </div>
+        <span class="conf-tag low"><span class="dot"></span>Low confidence — worth a closer look</span>
+        <div class="evidence" data-ev="e3"><span class="tab">p.3 ¶4</span><span class="jump">Show in submission ↗</span>
+          <blockquote>"A 2019 study (Kessler &amp; Boone) found similar coordination overhead in cooperative networks, though the sample was limited to twelve organisations."</blockquote></div>
+        <div class="also">Also used: <span class="chip" data-ev="e4"><b>p.3 ¶1</b><i>"Studies of large open-source projects show…" — no citation</i></span></div>
+        <div class="ai-box"><span class="badge">AI · 15/25</span>
+          <div class="reason">Only one external source is directly cited with integration; the claim in <a data-ev="e4">p.3 ¶1</a> has no citation, and two other sources appear in the bibliography but aren't referenced in the body. Coverage is thin relative to the HD descriptor.</div></div>
+        <div class="marker-row">
+          <label>Your score</label>
+          <input class="score-input" type="number" value="15" data-max="25" data-ai="15">
+          <span class="score-max">/ 25</span>
+          <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <span class="status-text">Not yet confirmed</span>
+        </div>
+        <div class="comment-field"><label class="lbl" for="cm2">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm2" placeholder="e.g. Cite the open-source studies in section 3, and use your bibliography sources in the body."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+      </section>
+
+      <section class="crit-card" id="c3">
+        <div class="crit-top">
+          <div><h2 class="crit-title">Critical analysis</h2><p class="crit-desc">HD band: goes beyond description to weigh competing explanations.</p></div>
+          <span class="crit-weight-badge">30 pts</span>
+        </div>
+        <span class="conf-tag high"><span class="dot"></span>High confidence</span>
+        <div class="evidence" data-ev="e5"><span class="tab">p.4 ¶1</span><span class="jump">Show in submission ↗</span>
+          <blockquote>"Yet this reading understates a second possibility: coordination costs may not be intrinsic to decentralisation itself, but to the specific incentive structures layered on top of it."</blockquote></div>
+        <div class="also">Also used: <span class="chip" data-ev="e6"><b>p.4 ¶3</b><i>"If this is right, the underperformance documented in Section 3…"</i></span></div>
+        <div class="ai-box"><span class="badge">AI · 27/30</span>
+          <div class="reason">Presents and weighs an alternative explanation rather than restating the source material, then draws out its consequence (<a data-ev="e6">p.4 ¶3</a>) — the strongest section of the essay against the descriptor.</div></div>
+        <div class="marker-row">
+          <label>Your score</label>
+          <input class="score-input" type="number" value="27" data-max="30" data-ai="27">
+          <span class="score-max">/ 30</span>
+          <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <span class="status-text">Not yet confirmed</span>
+        </div>
+        <div class="comment-field"><label class="lbl" for="cm3">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm3" placeholder="e.g. The alternative explanation in section 4 is the strongest part of the essay."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+      </section>
+
+      <section class="crit-card" id="c4">
+        <div class="crit-top">
+          <div><h2 class="crit-title">Writing clarity</h2><p class="crit-desc">HD band: precise, concise prose with few mechanical errors.</p></div>
+          <span class="crit-weight-badge">15 pts</span>
+        </div>
+        <span class="conf-tag medium"><span class="dot"></span>Medium confidence</span>
+        <div class="evidence" data-ev="e7"><span class="tab">p.2 ¶3</span><span class="jump">Show in submission ↗</span>
+          <blockquote>"…which, it should be noted, is not to say that the model does not have merit in certain more smaller-scale contexts where…"</blockquote></div>
+        <div class="also">Also used: <span class="chip" data-ev="e8"><b>p.5 ¶2</b><i>"It is, perhaps, worth considering that the costs…"</i></span></div>
+        <div class="ai-box"><span class="badge">AI · 12/15</span>
+          <div class="reason">Generally clear, but the quoted sentence and a similar one in <a data-ev="e8">p.5 ¶2</a> run long with nested qualifiers ("more smaller-scale" is also ungrammatical). No major errors elsewhere.</div></div>
+        <div class="marker-row">
+          <label>Your score</label>
+          <input class="score-input" type="number" value="12" data-max="15" data-ai="12">
+          <span class="score-max">/ 15</span>
+          <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <span class="status-text">Not yet confirmed</span>
+        </div>
+        <div class="comment-field"><label class="lbl" for="cm4">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm4" placeholder="e.g. Shorten long, nested sentences; watch phrasing like “more smaller-scale”."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+      </section>
+    </div>
+  </section>
+</div>
+
+<footer class="actionbar">
+  <div class="final">Weighted total <b id="footerTotal">80</b> / 100 <span class="ai-sug" id="aiSug">AI suggested 80</span></div>
+  <span class="hint">Hover to highlight · click to jump · <kbd>↑</kbd><kbd>↓</kbd> step · <kbd>Esc</kbd> clears</span>
+  <div class="nav-btns">
+    <button class="btn btn-ghost" type="button" id="btnPrev">← Previous</button>
+    <button class="btn btn-ghost" type="button" id="btnSkip" title="Leave unreviewed and come back later">Skip</button>
+    <button class="btn btn-primary" type="button" id="btnNext">Confirm &amp; next →</button>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="end-card" id="endCard" hidden role="dialog" aria-modal="true" aria-labelledby="ecTitle"><div class="ec-box" id="endBody"></div></div>
+
+<script>
+  var doc = document.getElementById('doc');
+  var markPane = document.getElementById('markPane');
+  var split = document.getElementById('split');
+  var pinned = null;          // single evidence kept highlighted after a click
+  var critHL = null;          // criterion whose evidence is all highlighted
+  var critStep = 0;           // position inside that criterion's evidence
+
+  /* ---------- Build collapsible cards + "highlight all" controls ---------- */
+  var EV_CARD = {};
+  document.querySelectorAll('.crit-card').forEach(function(card){
+    var top = card.querySelector('.crit-top');
+    var body = document.createElement('div'); body.className = 'crit-body';
+    while (top.nextSibling) body.appendChild(top.nextSibling);
+    card.appendChild(body);
+
+    var ids = [];
+    body.querySelectorAll('[data-ev]').forEach(function(el){ EV_CARD[el.dataset.ev] = card.id; if (ids.indexOf(el.dataset.ev) < 0) ids.push(el.dataset.ev); });
+    // keep evidence in reading order (page / paragraph) for stepping
+    var order = Array.prototype.map.call(doc.querySelectorAll('mark.ev'), function(m){ return m.dataset.ev; });
+    ids.sort(function(a, b){ return order.indexOf(a) - order.indexOf(b); });
+    card.dataset.evs = ids.join(',');
+
+    var badge = top.querySelector('.crit-weight-badge');
+    var ctl = document.createElement('div'); ctl.className = 'crit-ctl';
+    ctl.innerHTML =
+      '<span class="hl-group">' +
+        '<button type="button" class="hl-btn" aria-pressed="false" title="Highlight every passage used for this criterion">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l-4 4v4h4l4-4"/><path d="M14 6l4 4"/><path d="M12 8l6-6 4 4-6 6"/></svg>' +
+          '<span class="hl-lbl">Highlight all · ' + ids.length + '</span></button>' +
+        '<span class="hl-step"><button type="button" class="hl-prev" aria-label="Previous passage">‹</button><span class="hl-pos"></span><button type="button" class="hl-next" aria-label="Next passage">›</button></span>' +
+      '</span>';
+    top.insertBefore(ctl, badge);
+    var fold = document.createElement('button'); fold.type = 'button'; fold.className = 'fold-btn';
+    fold.setAttribute('aria-expanded','true'); fold.setAttribute('aria-label','Collapse ' + card.querySelector('.crit-title').textContent);
+    fold.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+    top.insertBefore(fold, top.firstChild);
+    fold.addEventListener('click', function(){ toggleCard(card); });
+
+    var sum = document.createElement('p'); sum.className = 'crit-sum';
+    top.querySelector('div').appendChild(sum);
+
+    top.querySelector('.crit-title').addEventListener('click', function(){ toggleCard(card); });
+    ctl.querySelector('.hl-btn').addEventListener('click', function(){ setCritHL(critHL === card.id ? null : card.id); });
+    ctl.querySelector('.hl-prev').addEventListener('click', function(){ stepCrit(-1); });
+    ctl.querySelector('.hl-next').addEventListener('click', function(){ stepCrit(1); });
+    updateSummary(card);
+  });
+
+  function toggleCard(card, open){
+    var willOpen = open === undefined ? card.classList.contains('closed') : open;
+    card.classList.toggle('closed', !willOpen);
+    var fb = card.querySelector('.fold-btn'), name = card.querySelector('.crit-title').textContent;
+    fb.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    fb.setAttribute('aria-label', (willOpen ? 'Collapse ' : 'Expand ') + name);
+    updateSummary(card);
+  }
+  function updateSummary(card){
+    var input = card.querySelector('.score-input'), st = card.querySelector('.status-text');
+    card.querySelector('.crit-sum').innerHTML = 'Your score <b>' + (input.value || '—') + ' / ' + input.dataset.max + '</b> · ' + st.textContent + ' · ' + card.dataset.evs.split(',').length + ' passages' + (card.querySelector('.comment-field textarea').value.trim() ? ' · <span class="cm">Commented</span>' : ' · No comment');
+  }
+
+  function marks(id){ return doc.querySelectorAll('mark.ev[data-ev="' + id + '"]'); }
+  function sources(id){ return markPane.querySelectorAll('.evidence[data-ev="' + id + '"], .chip[data-ev="' + id + '"], .ai-box a[data-ev="' + id + '"]'); }
+
+  // Scroll a pane just enough to bring an element into view (or centre it)
+  function reveal(container, el, center){
+    var c = container.getBoundingClientRect(), r = el.getBoundingClientRect(), pad = 60;
+    if (center || r.top < c.top + pad || r.bottom > c.bottom - pad){
+      container.scrollTop += (r.top - c.top) - (c.height / 2) + (r.height / 2);
+    }
+  }
+  function pulse(id){ marks(id).forEach(function(m){ m.classList.remove('pulse'); void m.offsetWidth; m.classList.add('pulse'); }); }
+
+  /* Single-evidence highlight: visual only, never scrolls by itself */
+  function setActive(id){
+    document.querySelectorAll('mark.ev.on, .evidence.on, .chip.on, .ai-box a.on').forEach(function(el){ el.classList.remove('on'); });
+    document.querySelectorAll('.crit-card.linked').forEach(function(el){ el.classList.remove('linked'); });
+    document.querySelectorAll('.crit-strip a.on').forEach(function(el){ el.classList.remove('on'); });
+    if (!id) return;
+    marks(id).forEach(function(m){ m.classList.add('on'); });
+    sources(id).forEach(function(s){ s.classList.add('on'); });
+    var card = document.getElementById(EV_CARD[id]);
+    if (card){ card.classList.add('linked'); var nav = document.querySelector('.crit-strip a[data-c="' + card.id + '"]'); if (nav) nav.classList.add('on'); }
+  }
+  function openDocIfHidden(){ if (split.classList.contains('collapsed')) toggleDoc(false); }
+
+  /* Criterion highlight: every passage of one criterion, with a stepper */
+  function setCritHL(cardId){
+    critHL = cardId; critStep = 0;
+    doc.classList.toggle('crit-mode', !!cardId);
+    doc.querySelectorAll('mark.ev.crit-on').forEach(function(m){ m.classList.remove('crit-on'); });
+    document.querySelectorAll('.crit-card').forEach(function(c){
+      var on = c.id === cardId;
+      c.classList.toggle('hl-active', on);
+      c.querySelector('.hl-btn').setAttribute('aria-pressed', on ? 'true' : 'false');
+      c.querySelector('.hl-lbl').textContent = on ? 'Highlighting' : 'Highlight all · ' + c.dataset.evs.split(',').length;
+    });
+    var nav = document.getElementById('critNotice');
+    if (!cardId){ nav.hidden = true; return; }
+    var card = document.getElementById(cardId);
+    card.dataset.evs.split(',').forEach(function(id){ marks(id).forEach(function(m){ m.classList.add('crit-on'); }); });
+    nav.hidden = false;
+    nav.querySelector('b').textContent = card.querySelector('.crit-title').textContent;
+    openDocIfHidden(); goStep();
+  }
+  function stepCrit(d){
+    if (!critHL) return;
+    var n = document.getElementById(critHL).dataset.evs.split(',').length;
+    critStep = (critStep + d + n) % n; goStep();
+  }
+  function goStep(){
+    var card = document.getElementById(critHL), ids = card.dataset.evs.split(','), id = ids[critStep];
+    card.querySelector('.hl-pos').textContent = (critStep + 1) + ' / ' + ids.length;
+    document.getElementById('critNotice').querySelector('.pos').textContent = (critStep + 1) + ' / ' + ids.length;
+    var m = marks(id)[0]; if (m){ reveal(doc, m, true); pulse(id); }
+  }
+
+  /* ---------- Right pane: hover = highlight only, click = jump ---------- */
+  markPane.addEventListener('mouseover', function(e){
+    var el = e.target.closest('[data-ev]'); if (!el) return;
+    setActive(el.dataset.ev);
+  });
+  markPane.addEventListener('mouseout', function(e){
+    var el = e.target.closest('[data-ev]'); if (!el || el.contains(e.relatedTarget)) return;
+    setActive(pinned);
+  });
+  markPane.addEventListener('click', function(e){
+    var el = e.target.closest('[data-ev]'); if (!el) return;
+    openDocIfHidden();
+    pinned = el.dataset.ev; setActive(pinned);
+    var m = marks(pinned)[0]; if (m) reveal(doc, m, true); pulse(pinned);
+  });
+
+  /* ---------- Left pane: hover = highlight only, click = jump ---------- */
+  doc.addEventListener('mouseover', function(e){
+    var m = e.target.closest('mark.ev'); if (!m) return;
+    setActive(m.dataset.ev);
+  });
+  doc.addEventListener('mouseout', function(e){
+    var m = e.target.closest('mark.ev'); if (!m || m.contains(e.relatedTarget)) return;
+    setActive(pinned);
+  });
+  doc.addEventListener('click', function(e){
+    var m = e.target.closest('mark.ev'); if (!m) return;
+    pinned = m.dataset.ev; setActive(pinned);
+    var card = document.getElementById(EV_CARD[pinned]);
+    if (card){ toggleCard(card, true); var s = sources(pinned)[0] || card; reveal(markPane, s, false); }
+  });
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape'){ pinned = null; setActive(null); setCritHL(null); }
+    if (critHL && !/INPUT|TEXTAREA/.test(e.target.tagName)){
+      if (e.key === 'ArrowDown' || e.key === 'j'){ e.preventDefault(); stepCrit(1); }
+      if (e.key === 'ArrowUp' || e.key === 'k'){ e.preventDefault(); stepCrit(-1); }
+    }
+  });
+  document.getElementById('critNotice').addEventListener('click', function(e){
+    if (e.target.closest('.n-prev')) stepCrit(-1);
+    else if (e.target.closest('.n-next')) stepCrit(1);
+    else if (e.target.closest('.n-close')) setCritHL(null);
+  });
+
+  // Show-all toggle
+  document.getElementById('showAll').addEventListener('change', function(e){ doc.classList.toggle('show-all', e.target.checked); });
+
+  // Collapse / expand the submission pane
+  function toggleDoc(collapse){
+    split.classList.toggle('collapsed', collapse);
+    try { localStorage.setItem('margin.docCollapsed', collapse ? '1' : '0'); } catch(err){}
+  }
+  document.getElementById('collapse').addEventListener('click', function(){ toggleDoc(true); });
+  document.getElementById('expand').addEventListener('click', function(){ toggleDoc(false); });
+  try { if (localStorage.getItem('margin.docCollapsed') === '1') toggleDoc(true); } catch(err){}
+
+  // Drag to resize
+  (function(){
+    var div = document.getElementById('divider'), dragging = false;
+    function set(pct){ pct = Math.max(28, Math.min(68, pct)); split.style.setProperty('--left', pct + '%'); try { localStorage.setItem('margin.docWidth', pct); } catch(err){} }
+    try { var w = localStorage.getItem('margin.docWidth'); if (w) split.style.setProperty('--left', w + '%'); } catch(err){}
+    div.addEventListener('pointerdown', function(e){ dragging = true; div.classList.add('drag'); div.setPointerCapture(e.pointerId); document.body.style.userSelect = 'none'; });
+    div.addEventListener('pointermove', function(e){ if (!dragging) return; var r = split.getBoundingClientRect(); set((e.clientX - r.left) / r.width * 100); });
+    div.addEventListener('pointerup', function(){ dragging = false; div.classList.remove('drag'); document.body.style.userSelect = ''; });
+    div.addEventListener('keydown', function(e){
+      var cur = parseFloat(getComputedStyle(split).getPropertyValue('--left')) || 46;
+      if (e.key === 'ArrowLeft') set(cur - 2); if (e.key === 'ArrowRight') set(cur + 2);
+    });
+  })();
+
+  // Criteria strip: open the card and scroll the right pane only
+  document.querySelector('.crit-strip').addEventListener('click', function(e){
+    var a = e.target.closest('a'); if (!a) return; e.preventDefault();
+    var card = document.getElementById(a.dataset.c); toggleCard(card, true);
+    markPane.scrollTop += card.getBoundingClientRect().top - markPane.getBoundingClientRect().top - 60;
+  });
+  // Expand / collapse all
+  document.getElementById('foldAll').addEventListener('click', function(){
+    var cards = document.querySelectorAll('.crit-card'), anyOpen = Array.prototype.some.call(cards, function(c){ return !c.classList.contains('closed'); });
+    cards.forEach(function(c){ toggleCard(c, !anyOpen); });
+    this.textContent = anyOpen ? 'Expand all' : 'Collapse all';
+  });
+
+  // ---- Scoring (same behaviour as the single-column review page) ----
+  function recompute(){
+    var sum = 0; document.querySelectorAll('.score-input').forEach(function(i){ sum += Number(i.value || 0); });
+    document.getElementById('footerTotal').textContent = sum;
+  }
+  document.querySelectorAll('.crit-card').forEach(function(card, idx){
+    var input = card.querySelector('.score-input'), status = card.querySelector('.status-text');
+    var field = card.querySelector('.comment-field'), comment = field.querySelector('textarea');
+    function checkComment(){
+      var changed = Number(input.value) !== Number(input.dataset.ai);
+      field.classList.toggle('needs', changed && !comment.value.trim());
+    }
+    comment.addEventListener('input', function(){ checkComment(); updateSummary(card); });
+    input.addEventListener('input', function(){
+      var changed = Number(input.value) !== Number(input.dataset.ai);
+      input.classList.remove('confirmed'); status.classList.remove('confirmed');
+      checkComment();
+      status.textContent = changed ? 'Adjusted from AI suggestion' : 'Matches AI suggestion — not yet confirmed';
+      recompute(); updateSummary(card);
+    });
+    card.querySelector('.accept-btn').addEventListener('click', function(){
+      input.value = input.dataset.ai; input.classList.add('confirmed'); checkComment();
+      status.textContent = 'Confirmed'; status.classList.add('confirmed');
+      document.getElementById('nav' + (idx + 1)).classList.add('done'); recompute(); updateSummary(card);
+    });
+  });
+  recompute();
+
+  /* ---- Review queue: progress (top right) + Previous / Skip / Confirm & next (footer) ----
+     When nothing is left to review the page shows an end card:
+       • batch complete  → "Batch complete" with View results (no automatic redirect)
+       • others still with the AI → "waiting" card; "Next ready" lights up when one finishes
+     Demo modes (URL):  ?demo=single  one-file batch · ?demo=last  last one of 48 · ?demo=wait  waiting for the AI
+     Default: 48 in batch, 34 marked by AI, 15 reviewed; the AI finishes one every 7 s. */
+  (function(){
+    var mode = (location.search.match(/[?&]demo=(\w+)/) || [])[1] || '';
+    var CFG = {
+      single: { total:1,  ready:1,  done:0,  tick:0 },
+      last:   { total:48, ready:48, done:47, tick:0 },
+      wait:   { total:48, ready:16, done:15, tick:9000 },
+      '':     { total:48, ready:34, done:15, tick:7000 }
+    }[mode] || { total:48, ready:34, done:15, tick:7000 };
+    var TOTAL = CFG.total, ready = CFG.ready, done = 0;
+    var reviewed = {}, queue = [], history = [];
+    for (var i = 0; i < ready; i++) queue.push('SID-' + (40204 + i));
+    if (mode === 'single') queue = ['SID-40219'];
+    var pos = Math.max(0, queue.indexOf('SID-40219'));
+    // mark CFG.done submissions as already reviewed, never the one on screen
+    for (var j = 0, n = 0; j < queue.length && n < CFG.done; j++){ if (j !== pos){ reviewed[queue[j]] = true; n++; } }
+    done = CFG.done;
+
+    var $ = function(id){ return document.getElementById(id); };
+    var meta = document.getElementById('bcCur'), fileName = document.querySelector('.doc-bar .file b');
+    var toastT;
+    function toast(msg){ var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(function(){ t.classList.remove('show'); }, 2200); }
+    function isComplete(){ return done >= TOTAL; }
+
+    function render(){
+      $('pgDone').textContent = done;
+      $('pgReady').textContent = ready;
+      $('pgFill').style.width = (done / TOTAL * 100) + '%';
+      $('pgReadyFill').style.width = (ready / TOTAL * 100) + '%';
+      var proc = TOTAL - ready;
+      $('pgSub').classList.toggle('done', proc === 0);
+      $('pgSub').innerHTML = isComplete() ? '<span class="dot"></span>All ' + TOTAL + ' reviewed · batch complete'
+        : proc > 0 ? '<span class="dot"></span>' + proc + ' still with AI · ' + TOTAL + ' in batch'
+        : '<span class="dot"></span>All ' + TOTAL + ' marked by AI';
+      $('btnPrev').disabled = history.length === 0;
+      $('btnNext').disabled = isComplete(); $('btnSkip').disabled = isComplete() || !anyOtherUnreviewed();
+      var sid = queue[pos];
+      meta.textContent = sid;
+      fileName.textContent = sid + '_ASGN2.pdf';
+      var h = document.querySelector('.doc-header h1'); if (h) h.textContent = 'Review — ' + sid;
+      document.title = sid + ' — Review — AI-assisted marker';
+    }
+    function anyOtherUnreviewed(){ return queue.some(function(q, k){ return k !== pos && !reviewed[q]; }); }
+    function nextUnreviewed(from){
+      for (var k = 1; k <= queue.length; k++){ var p = (from + k) % queue.length; if (!reviewed[queue[p]]) return p; }
+      return -1;
+    }
+    function go(p, msg){
+      if (p < 0){ showEnd(); return; }
+      history.push(pos); pos = p; render();
+      document.querySelector('.mark-pane') && (document.querySelector('.mark-pane').scrollTop = 0);
+      document.querySelector('.doc-scroll') && (document.querySelector('.doc-scroll').scrollTop = 0);
+      toast(msg + ' — ' + queue[pos] + ' (sample essay shown)');
+    }
+
+    /* ---------- End card ---------- */
+    function adjustedHere(){
+      return Array.prototype.filter.call(document.querySelectorAll('.score-input'), function(i){ return Number(i.value) !== Number(i.dataset.ai); }).length ? 1 : 0;
+    }
+    function showEnd(){
+      var card = $('endCard'), body;
+      if (isComplete()){
+        var adj = adjustedHere() + (TOTAL > 1 ? Math.round((TOTAL - 1) * 0.12) : 0);
+        body =
+          '<div class="ec-icon ok" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg></div>' +
+          '<div class="ec-kicker">Batch complete</div>' +
+          '<h2 id="ecTitle">' + TOTAL + ' of ' + TOTAL + ' reviewed</h2>' +
+          '<p class="ec-sub">ASGN2 — Critical Essay is now marked <b>Complete</b>. Results stay editable until you finalise them.</p>' +
+          '<div class="ec-stats"><span><b>' + TOTAL + '</b>confirmed</span><span><b>' + adj + '</b>adjusted from AI</span><span><b>0</b>still with AI</span></div>' +
+          '<div class="ec-actions">' +
+            '<a class="btn btn-primary" href="04-batch-complete.html">View results →</a>' +
+            '<a class="btn btn-ghost" href="05-mark-report.html">' + (TOTAL === 1 ? 'Mark report' : 'Mark report for ' + queue[pos]) + '</a>' +
+          '</div>' +
+          '<div class="ec-links"><a href="00-home.html">Back to Home</a><button type="button" data-close>Stay on this submission</button></div>';
+        $('pgSub').classList.add('done');
+      } else {
+        var proc = TOTAL - ready;
+        body =
+          '<div class="ec-icon wait" aria-hidden="true"><span class="ec-spin"></span></div>' +
+          '<div class="ec-kicker">Nothing ready right now</div>' +
+          '<h2 id="ecTitle">All ready submissions reviewed</h2>' +
+          '<p class="ec-sub"><b id="ecProc">' + proc + '</b> still with the AI. The next one appears here as soon as it is marked — you don’t need to refresh.</p>' +
+          '<div class="ec-stats"><span><b>' + done + '</b>reviewed</span><span><b id="ecProc2">' + proc + '</b>still with AI</span><span><b>' + TOTAL + '</b>in batch</span></div>' +
+          '<div class="ec-actions">' +
+            '<button class="btn btn-primary" type="button" id="ecNext" disabled>Waiting for the AI…</button>' +
+            '<a class="btn btn-ghost" href="02-batch-status.html">Back to batch</a>' +
+          '</div>' +
+          '<div class="ec-links"><a href="00-home.html">Back to Home</a><button type="button" data-close>Stay on this submission</button></div>';
+      }
+      $('endBody').innerHTML = body;
+      card.hidden = false; card.dataset.kind = isComplete() ? 'done' : 'wait';
+      render();
+      var f = card.querySelector('.btn-primary'); if (f && !f.disabled) f.focus();
+    }
+    function hideEnd(){ $('endCard').hidden = true; }
+    $('endCard').addEventListener('click', function(e){
+      if (e.target.closest('[data-close]')) hideEnd();
+      if (e.target.id === 'ecNext' && !e.target.disabled){ hideEnd(); go(nextUnreviewed(pos), 'Next ready'); }
+    });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !$('endCard').hidden) hideEnd(); });
+
+    $('btnNext').addEventListener('click', function(){
+      if (isComplete()) { showEnd(); return; }
+      if (!reviewed[queue[pos]]){ reviewed[queue[pos]] = true; done++; }
+      go(nextUnreviewed(pos), 'Saved. Next');
+    });
+    $('btnSkip').addEventListener('click', function(){
+      var p = nextUnreviewed(pos);
+      if (p === pos || p < 0){ toast('Nothing else is ready — this is the only one left to review'); return; }
+      go(p, 'Skipped. Next');
+    });
+    $('btnPrev').addEventListener('click', function(){
+      if (!history.length) return; hideEnd(); pos = history.pop(); render(); toast('Back to ' + queue[pos]);
+    });
+
+    // AI finishes more submissions over time → they join the review queue
+    if (CFG.tick){
+      var tick = setInterval(function(){
+        if (ready >= TOTAL){ clearInterval(tick); return; }
+        ready++; queue.push('SID-' + (40204 + ready - 1)); render();
+        var r = $('pgReady'); r.classList.add('bump'); setTimeout(function(){ r.classList.remove('bump'); }, 900);
+        var card = $('endCard');
+        if (!card.hidden && card.dataset.kind === 'wait'){
+          var b = $('ecNext'), left = TOTAL - ready;
+          b.disabled = false; b.textContent = 'Open ' + queue[queue.length - 1] + ' →'; b.classList.add('pulse');
+          $('ecProc').textContent = left; $('ecProc2').textContent = left;
+          card.querySelector('.ec-kicker').textContent = '1 new submission ready';
+        }
+      }, CFG.tick);
+    }
+    render();
+    if (mode) toast({ single:'Demo: one-file batch', last:'Demo: last submission of 48', wait:'Demo: waiting for the AI' }[mode] || '');
+  })();
+</script>
+<script src="account-menu.js"></script>
+</body>
+</html>
