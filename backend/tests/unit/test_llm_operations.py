@@ -53,3 +53,17 @@ def test_openai_compatible_response_accepts_reasoning_content_fallback() -> None
 
 def test_openai_compatible_response_flattens_content_parts() -> None:
     assert response_text({"message": {"content": [{"text": "{"}, {"text": "}"}]}}) == "{}"
+
+
+def test_openai_compatible_prefers_structured_reasoning_over_prose_content() -> None:
+    assert (
+        response_text(
+            {
+                "message": {
+                    "content": "I have completed the assessment.",
+                    "reasoning_content": 'analysis followed by {"score": 1.5}',
+                }
+            }
+        )
+        == 'analysis followed by {"score": 1.5}'
+    )

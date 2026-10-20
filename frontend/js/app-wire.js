@@ -26,6 +26,21 @@
       });
     });
   }
+  function wireSetup() {
+    return MarkerAPI.listRubrics().then(function(data){
+      var details=MarkerAPI.mode==='mock'?Promise.resolve(data.items):Promise.all(data.items.map(function(item){return MarkerAPI.getRubric(item.id).catch(function(){return item;});}));
+      return details.then(function(items){
+        var converted=items.map(rubricShape);
+        RubricLib.saveAll(converted);
+        window.__MARKER_PAGE_DATA={rubrics:data,settings:null};
+        return MarkerAPI.getSettings().then(function(settings){
+          window.__MARKER_PAGE_DATA.settings=settings;
+          window.dispatchEvent(new CustomEvent('marker:rubrics-loaded'));
+          return window.__MARKER_PAGE_DATA;
+        });
+      });
+    });
+  }
   function wireBatchStatus() {
     var batchId=new URLSearchParams(location.search).get('batch_id');
     if(!batchId)return MarkerAPI.listSubmissions('bat_asgn2');
@@ -254,7 +269,8 @@
     if(name==='02-batch-status.html') return wireBatchStatus();
     if(name==='04-batch-complete.html') return MarkerAPI.getResults(new URLSearchParams(location.search).get('batch_id')||'bat_quiz3');
     if(name==='05-mark-report.html') return MarkerAPI.getReport(new URLSearchParams(location.search).get('submission_id')||'sub_quiz3_000002','internal');
-    if(name==='01-upload.html'||name==='01a-rubric-import.html') return Promise.all([MarkerAPI.listRubrics(),MarkerAPI.getSettings()]);
+    if(name==='01-upload.html') return wireSetup();
+    if(name==='01a-rubric-import.html') return Promise.all([MarkerAPI.listRubrics(),MarkerAPI.getSettings()]);
     return Promise.resolve(null);
   }
   function disableCanvas() {

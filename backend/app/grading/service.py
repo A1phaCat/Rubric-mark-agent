@@ -6,18 +6,82 @@ from typing import Any, Mapping
 
 from app.config import Settings
 from app.llm import build_llm
+from app.llm.protocol import LLM, LLMResponse
 from app.retrieval import RetrievedPassage
 from app.rubric.assessment import normalise_assessment_plan
 
 
-def _json_object(text: str) -> dict[str, Any]:
-    start, end = text.find("{"), text.rfind("}")
-    if start < 0 or end < start:
-        raise ValueError("The grading model did not return a JSON object")
-    value = json.loads(text[start : end + 1])
-    if not isinstance(value, dict):
-        raise ValueError("The grading model response must be a JSON object")
-    return value
+def _json_object(
+    text: str, *, required_keys: frozenset[str] = frozenset()
+) -> dict[str, Any]:
+    decoder = json.JSONDecoder()
+    start = text.find("{")
+    last_error: json.JSONDecodeError | None = None
+    matched: dict[str, Any] | None = None
+    while start >= 0:
+        try:
+            value, _ = decoder.raw_decode(text[start:])
+        except json.JSONDecodeError as exc:
+            last_error = exc
+            start = text.find("{", start + 1)
+            continue
+        if isinstance(value, dict) and required_keys.issubset(value):
+            if not required_keys:
+                return value
+            # Reasoning models may repeat the prompt's example JSON before
+            # emitting their answer. Prefer the final schema-shaped object.
+            matched = value
+        start = text.find("{", start + 1)
+    if matched is not None:
+        return matched
+    if last_error is not None:
+        raise last_error
+    if required_keys:
+        expected = ", ".join(sorted(required_keys))
+        raise ValueError(f"The grading model did not return JSON with: {expected}")
+    raise ValueError("The grading model did not return a JSON object")
+
+
+def _required_response_keys(purpose: str) -> frozenset[str]:
+    if purpose == "evidence_gate":
+        return frozenset({"evidence"})
+    if purpose == "criterion_grade":
+        return frozenset({"score", "level", "rationale", "confidence"})
+    return frozenset()
+
+
+async def _complete_json(
+    llm: LLM,
+    *,
+    purpose: str,
+    prompt: str,
+    metadata: Mapping[str, str],
+) -> tuple[dict[str, Any], LLMResponse]:
+    """Request JSON and make one focused repair call for prose-only model output."""
+
+    required_keys = _required_response_keys(purpose)
+    response = await llm.complete(purpose=purpose, prompt=prompt, metadata=metadata)
+    try:
+        return _json_object(response.text, required_keys=required_keys), response
+    except (ValueError, json.JSONDecodeError) as first_error:
+        repair = await llm.complete(
+            purpose=purpose,
+            prompt=(
+                "Convert the response below into the JSON object requested by the original task. "
+                "Return one JSON object only: no markdown, explanation, or reasoning. Preserve the "
+                "meaning and do not invent evidence.\n\n"
+                f"Parser error: {first_error}\n\nResponse:\n{response.text[:12000]}"
+            ),
+            metadata={**metadata, "repair": "true"},
+        )
+        value = _json_object(repair.text, required_keys=required_keys)
+        combined = LLMResponse(
+            text=repair.text,
+            model=repair.model,
+            input_tokens=response.input_tokens + repair.input_tokens,
+            output_tokens=response.output_tokens + repair.output_tokens,
+        )
+        return value, combined
 
 
 def _rubric(criterion: dict[str, Any]) -> dict[str, Any]:
@@ -296,12 +360,17 @@ async def grade_criterion(
         return _fake_grade(criterion, gate) if gate["evidence"] else _lowest_result(criterion, gate)
 
     llm = build_llm(settings)
-    gate_response = await llm.complete(
+    gate_raw, gate_response = await _complete_json(
+        llm,
         purpose="evidence_gate",
         prompt=_gate_prompt(criterion, passages),
         metadata=metadata,
     )
-    gate = _normalise_gate(criterion, passages, _json_object(gate_response.text))
+    gate = _normalise_gate(criterion, passages, gate_raw)
+    if gate_raw.get("evidence") and not gate["evidence"]:
+        raise ValueError(
+            "The evidence gate returned passages or quotes that do not match the retrieved candidates"
+        )
     if not gate["evidence"]:
         result = _lowest_result(criterion, gate)
         result.update(
@@ -314,12 +383,12 @@ async def grade_criterion(
 
     selected_ids = {item["passage_id"] for item in gate["evidence"]}
     selected_passages = [item for item in passages if item.id in selected_ids]
-    grade_response = await llm.complete(
+    result, grade_response = await _complete_json(
+        llm,
         purpose="criterion_grade",
         prompt=_grade_prompt(criterion, selected_passages, gate),
         metadata=metadata,
     )
-    result = _json_object(grade_response.text)
     result.update(
         grading_mode=gate["grading_mode"],
         evidence=gate["evidence"],

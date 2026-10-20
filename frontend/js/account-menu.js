@@ -202,7 +202,7 @@
             listModels(prov, base, key).then(function (res) {
               if (res.ok && res.models.length) {
                 lastTest = { key: key, ok: true };
-                S.ai.fetched = { prov: prov, base: base, models: res.models, at: Date.now() }; save(S);
+                S.ai.fetched = { prov: prov, base: base, models: res.models, at: Date.now() };
                 var keep = res.models.indexOf(sel.value) >= 0 ? sel.value : res.models[0];
                 fillModels(sel, res.models, keep);
                 note.textContent = modelNote(modelsFor(S, prov, base)); note.className = 'am-note live';
@@ -224,7 +224,18 @@
           setTimeout(function () { msg.className = 'msg ' + (okAi ? 'ok' : 'err'); msg.textContent = okAi ? '✓ Connected · ' + model : 'Key rejected — check it and try again'; }, 700); return;
         }
         if (!uni && PROVIDERS[prov].live && lastTest && lastTest.key === key) okAi = lastTest.ok;
-        S.ai = { provider: prov, model: model, key: key, base: base, ok: okAi, useUni: uni, hasKey:S.ai.hasKey||!!key, fetched: S.ai.fetched }; save(S); draw(null);
+        var nextAi = { provider: prov, model: model, key: key, base: base, ok: okAi, useUni: uni, hasKey:S.ai.hasKey||!!key, fetched: S.ai.fetched };
+        msg.className = 'msg'; msg.textContent = 'Saving…';
+        save({ai:nextAi,canvas:S.canvas}).then(function(saved){
+          S.ai = nextAi;
+          S.ai.key = '';
+          S.ai.hasKey = !!saved.has_api_key;
+          S.ai.ok = S.ai.useUni || S.ai.hasKey;
+          draw(null);
+        }).catch(function(error){
+          msg.className = 'msg err';
+          msg.textContent = error.message || 'Could not save AI settings';
+        });
       }
     });
     menu.addEventListener('change', function (e) {

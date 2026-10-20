@@ -17,14 +17,25 @@ def response_text(choice: Mapping[str, object]) -> str:
         content = "".join(
             str(part.get("text") or "") for part in content if isinstance(part, dict)
         )
+    reasoning = message.get("reasoning_content")
+    if (
+        isinstance(content, str)
+        and content.strip()
+        and "{" not in content
+        and isinstance(reasoning, str)
+        and "{" in reasoning
+    ):
+        content = reasoning
     if not isinstance(content, str) or not content.strip():
         # MiniMax reasoning models can put the final JSON in
         # reasoning_content when a compatible gateway omits content.
-        content = message.get("reasoning_content") or choice.get("text")
+        content = reasoning or choice.get("text")
     return content.strip() if isinstance(content, str) else ""
 
 
 class OpenAICompatibleLLM:
+    reasoning_effort: str | None = None
+
     def __init__(
         self, base_url: str, api_key: str, model: str, timeout_seconds: float = 120.0
     ) -> None:
@@ -53,7 +64,7 @@ class OpenAICompatibleLLM:
         del metadata
         output_limits = {
             "rubric_parse": 8000,
-            "evidence_gate": 3500,
+            "evidence_gate": 6000,
             # Reasoning-capable OpenAI-compatible models count their hidden
             # reasoning in the completion budget.  A small budget can finish
             # before the final JSON reaches message.content.
@@ -65,6 +76,8 @@ class OpenAICompatibleLLM:
             "temperature": 0,
             "max_tokens": output_limits.get(purpose, 2500),
         }
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
                 response = await client.post(

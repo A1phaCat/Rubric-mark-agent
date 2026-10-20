@@ -15,7 +15,7 @@ from app.config import settings
 from app.db.models.batch import Batch
 from app.db.models.job import Job
 from app.db.models.rubric import RubricCriterion
-from app.db.models.submission import File, Submission
+from app.db.models.submission import AIResult, File, Submission
 from app.db.session import SessionLocal
 from app.domain.states import BatchStatus, SubmissionStatus
 from app.events.bus import event_bus
@@ -81,8 +81,21 @@ async def handle_grade(payload: dict[str, object]) -> None:
             stored_file.pages = int(document["page_count"])
             stored_file.text_layer = True
             submission.is_mock = False
+        force = bool(payload.get("force", False))
+        completed_criteria = 0
+        if not force:
+            completed_criteria = (
+                session.scalar(
+                    select(func.count(func.distinct(AIResult.criterion_id))).where(
+                        AIResult.submission_id == submission.id
+                    )
+                )
+                or 0
+            )
         submission.status = SubmissionStatus.MARKING.value
-        submission.ai_summary = f"0/{len(criteria)} criteria processed"
+        submission.ai_summary = (
+            f"{min(int(completed_criteria), len(criteria))}/{len(criteria)} criteria processed"
+        )
         submission.error_reason = None
         submission.version += 1
         session.commit()
@@ -96,7 +109,7 @@ async def handle_grade(payload: dict[str, object]) -> None:
                 submission,
                 batch,
                 criterion_payloads,
-                force=bool(payload.get("force", False)),
+                force=force,
                 commit_progress=True,
             )
         except BatchCancelled:
@@ -107,6 +120,10 @@ async def handle_grade(payload: dict[str, object]) -> None:
             f"{len(criteria)}/{len(criteria)} criteria processed · {submission.ai_summary}"
         )
         submission.version += 1
+        # Make the terminal submission state visible to the aggregate query.
+        # This is especially important after grade_submission committed
+        # criterion-level progress during a long external-provider run.
+        session.flush()
         _update_batch_state(session, batch_id)
         session.commit()
         event_bus.publish(

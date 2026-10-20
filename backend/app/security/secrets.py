@@ -3,7 +3,12 @@ from __future__ import annotations
 import base64
 import ctypes
 import os
+import subprocess
+import sys
 from ctypes import wintypes
+
+_KEYCHAIN_SERVICE = "ai-assisted-marker"
+_KEYCHAIN_ACCOUNT = "local-ai-api-key"
 
 
 class _DataBlob(ctypes.Structure):
@@ -49,12 +54,33 @@ def _release(pointer: ctypes.POINTER(ctypes.c_byte)) -> None:
 
 
 def protect_secret(value: str) -> str:
-    """Protect a secret for the current Windows user with DPAPI."""
+    """Protect a secret with the current user's native OS credential store."""
 
     if not value:
         return ""
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(
+                [
+                    "security",
+                    "add-generic-password",
+                    "-U",
+                    "-s",
+                    _KEYCHAIN_SERVICE,
+                    "-a",
+                    _KEYCHAIN_ACCOUNT,
+                    "-w",
+                    value,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise RuntimeError("Could not save the API key in macOS Keychain") from exc
+        return f"keychain:{_KEYCHAIN_SERVICE}:{_KEYCHAIN_ACCOUNT}"
     if os.name != "nt":
-        raise RuntimeError("Persistent API-key storage requires Windows DPAPI")
+        raise RuntimeError("Persistent API-key storage requires Windows DPAPI or macOS Keychain")
     source, _source_buffer = _blob(value.encode("utf-8"))
     output = _DataBlob()
     if not _crypt32().CryptProtectData(
@@ -71,6 +97,28 @@ def protect_secret(value: str) -> str:
 def unprotect_secret(value: str) -> str:
     if not value:
         return ""
+    if value.startswith("keychain:"):
+        if sys.platform != "darwin":
+            raise RuntimeError("This API key is stored in macOS Keychain")
+        _, service, account = value.split(":", 2)
+        try:
+            result = subprocess.run(
+                [
+                    "security",
+                    "find-generic-password",
+                    "-s",
+                    service,
+                    "-a",
+                    account,
+                    "-w",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise RuntimeError("Could not read the API key from macOS Keychain") from exc
+        return result.stdout.rstrip("\r\n")
     if not value.startswith("dpapi:"):
         return value
     if os.name != "nt":

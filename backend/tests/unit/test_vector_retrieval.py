@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from app.config import Settings
 from app.grading.service import _normalise_gate, grade_criterion
+from app.llm.protocol import LLMResponse
 from app.retrieval import retrieve_passages
 from app.rubric.assessment import normalise_assessment_plan
 
@@ -90,6 +93,35 @@ def test_fake_grader_selects_up_to_five_retrieved_passages(tmp_path) -> None:
 
     assert len(result["evidence"]) == 5
     assert len({item["passage_id"] for item in result["evidence"]}) == 5
+
+
+def test_gate_does_not_silently_turn_invalid_model_evidence_into_zero(monkeypatch) -> None:
+    class InvalidGateLLM:
+        async def list_models(self):
+            return []
+
+        async def complete(self, *, purpose, prompt, metadata=None):
+            del purpose, prompt, metadata
+            return LLMResponse(
+                '{"evidence":[{"passage_id":"prompt-example","quote":"not real",'
+                '"role":"primary","relevance":"direct","aspect_ids":["criterion"]}]}',
+                "test",
+                1,
+                1,
+            )
+
+    monkeypatch.setattr("app.grading.service.build_llm", lambda settings: InvalidGateLLM())
+    settings = Settings(llm="minimax")
+
+    with pytest.raises(ValueError, match="do not match"):
+        asyncio.run(
+            grade_criterion(
+                settings,
+                _criterion(),
+                retrieve_passages(_document(), _criterion(), limit=3),
+                {"submission_id": "sub_invalid_gate"},
+            )
+        )
 
 
 def test_long_paragraphs_are_split_into_overlapping_vector_chunks(tmp_path) -> None:

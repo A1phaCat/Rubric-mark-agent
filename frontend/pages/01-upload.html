@@ -466,8 +466,10 @@
     var count=source.length;
     return {id:c.id,name:c.name||'',weight:c.weight==null?'':Number(c.weight),description:c.description||'',stated_percent:c.stated_percent==null?null:c.stated_percent,grading_mode:c.grading_mode||'',scoring_mode:c.scoring_mode||'fixed_levels',score_mapping:c.score_mapping||'explicit',granularity:c.granularity==null?null:c.granularity,aspects:(c.aspects||[]).slice(),prov:clone(c.prov||{}),source_text:clone(c.source_text||{}),levels:source.map(function(level,j){
       if(typeof level==='string')level={description:level};
-      var fallback=j<count-1?Math.round((Number(c.weight)||0)*(count-j)/count*100)/100:0;
-      var points=level.points==null?(level.max_score==null?'':Number(level.max_score)):Number(level.points);
+      // Older library samples stored only descriptors. Give those levels a
+      // usable, evenly-spaced scale from the criterion maximum down to zero.
+      var fallback=count>1?Math.round((Number(c.weight)||0)*(count-1-j)/(count-1)*100)/100:(Number(c.weight)||0);
+      var points=level.points==null?(level.max_score==null?fallback:Number(level.max_score)):Number(level.points);
       return {id:level.id||('level-'+(j+1)),label:level.label||'',points:points,min_score:level.min_score==null?points:level.min_score,max_score:level.max_score==null?points:level.max_score,min_inclusive:level.min_inclusive!==false,max_inclusive:level.max_inclusive!==false,description:level.description||'',prov:clone(level.prov||{}),source_text:clone(level.source_text||{})};
     })};
   }
@@ -521,6 +523,22 @@
     $('toggleAll').textContent = R.criteria.every(function(_, i){ return openSet[i]; }) ? 'Collapse all' : 'Expand all';
     drawHead();
   }
+  function refreshCriterionState(row, c){
+    var missing=0;
+    Array.prototype.forEach.call(row.querySelectorAll('.band'),function(band,j){
+      var level=c.levels[j]||{}, complete=String(level.label||'').trim()&&String(level.description||'').trim()&&String(level.points).trim()!==''&&!isNaN(Number(level.points));
+      band.classList.toggle('missing',!complete);
+      if(!complete)missing++;
+    });
+    row.classList.toggle('flagged',missing>0);
+    var flag=row.querySelector('.c-flag');
+    if(missing){
+      if(!flag){flag=document.createElement('span');flag.className='c-flag';row.querySelector('.c-w').before(flag);}
+      flag.textContent=missing+(missing>1?' levels':' level')+' missing';
+    }else if(flag){
+      flag.remove();
+    }
+  }
   $('crits').addEventListener('input', function(e){
     var el = e.target, row = el.closest('.crit'); if (!row) return;
     var i = Number(row.dataset.i), c = R.criteria[i]; dirty = true;
@@ -530,6 +548,7 @@
     if (el.dataset.f === 'level-points'){var editedLevel=c.levels[Number(el.dataset.j)];editedLevel.points=el.value===''?'':Number(el.value);editedLevel.min_score=editedLevel.points;editedLevel.max_score=editedLevel.points;editedLevel.prov.points='edited';}
     if (el.dataset.f === 'level-description'){c.levels[Number(el.dataset.j)].description=el.value;c.levels[Number(el.dataset.j)].prov.description='edited';}
     c.grading_mode='';
+    refreshCriterionState(row,c);
     drawHead(); update();
   });
   $('crits').addEventListener('click', function(e){
@@ -631,6 +650,13 @@
 
   /* ---------- Arriving with a rubric (library "Use for new batch", import page save) ---------- */
   drawLib(); drawEditor(); update();
+  window.addEventListener('marker:rubrics-loaded',function(){
+    drawLib();
+    if(origin==='library'&&R&&R.libId){
+      var current=L.get(R.libId);
+      if(current&&!dirty)load({libId:current.id,title:current.title,source:'From your rubric library · '+current.source,criteria:clone(current.criteria)},'library');
+    }
+  });
   var m = location.hash.match(/[#&]rubric=([^&]+)/);
   if (m){
     try {

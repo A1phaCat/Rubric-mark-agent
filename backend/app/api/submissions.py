@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.api.common import mock, translate_error
 from app.api.settings import load_ai_settings
-from app.config import Settings
+from app.config import PROJECT_ROOT, Settings
 from app.db.models.batch import Batch
 from app.db.models.job import Job
 from app.db.models.submission import File, Submission
@@ -114,17 +114,36 @@ def get_review(
 
 
 @router.get("/submissions/{submission_id}/file")
-def get_file(submission_id: str, db: Session = Depends(get_db)) -> FileResponse:
+def get_file(
+    submission_id: str,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
     item = db.get(Submission, submission_id)
-    if item is None or item.file_id is None:
+    if item is None:
         raise translate_error(KeyError(submission_id))
-    stored = db.get(File, item.file_id)
-    if stored is None or not Path(stored.path).exists():
+    stored = db.get(File, item.file_id) if item.file_id else None
+    if stored is not None and Path(stored.path).exists():
+        return FileResponse(
+            stored.path,
+            media_type=stored.mime,
+            filename=stored.original_name,
+            content_disposition_type="inline",
+            headers={"ETag": f'"doc-v{item.document_version}"'},
+        )
+
+    fixture_path = settings.fixtures_dir / "reviews" / f"{submission_id}.json"
+    if not fixture_path.exists():
+        raise translate_error(KeyError(submission_id))
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    filename = Path(str(fixture.get("submission", {}).get("filename") or "")).name
+    demo_path = PROJECT_ROOT / "output" / "pdf" / filename
+    if not filename or not demo_path.exists():
         raise translate_error(KeyError(submission_id))
     return FileResponse(
-        stored.path,
-        media_type=stored.mime,
-        filename=stored.original_name,
+        demo_path,
+        media_type="application/pdf",
+        filename=filename,
         content_disposition_type="inline",
         headers={"ETag": f'"doc-v{item.document_version}"'},
     )

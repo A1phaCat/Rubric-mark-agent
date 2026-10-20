@@ -58,19 +58,25 @@ def put_ai(
     settings: Settings = Depends(get_settings),
     db: Session = Depends(get_db),
 ) -> dict:
+    provider = str(payload.get("provider", settings.llm))
+    model = str(payload.get("model", settings.ai_model))
+    base_url = payload.get("base_url", settings.ai_base_url) or None
+    api_key = str(payload["api_key"]) if payload.get("api_key") else None
+    protected_key = protect_secret(api_key) if api_key else None
     with db.begin():
         if "provider" in payload:
-            settings.llm = str(payload["provider"])
-            _store(db, "ai.provider", settings.llm)
+            _store(db, "ai.provider", provider)
         if "model" in payload:
-            settings.ai_model = str(payload["model"])
-            _store(db, "ai.model", settings.ai_model)
+            _store(db, "ai.model", model)
         if "base_url" in payload:
-            settings.ai_base_url = payload["base_url"] or None
-            _store(db, "ai.base_url", settings.ai_base_url or "")
-        if payload.get("api_key"):
-            settings.ai_api_key = str(payload["api_key"])
-            _store(db, "ai.api_key", protect_secret(settings.ai_api_key))
+            _store(db, "ai.base_url", base_url or "")
+        if protected_key is not None:
+            _store(db, "ai.api_key", protected_key)
+    settings.llm = provider
+    settings.ai_model = model
+    settings.ai_base_url = base_url
+    if api_key is not None:
+        settings.ai_api_key = api_key
     return _ai(settings)
 
 
