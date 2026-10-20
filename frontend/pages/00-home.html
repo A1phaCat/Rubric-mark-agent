@@ -127,6 +127,11 @@
   .pill.processing{ background:var(--ai-bg); color:var(--ai); }
   .pill.reviewing{ background:var(--info-bg); color:var(--info); }
   .pill.done{ background:var(--track); color:var(--ink-soft); }
+  .pill.final{ background:var(--conf-high-bg); color:var(--conf-high); }
+  .sample-tag{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--primary); border:1px solid var(--primary); border-radius:4px; padding:1px 5px; margin-left:8px; vertical-align:2px; font-weight:400; }
+  .pin-mark{ font-size:11px; margin-left:6px; vertical-align:2px; }
+  .home-empty{ margin:0; padding:16px 20px; font-size:13px; color:var(--ink-soft); }
+  .tag.manual{ background:var(--conf-none-bg); color:var(--conf-none); }
 
   .bar{ height:8px; background:var(--track); border-radius:4px; overflow:hidden; display:flex; }
   .bar span{ height:100%; }
@@ -274,155 +279,41 @@
 <main>
   <div class="top-row">
     <div>
-      <div class="eyebrow">Semester 2, 2026 · Week 11</div>
-      <h1>Good afternoon, J. Alvarez</h1>
-      <p class="lede">2 batches need your review this week. The AI has found evidence for each criterion; you decide every final mark.</p>
+      <div class="eyebrow" id="homeTerm">&nbsp;</div>
+      <h1 id="homeGreeting">Welcome back</h1>
+      <p class="lede" id="homeLede">Loading your marking overview…</p>
     </div>
     <a class="btn btn-primary" href="01-upload.html">New marking batch →</a>
   </div>
 
-  <div class="stats">
-    <a class="stat accent" href="03b-review-split.html">
-      <span class="k">Ready for your review</span>
-      <span class="v">792 <small>submissions</small></span>
-      <span class="s">ASGN2 · next: SID-40219</span>
-    </a>
-    <a class="stat" href="02-batch-status.html">
-      <span class="k"><span class="dot" style="background:var(--conf-low)"></span>Low confidence to check</span>
-      <span class="v">44</span>
-      <span class="s">flagged for a closer look</span>
-    </a>
-    <div class="stat">
-      <span class="k"><span class="dot" style="background:var(--conf-none)"></span>Need manual marking</span>
-      <span class="v">11</span>
-      <span class="s">no evidence found · awaiting OCR</span>
-    </div>
-    <div class="stat">
-      <span class="k"><span class="dot" style="background:var(--info)"></span>Confirmed this week</span>
-      <span class="v">312</span>
-      <span class="s">avg 2.4 min per submission</span>
-    </div>
+  <div class="stats" id="homeStats" aria-busy="true">
+    <div class="stat"><span class="k">Ready for your review</span><span class="v">–</span><span class="s">&nbsp;</span></div>
+    <div class="stat"><span class="k">Low confidence to check</span><span class="v">–</span><span class="s">&nbsp;</span></div>
+    <div class="stat"><span class="k">Need manual marking</span><span class="v">–</span><span class="s">&nbsp;</span></div>
+    <div class="stat"><span class="k">Confirmed this week</span><span class="v">–</span><span class="s">&nbsp;</span></div>
   </div>
 
   <div class="cols">
     <section>
-      <div class="section-head"><h2>Active batches</h2><a href="07-batches.html">View all batches →</a></div>
-      <div class="batches">
-
-        <a class="panel batch" href="02-batch-status.html">
-          <div class="batch-top">
-            <div>
-              <h3 class="batch-title">ASGN2 — Critical Essay</h3>
-              <div class="batch-meta">1,247 submissions · 4 criteria · due 24 Oct</div>
-            </div>
-            <span class="pill processing"><span class="dot"></span>Processing</span>
-          </div>
-          <div class="conf">
-            <div class="label"><span>AI confidence, processed so far</span><span>836 / 1,247</span></div>
-            <div class="bar" aria-label="Confidence breakdown">
-              <span style="width:43.4%; background:var(--conf-high)"></span>
-              <span style="width:19.2%; background:var(--conf-med-dot)"></span>
-              <span style="width:3.5%; background:var(--conf-low)"></span>
-              <span style="width:0.9%; background:var(--conf-none)"></span>
-            </div>
-            <div class="legend">
-              <span class="tag high"><span class="dot"></span>High <b>541</b></span>
-              <span class="tag medium"><span class="dot"></span>Medium <b>240</b></span>
-              <span class="tag low"><span class="dot"></span>Low <b>44</b></span>
-              <span class="tag none"><span class="dot"></span>No confidence <b>11</b></span>
-            </div>
-          </div>
-          <div class="batch-foot">
-            <div class="figs"><span><b>792</b> ready for review</span><span><b>0</b> confirmed</span><span><b>~18 min</b> left to process</span></div>
-            <span class="go">Open batch →</span>
-          </div>
-        </a>
-
-        <a class="panel batch" href="02-batch-status.html#asgn1">
-          <div class="batch-top">
-            <div>
-              <h3 class="batch-title">ASGN1 — Literature Review</h3>
-              <div class="batch-meta">340 submissions · 5 criteria · due 18 Oct</div>
-            </div>
-            <span class="pill reviewing"><span class="dot"></span>In review</span>
-          </div>
-          <div class="conf">
-            <div class="label"><span>Review progress</span><span>312 / 340</span></div>
-            <div class="bar"><span style="width:89.1%; background:var(--info)"></span><span style="width:2.6%; background:var(--conf-med-dot)"></span></div>
-            <div class="mini"><span><i class="lv" style="background:var(--info)"></i>Confirmed as AI suggested <b>303</b></span><span><i class="lv" style="background:var(--conf-med-dot)"></i>Adjusted <b>9</b></span><span><i class="lv" style="background:var(--track); border:1px solid var(--border)"></i>Left <b>28</b></span></div>
-          </div>
-          <div class="batch-foot">
-            <div class="figs"><span><b>312 / 340</b> confirmed</span><span><b>9</b> adjusted from AI</span><span><b>28</b> left</span></div>
-            <span class="go">Continue →</span>
-          </div>
-        </a>
-
-        <a class="panel batch" href="04-batch-complete.html">
-          <div class="batch-top">
-            <div>
-              <h3 class="batch-title">Quiz 3 — Short Answers</h3>
-              <div class="batch-meta">1,198 submissions · 3 criteria · closed 9 Oct</div>
-            </div>
-            <span class="pill done"><span class="dot"></span>Complete</span>
-          </div>
-          <div class="conf">
-            <div class="label"><span>Final grades</span><span>avg 71.4</span></div>
-            <div class="dist"><span style="flex:142; background:#8F3F24"></span><span style="flex:318; background:#B85A35"></span><span style="flex:371; background:#D9895F"></span><span style="flex:289; background:#EDB999"></span><span style="flex:78; background:#E2D8CE"></span></div>
-            <div class="mini"><span><i class="lv" style="background:#8F3F24"></i>HD <b>142</b></span><span><i class="lv" style="background:#B85A35"></i>DI <b>318</b></span><span><i class="lv" style="background:#D9895F"></i>CR <b>371</b></span><span><i class="lv" style="background:#EDB999"></i>PS <b>289</b></span><span><i class="lv" style="background:#E2D8CE"></i>FL <b>78</b></span></div>
-          </div>
-          <div class="batch-foot">
-            <div class="figs"><span><b>1,198</b> confirmed</span><span><b>64</b> adjusted from AI</span><span>exported to Canvas</span></div>
-            <span class="go">View results →</span>
-          </div>
-        </a>
-
-      </div>
+      <div class="section-head"><h2>Batches</h2><a href="07-batches.html">View all batches →</a></div>
+      <div class="batches" id="homeBatches"><p class="home-empty">Loading batches…</p></div>
     </section>
 
     <aside class="side">
       <div>
-      <div class="section-head"><h2>Up next for you</h2><span class="sh-note">ASGN2 · 792 ready</span></div>
+      <div class="section-head"><h2>Up next for you</h2><span class="sh-note" id="queueNote"></span></div>
       <div class="panel queue">
         <div class="queue-head">
-          <p>Low-confidence submissions first, then the rest.</p>
+          <p>Low-confidence submissions first, then the rest, then anything that needs manual marking.</p>
         </div>
-        <a class="q-item" href="03b-review-split.html">
-          <div class="q-main"><div class="q-sid">SID-40219</div><div class="q-why">Evidence &amp; sources · low confidence</div></div>
-          <span class="tag low"><span class="dot"></span>Low</span>
-          <span class="q-score">80</span>
-        </a>
-        <a class="q-item" href="03b-review-split.html">
-          <div class="q-main"><div class="q-sid">SID-40222</div><div class="q-why">Critical analysis · low confidence</div></div>
-          <span class="tag low"><span class="dot"></span>Low</span>
-          <span class="q-score">55</span>
-        </a>
-        <a class="q-item" href="03b-review-split.html">
-          <div class="q-main"><div class="q-sid">SID-40225</div><div class="q-why">Writing clarity · medium</div></div>
-          <span class="tag medium"><span class="dot"></span>Med</span>
-          <span class="q-score">70</span>
-        </a>
-        <a class="q-item" href="03b-review-split.html">
-          <div class="q-main"><div class="q-sid">SID-40227</div><div class="q-why">Argument structure · medium</div></div>
-          <span class="tag medium"><span class="dot"></span>Med</span>
-          <span class="q-score">66</span>
-        </a>
-        <a class="q-item" href="03b-review-split.html">
-          <div class="q-main"><div class="q-sid">SID-40218</div><div class="q-why">All criteria · high confidence</div></div>
-          <span class="tag high"><span class="dot"></span>High</span>
-          <span class="q-score">74</span>
-        </a>
-        <div class="queue-foot"><a class="btn btn-primary" href="03b-review-split.html">Start reviewing →</a></div>
+        <div id="homeQueue"><p class="home-empty">Loading…</p></div>
+        <div class="queue-foot" id="queueFoot" hidden><a class="btn btn-primary" id="queueStart" href="#">Start reviewing →</a></div>
       </div>
       </div>
 
       <div>
         <div class="section-head"><h2>Rubrics</h2><a href="06-rubrics.html">View all →</a></div>
-        <div class="panel rubrics" id="recentRubrics">
-          <a class="r" href="06-rubrics.html#open=critical-essay"><span>Critical Essay — HD/D/C/P</span><span>4 criteria</span></a>
-          <a class="r" href="06-rubrics.html#open=literature-review"><span>Literature Review</span><span>5 criteria</span></a>
-          <a class="r" href="06-rubrics.html#open=short-answer"><span>Short Answer (quiz)</span><span>3 criteria</span></a>
-          <a class="r-add" href="01a-rubric-import.html">+ Import a rubric</a>
-        </div>
+        <div class="panel rubrics" id="recentRubrics"><p class="home-empty">Loading…</p></div>
       </div>
     </aside>
   </div>
@@ -430,18 +321,7 @@
   <p class="note"><span class="dot"></span> The AI marker only suggests evidence and scores. Nothing becomes a final mark until a tutor confirms it, and every adjustment is kept in the record.</p>
 </main>
 
-<script src="rubric-library.js"></script>
-<script>
-  /* Home shows the 3 most recently updated rubrics from the shared library */
-  (function(){
-    function esc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
-    var box = document.getElementById('recentRubrics');
-    box.innerHTML = RubricLib.recent(3).map(function(r){
-      return '<a class="r" href="06-rubrics.html#open=' + r.id + '"><span>' + esc(r.title) + '<small>Updated ' + RubricLib.ago(r.updated) + '</small></span><span>' + r.criteria.length + ' criteria</span></a>';
-    }).join('') + '<a class="r-add" href="01a-rubric-import.html">+ Import a rubric</a>';
-  })();
-</script>
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
-<script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
+<script src="/js/api.js"></script>
+<script src="account-menu.js"></script><script src="/js/render-home.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

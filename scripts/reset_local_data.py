@@ -76,8 +76,7 @@ def main() -> None:
     saved_settings = _settings()
     _remove_generated_data()
     _run("-m", "alembic", "-c", "alembic.ini", "upgrade", "head", cwd=ROOT / "backend")
-    _run(str(ROOT / "scripts" / "build_demo_fixtures.py"))
-    _run("-m", "app.db.seed", cwd=ROOT / "backend")
+    _run("-m", "app.sample.seed", cwd=ROOT / "backend")
 
     if saved_settings:
         connection = sqlite3.connect(DB_PATH)
@@ -89,7 +88,7 @@ def main() -> None:
             connection.commit()
         finally:
             connection.close()
-    print("Local generated data reset; demo seed and AI provider settings preserved.")
+    print("Local generated data reset; sample data reloaded and AI provider settings preserved.")
 
 
 if __name__ == "__main__":

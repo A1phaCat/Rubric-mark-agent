@@ -72,8 +72,7 @@ def main() -> None:
             cwd=BACKEND,
         )
     elif task == "seed":
-        run(sys.executable, str(ROOT / "scripts" / "build_demo_fixtures.py"))
-        run(sys.executable, "-m", "app.db.seed", cwd=BACKEND)
+        run(sys.executable, "-m", "app.sample.seed", cwd=BACKEND)
     elif task == "test":
         run(sys.executable, "-m", "pytest", "backend/tests", "tests/architecture", "-q")
     elif task == "lint":

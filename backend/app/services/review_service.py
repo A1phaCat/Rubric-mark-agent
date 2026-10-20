@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models.audit import AuditLog
@@ -17,21 +16,23 @@ from app.domain.bands import level_for_score
 from app.domain.completion import CompletionCounts, is_complete
 from app.domain.ids import new_id
 from app.domain.states import BatchStatus, SubmissionStatus
-from app.extract.service import extract_document
 from app.services.batch_service import BatchUseCases
-from app.services.fixture_service import FixtureStore
 from app.services.rubric_service import RubricUseCases
+from app.services.submission_service import apply_extraction, marker_names
+
+READY_STATES = [SubmissionStatus.AI_DONE.value, SubmissionStatus.IN_REVIEW.value]
+MANUAL_STATES = [SubmissionStatus.NEEDS_OCR.value, SubmissionStatus.OCR_FAILED.value]
 
 
 class ReviewUseCases:
-    def __init__(self, session: Session, fixtures: FixtureStore) -> None:
+    def __init__(self, session: Session) -> None:
         self.session = session
-        self.fixtures = fixtures
 
     def open(self, submission_id: str, actor_id: str) -> dict[str, Any]:
         submission = self.session.get(Submission, submission_id)
         if submission is None:
             raise KeyError(submission_id)
+        batch = self._batch(submission.batch_id)
         if submission.status == SubmissionStatus.AI_DONE.value:
             submission.status = SubmissionStatus.IN_REVIEW.value
             submission.claimed_by = actor_id
@@ -40,207 +41,167 @@ class ReviewUseCases:
         stored_file = self.session.get(File, submission.file_id) if submission.file_id else None
         if stored_file and not submission.document_json:
             try:
-                document = extract_document(Path(stored_file.path), submission.id, stored_file.mime)
-                submission.document_json = json.dumps(document, ensure_ascii=False)
-                submission.word_count = document["word_count"]
-                submission.text_quality = "text_layer"
-                submission.document_version = int(document["version"])
-                stored_file.pages = int(document["page_count"])
-                stored_file.text_layer = True
-                submission.is_mock = False
-                self.session.flush()
+                apply_extraction(self.session, submission, stored_file)
             except (OSError, ValueError):
                 pass
-        if submission.document_json:
-            batch = self._batch(submission.batch_id)
-            rubric = self.session.get(Rubric, batch.rubric_library_id)
-            definitions = list(
+        definitions = list(
+            self.session.scalars(
+                select(RubricCriterion)
+                .where(
+                    RubricCriterion.rubric_id == batch.rubric_library_id,
+                    RubricCriterion.rubric_version == batch.rubric_version,
+                )
+                .order_by(RubricCriterion.position)
+            )
+        )
+        reviews = {
+            item.criterion_id: item
+            for item in self.session.scalars(
+                select(Review).where(Review.submission_id == submission.id)
+            )
+        }
+        manual = submission.status in {
+            SubmissionStatus.NEEDS_OCR.value,
+            SubmissionStatus.OCR_FAILED.value,
+        }
+        if manual:
+            # No AI result can exist without text; give the tutor empty criteria to mark.
+            now = datetime.now(timezone.utc)
+            for definition in definitions:
+                if definition.id not in reviews:
+                    review = Review(
+                        id=new_id("rev"),
+                        submission_id=submission.id,
+                        criterion_id=definition.id,
+                        score=None,
+                        comment="",
+                        status="manual",
+                        updated_by=actor_id,
+                        updated_at=now,
+                        version=1,
+                    )
+                    self.session.add(review)
+                    reviews[definition.id] = review
+            self.session.flush()
+        rubric = self.session.get(Rubric, batch.rubric_library_id)
+        results = {
+            item.criterion_id: item
+            for item in self.session.scalars(
+                select(AIResult)
+                .where(AIResult.submission_id == submission.id)
+                .order_by(AIResult.created_at)
+            )
+        }
+        evidence_rows = (
+            list(
                 self.session.scalars(
-                    select(RubricCriterion)
-                    .where(
-                        RubricCriterion.rubric_id == batch.rubric_library_id,
-                        RubricCriterion.rubric_version == batch.rubric_version,
-                    )
-                    .order_by(RubricCriterion.position)
-                )
-            )
-            reviews = {
-                item.criterion_id: item
-                for item in self.session.scalars(
-                    select(Review).where(Review.submission_id == submission.id)
-                )
-            }
-            results = {
-                item.criterion_id: item
-                for item in self.session.scalars(
-                    select(AIResult)
-                    .where(AIResult.submission_id == submission.id)
-                    .order_by(AIResult.created_at)
-                )
-            }
-            evidence_rows = (
-                list(
-                    self.session.scalars(
-                        select(Evidence).where(
-                            Evidence.ai_result_id.in_([item.id for item in results.values()])
-                        )
+                    select(Evidence).where(
+                        Evidence.ai_result_id.in_([item.id for item in results.values()])
                     )
                 )
-                if results
-                else []
             )
-            criterion_by_result = {item.id: criterion_id for criterion_id, item in results.items()}
-            evidence_by_criterion: dict[str, list[Evidence]] = {}
-            for evidence in evidence_rows:
-                criterion_id = criterion_by_result.get(evidence.ai_result_id)
-                if criterion_id:
-                    evidence_by_criterion.setdefault(criterion_id, []).append(evidence)
-            return {
-                "submission": {
-                    "id": submission.id,
-                    "batch_id": submission.batch_id,
-                    "sid": submission.sid,
-                    "filename": stored_file.original_name if stored_file else submission.id,
-                    "status": submission.status,
-                    "progress": submission.ai_summary,
-                    "error": submission.error_reason,
-                    "version": submission.version,
-                },
-                "batch": {
-                    "id": batch.id,
-                    "name": batch.name,
-                    "status": batch.status,
-                    "counts": BatchUseCases(self.session).counts(batch.id),
-                },
-                "document": json.loads(submission.document_json),
-                "rubric": {
-                    "id": batch.rubric_library_id,
-                    "version": batch.rubric_version,
-                    "title": rubric.title if rubric else "Imported rubric",
-                    "criteria": [
-                        {
-                            "definition": RubricUseCases._criterion(definition),
-                            "ai_score": results[definition.id].score
-                            if definition.id in results
-                            else reviews[definition.id].score,
-                            "score": reviews[definition.id].score,
-                            "confidence": results[definition.id].confidence
-                            if definition.id in results
-                            else submission.min_confidence or "medium",
-                            "sufficiency": results[definition.id].sufficiency
-                            if definition.id in results
-                            else "unknown",
-                            "coverage": json.loads(results[definition.id].coverage_json or "[]")
-                            if definition.id in results
-                            else [],
-                            "status": reviews[definition.id].status,
-                            "rationale": results[definition.id].rationale
-                            if definition.id in results
-                            else "No AI grading result is available for this criterion.",
-                            "comment": reviews[definition.id].comment,
-                            "evidence_ids": [
-                                evidence.id
-                                for evidence in evidence_by_criterion.get(definition.id, [])
-                            ],
-                            "version": reviews[definition.id].version,
-                        }
-                        for definition in definitions
-                        if definition.id in reviews
+            if results
+            else []
+        )
+        criterion_by_result = {item.id: criterion_id for criterion_id, item in results.items()}
+        evidence_by_criterion: dict[str, list[Evidence]] = {}
+        for evidence in evidence_rows:
+            criterion_id = criterion_by_result.get(evidence.ai_result_id)
+            if criterion_id:
+                evidence_by_criterion.setdefault(criterion_id, []).append(evidence)
+        document = (
+            json.loads(submission.document_json)
+            if submission.document_json
+            else {
+                "id": f"doc_{submission.id}",
+                "version": submission.document_version,
+                "page_count": stored_file.pages if stored_file else 0,
+                "word_count": 0,
+                "content_url": f"/api/v1/submissions/{submission.id}/file" if stored_file else None,
+                "mime_type": stored_file.mime if stored_file else None,
+                "title": stored_file.original_name if stored_file else submission.id,
+                "paragraphs": [],
+            }
+        )
+        users = marker_names(self.session)
+        claimant = submission.claimed_by or actor_id
+        criteria = []
+        for definition in definitions:
+            review = reviews.get(definition.id)
+            if review is None:
+                continue
+            result = results.get(definition.id)
+            criteria.append(
+                {
+                    "definition": RubricUseCases._criterion(definition),
+                    "ai_score": result.score if result else None,
+                    "ai_level": result.level if result else None,
+                    "score": review.score,
+                    "confidence": result.confidence if result else "none",
+                    "sufficiency": result.sufficiency if result else "unknown",
+                    "coverage": json.loads(result.coverage_json or "[]") if result else [],
+                    "status": review.status,
+                    "rationale": result.rationale
+                    if result
+                    else "No AI suggestion: this submission has no readable text, so it needs manual marking.",
+                    "comment": review.comment,
+                    "evidence_ids": [
+                        evidence.id for evidence in evidence_by_criterion.get(definition.id, [])
                     ],
-                },
-                "evidence": [
-                    {
-                        "id": evidence.id,
-                        "criterion_id": criterion_by_result[evidence.ai_result_id],
-                        "document_version": evidence.document_version,
-                        "page": evidence.page,
-                        "paragraph": evidence.para,
-                        "start_offset": evidence.char_start,
-                        "end_offset": evidence.char_end,
-                        "quote": evidence.quote,
-                        "label": evidence.role,
-                    }
-                    for evidence in evidence_rows
-                    if evidence.ai_result_id in criterion_by_result and evidence.valid
-                ],
-                "can_edit": True,
-                "claim": {
-                    "marker_id": actor_id,
-                    "marker_name": "J. Alvarez",
-                    "expires_at": None,
-                },
-                "_mock": False,
-            }
-        fixture_path = self.fixtures.root / "reviews" / f"{submission_id}.json"
-        if not fixture_path.exists() and submission.is_mock:
-            fixture_path = self.fixtures.root / "reviews" / "shared-sample.json"
-        if fixture_path.exists():
-            payload = json.loads(fixture_path.read_text(encoding="utf-8"))
-            batch = self._batch(submission.batch_id)
-            payload["submission"]["id"] = submission.id
-            payload["submission"]["batch_id"] = submission.batch_id
-            payload["submission"]["sid"] = submission.sid
-            payload["submission"]["filename"] = (
-                stored_file.original_name
-                if stored_file
-                else f"{submission.sid or submission.id}.pdf"
+                    "version": review.version,
+                }
             )
-            payload["submission"]["status"] = submission.status
-            payload["submission"]["version"] = submission.version
-            payload["batch"] = {
+        return {
+            "submission": {
+                "id": submission.id,
+                "batch_id": submission.batch_id,
+                "sid": submission.sid,
+                "filename": stored_file.original_name if stored_file else submission.id,
+                "status": submission.status,
+                "progress": submission.ai_summary,
+                "error": submission.error_reason,
+                "flags": json.loads(submission.flags_json or "[]"),
+                "needs_manual": manual,
+                "version": submission.version,
+            },
+            "batch": {
                 "id": batch.id,
                 "name": batch.name,
                 "status": batch.status,
+                "is_sample": bool(batch.is_sample),
                 "counts": BatchUseCases(self.session).counts(batch.id),
-            }
-            if fixture_path.name == "shared-sample.json" and batch.rubric_library_id:
-                rubric = self.session.get(Rubric, batch.rubric_library_id)
-                definitions = list(
-                    self.session.scalars(
-                        select(RubricCriterion)
-                        .where(
-                            RubricCriterion.rubric_id == batch.rubric_library_id,
-                            RubricCriterion.rubric_version == batch.rubric_version,
-                        )
-                        .order_by(RubricCriterion.position)
-                    )
-                )
-                reviews = {
-                    item.criterion_id: item
-                    for item in self.session.scalars(
-                        select(Review).where(Review.submission_id == submission.id)
-                    )
+            },
+            "document": document,
+            "rubric": {
+                "id": batch.rubric_library_id,
+                "version": batch.rubric_version,
+                "title": rubric.title if rubric else "Imported rubric",
+                "criteria": criteria,
+            },
+            "evidence": [
+                {
+                    "id": evidence.id,
+                    "criterion_id": criterion_by_result[evidence.ai_result_id],
+                    "document_version": evidence.document_version,
+                    "page": evidence.page,
+                    "paragraph": evidence.para,
+                    "start_offset": evidence.char_start,
+                    "end_offset": evidence.char_end,
+                    "quote": evidence.quote,
+                    "label": evidence.role,
                 }
-                payload["rubric"] = {
-                    "id": batch.rubric_library_id,
-                    "version": batch.rubric_version,
-                    "title": rubric.title if rubric else "Imported rubric",
-                    "criteria": [
-                        {
-                            "definition": RubricUseCases._criterion(definition),
-                            "ai_score": reviews[definition.id].score,
-                            "score": reviews[definition.id].score,
-                            "confidence": submission.min_confidence or "medium",
-                            "sufficiency": "unknown",
-                            "coverage": [],
-                            "status": reviews[definition.id].status,
-                            "rationale": "Deterministic local FakeLLM suggestion for this rubric criterion.",
-                            "comment": reviews[definition.id].comment,
-                            "evidence_ids": [],
-                            "version": reviews[definition.id].version,
-                        }
-                        for definition in definitions
-                        if definition.id in reviews
-                    ],
-                }
-                payload["evidence"] = []
-                payload["document"]["title"] = "Demo sample essay"
-                payload["document"]["content_url"] = None
-            payload["_mock"] = bool(submission.is_mock)
-            if submission.is_mock:
-                payload["demo_banner"] = "Demo sample content — not this student's real work"
-            return payload
-        raise KeyError(f"review:{submission_id}")
+                for evidence in evidence_rows
+                if evidence.ai_result_id in criterion_by_result and evidence.valid
+            ],
+            "can_edit": batch.status != BatchStatus.FINALISED.value,
+            "claim": {
+                "marker_id": claimant,
+                "marker_name": users.get(claimant, claimant),
+                "expires_at": submission.claimed_until.isoformat()
+                if submission.claimed_until
+                else None,
+            },
+        }
 
     def save_criterion(
         self, submission_id: str, criterion_id: str, payload: dict[str, Any]
@@ -305,7 +266,7 @@ class ReviewUseCases:
             item.version += 1
         before = {"status": submission.status, "final_total": submission.final_total}
         submission.final_total = sum(float(item.score or 0) for item in reviews)
-        submission.final_level = level_for_score(submission.final_total).value
+        submission.final_level = level_for_score(submission.final_total, self._maximum(batch)).value
         submission.status = SubmissionStatus.CONFIRMED.value
         submission.confirmed_by = actor_id
         submission.confirmed_at = now
@@ -337,18 +298,8 @@ class ReviewUseCases:
 
     def _confirm_response(self, submission: Submission, batch: Batch) -> dict[str, Any]:
         counts = self._counts(batch.id)
-        next_id = self.session.scalar(
-            select(Submission.id)
-            .where(
-                Submission.batch_id == batch.id,
-                Submission.status.in_(
-                    [SubmissionStatus.AI_DONE.value, SubmissionStatus.IN_REVIEW.value]
-                ),
-                Submission.id != submission.id,
-            )
-            .order_by(Submission.id)
-            .limit(1)
-        )
+        upcoming = self.queue(batch.id, limit=1, exclude={submission.id})
+        next_id = upcoming[0].id if upcoming else None
         return {
             "submission_id": submission.id,
             "status": submission.status,
@@ -364,31 +315,70 @@ class ReviewUseCases:
             },
         }
 
-    def _counts(self, batch_id: str) -> CompletionCounts:
-        rows = dict(
-            self.session.execute(
-                select(Submission.status, func.count())
-                .where(Submission.batch_id == batch_id)
-                .group_by(Submission.status)
-            ).all()
+    def queue(
+        self,
+        batch_id: str | None = None,
+        *,
+        limit: int = 5,
+        exclude: set[str] | None = None,
+        after: str | None = None,
+    ) -> list[Submission]:
+        """Review order: low confidence first, then medium and high, then manual marking."""
+
+        confidence_rank = case(
+            (Submission.min_confidence == "low", 0),
+            (Submission.min_confidence == "medium", 1),
+            (Submission.min_confidence == "high", 2),
+            else_=3,
         )
-        batch = self._batch(batch_id)
-        ready = rows.get("ai_done", 0) + rows.get("in_review", 0)
-        processing_states = {
-            "uploaded",
-            "extracting",
-            "needs_ocr",
-            "ocr_running",
-            "queued",
-            "marking",
-        }
+        manual_rank = case((Submission.status.in_(MANUAL_STATES), 1), else_=0)
+        statement = (
+            select(Submission)
+            .join(Batch, Batch.id == Submission.batch_id)
+            .where(
+                Submission.status.in_(READY_STATES + MANUAL_STATES),
+                Batch.status != BatchStatus.FINALISED.value,
+            )
+            .order_by(
+                Batch.pinned.desc(),
+                Batch.created_at.desc(),
+                manual_rank,
+                confidence_rank,
+                Submission.sid,
+                Submission.id,
+            )
+        )
+        if batch_id:
+            statement = statement.where(Submission.batch_id == batch_id)
+        items = [
+            item for item in self.session.scalars(statement) if item.id not in (exclude or set())
+        ]
+        if after:
+            ids = [item.id for item in items]
+            if after in ids:
+                items = items[ids.index(after) + 1 :]
+        return items[:limit]
+
+    def _counts(self, batch_id: str) -> CompletionCounts:
+        counts = BatchUseCases(self.session).counts(batch_id)
         return CompletionCounts(
-            total=batch.total_count,
-            confirmed=rows.get("confirmed", 0),
-            excluded=rows.get("excluded", 0),
-            ready=ready,
-            processing=sum(rows.get(state, 0) for state in processing_states),
-            failed=rows.get("failed", 0),
+            total=counts["total"],
+            confirmed=counts["confirmed"],
+            excluded=counts["excluded"],
+            ready=counts["ready"],
+            processing=counts["processing"] + counts["not_started"],
+            failed=counts["failed"],
+        )
+
+    def _maximum(self, batch: Batch) -> float:
+        return float(
+            self.session.scalar(
+                select(func.sum(RubricCriterion.weight)).where(
+                    RubricCriterion.rubric_id == batch.rubric_library_id,
+                    RubricCriterion.rubric_version == batch.rubric_version,
+                )
+            )
+            or 0
         )
 
     def _review_total(self, submission_id: str) -> float | None:

@@ -127,7 +127,8 @@
 
   .scroll{ overflow-x:auto; }
   .matrix{ min-width:940px; }
-  .grid{ display:grid; grid-template-columns:240px repeat(5,minmax(0,1fr)); gap:8px; }
+  .grid{ display:grid; grid-template-columns:240px repeat(var(--levels,5),minmax(0,1fr)); gap:8px; }
+  .empty-state{ padding:40px 24px; color:var(--ink-soft); font-size:14px; text-align:center; }
   .m-head{ padding:12px 24px; border-bottom:1px solid var(--border); font-size:11.5px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; }
   .m-head span{ display:flex; align-items:center; gap:6px; }
   .sw{ width:10px; height:10px; border-radius:3px; }
@@ -281,6 +282,7 @@
   @media print{ header.app-bar, .ab-steps{ display:none; } }
   @media (max-width:1560px){ .ab-actions .conn .host{ display:none; } }
   @media (max-width:1320px){ .ab-actions .conn{ display:none; } }
+  [hidden]{ display:none !important; }
 </style>
 </head>
 <body>
@@ -297,7 +299,6 @@
   </div>
   <div class="ab-right">
     <div class="ab-actions hide-sm">
-      <span class="conn"><span class="dot"></span>Canvas · Not available in local MVP</span>
     </div>
     <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
   </div>
@@ -322,31 +323,13 @@
     <!-- Source -->
     <section class="card source" aria-label="Source">
       <div class="tabs" role="tablist" aria-label="Import source">
-        <button role="tab" data-tab="canvas" aria-selected="false" disabled title="Not available in local MVP">From Canvas · unavailable</button>
+        <button role="tab" data-tab="canvas" aria-selected="false" disabled hidden>From Canvas</button>
         <button role="tab" data-tab="upload" aria-selected="true">Upload file</button>
         <button role="tab" data-tab="paste" aria-selected="false">Paste / Image</button>
       </div>
 
       <div class="pane" data-pane="canvas" hidden>
-        <p class="lead">Not available in local MVP.</p>
-        <div class="field">
-          <label for="course">Course</label>
-          <select id="course">
-            <option>[Course name] · 73598</option>
-            <option>[Course name] · 74325</option>
-          </select>
-        </div>
-        <div class="field">
-          <div class="row-between"><span class="label">Assignments with a rubric</span><span class="muted">Synced 2 min ago</span></div>
-          <div id="assignments" style="display:flex;flex-direction:column;gap:8px"></div>
-        </div>
-        <div class="field">
-          <label for="aurl">Or paste an assignment link</label>
-          <div class="inline">
-            <input id="aurl" type="url" placeholder="https://canvas…/courses/…/assignments/…">
-            <button class="btn btn-dark" type="button">Fetch</button>
-          </div>
-        </div>
+        <p class="lead">Importing from Canvas is not available in the local MVP. Export the rubric from Canvas and upload the file, or paste the rubric text.</p>
       </div>
 
       <div class="pane" data-pane="upload" hidden>
@@ -354,13 +337,13 @@
         <label class="drop" for="file">
           <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6E655E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
           <span style="font-weight:600">Drop a rubric file or browse</span>
-          <span class="muted">.json (Canvas export) · .csv · .md · .docx · .pdf</span>
-          <input id="file" class="sr" type="file">
+          <span class="muted">.json (Canvas export) · .csv · .md · .txt · .docx · .pdf</span>
+          <input id="file" class="sr" type="file" accept=".json,.csv,.tsv,.md,.txt,.docx,.pdf">
         </label>
-        <div class="file">
+        <div class="file" id="fileRow" hidden>
           <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E64626" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></svg>
-          <span class="t"><span class="mono" style="font-size:13px">rubric_73598_687002.json</span><span class="muted">18 KB · structured JSON detected</span></span>
-          <span class="ok">Parsed</span>
+          <span class="t"><span class="mono" style="font-size:13px" id="fileName"></span><span class="muted" id="fileMeta"></span></span>
+          <span class="ok" id="fileState"></span>
         </div>
       </div>
 
@@ -368,18 +351,18 @@
         <p class="lead">Copying the Canvas table flattens it, but every word survives. Paste it as-is or drop a screenshot — the LLM restores rows, levels and points without rewriting the text.</p>
         <div class="field">
           <label for="paste">Pasted rubric text</label>
-          <textarea id="paste" class="paste" rows="9">Final Project Report Criteria Ratings Points Introduction (5%) view longer description HD The project introduction clearly explains and fully meets all the following criteria to a professional standard: The background, overview of project vision… 5 pts DI The project introduction properly explains and meets the substantial majority… 4.2 pts CR The project's introduction meets some of the criteria… 3.7 pts PS …</textarea>
+          <textarea id="paste" class="paste" rows="9" placeholder="Paste the rubric text here — copied from Canvas, a document or an email."></textarea>
         </div>
         <label class="shot" for="shot">
           <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6E655E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 8"/></svg>
-          <span style="display:flex;flex-direction:column"><span style="font-weight:600">Add screenshots</span><span class="muted">Used to recover the table layout and points · PNG, JPG</span></span>
-          <input id="shot" class="sr" type="file" accept="image/*" multiple>
+          <span style="display:flex;flex-direction:column"><span style="font-weight:600">Add screenshots</span><span class="muted">Screenshot reconstruction is not available yet · paste the text instead</span></span>
+          <input id="shot" class="sr" type="file" accept="image/*" multiple disabled>
         </label>
         <div class="opts">
           <label><input type="checkbox" checked>Keep wording verbatim (structure only)</label>
           <label><input type="checkbox" checked>Flag cells where text and image disagree</label>
         </div>
-        <button class="btn btn-primary" type="button" style="min-height:48px">Reconstruct rubric</button>
+        <button class="btn btn-primary" type="button" id="pasteBtn" style="min-height:48px" disabled>Parse rubric</button>
       </div>
     </section>
 
@@ -387,7 +370,7 @@
     <section class="card parsed" aria-label="Parsed rubric">
       <div class="p-head">
         <div style="min-width:0">
-          <div class="p-title"><h2>Final Project Report</h2><span class="pts-tag">100 pts</span></div>
+          <div class="p-title"><h2 id="pTitle" contenteditable="true" spellcheck="false" aria-label="Rubric title">No rubric yet</h2><span class="pts-tag" id="pTotal">0 pts</span></div>
           <span class="status exact" id="status"><span class="dot"></span><span id="statusText"></span></span>
         </div>
         <div class="p-actions">
@@ -407,14 +390,7 @@
 
       <div class="scroll">
         <div class="matrix">
-          <div class="grid m-head">
-            <span>Criterion</span>
-            <span><i class="sw" style="background:var(--lv1)"></i>HD</span>
-            <span><i class="sw" style="background:var(--lv2)"></i>DI</span>
-            <span><i class="sw" style="background:var(--lv3)"></i>CR</span>
-            <span><i class="sw" style="background:var(--lv4)"></i>PS</span>
-            <span><i class="sw" style="background:var(--lv5);border:1px solid var(--lv4)"></i>FL</span>
-          </div>
+          <div class="grid m-head" id="mHead"></div>
           <div id="criteria"></div>
         </div>
       </div>
@@ -432,107 +408,59 @@
     ol.innerHTML = '<li class="bc-home"><a href="00-home.html">Home</a></li><li><a href="01-upload.html">Set up batch</a></li><li><a href="' + LIB + '">Rubrics</a></li><li><span aria-current="page" id="bcCur">Import rubric</span></li>';
     document.querySelector('.ab-crumbs .bc-up').href = LIB;
   }
-  var LEVEL_NAMES = ['HD','DI','CR','PS','FL'];
-  var state = { tab:'upload', open:1, picked:0, dirty:false };
+  /* The rubric shown here always comes from the parser API (upload or paste) and is
+     saved to the library through POST /rubrics — nothing is preloaded in the page. */
+  var state = { tab:'upload', open:0, dirty:false, busy:false };
+  var R = null;            // { title, source, criteria:[{ name, pts, labels:[], levels:[points], text:[], asks:[] }] }
+  var FLAGS = {}, EDITED = {}, WARNINGS = [], PARSER = '';
 
-  var RAW = [
-    { name:'Introduction', pts:5, levels:[5,4.2,3.7,3.2,2.45], text:[
-      'Clearly explains and fully meets all criteria to a professional standard: background, vision, goals, achievements, progress since the progress report.',
-      'Properly explains and meets the substantial majority of criteria, or all with some ambiguity.',
-      'Meets some criteria but misses out or does not clearly address others.',
-      'Explains some basic criteria but misses a major portion, or has flaws.',
-      'Fails to explain most criteria; contents not relevant or primarily AI-generated.'],
-      asks:['Background and context','Project vision, goals and objectives','Achievements and how deliverables were met','Reflection on management, client and group dynamics'] },
-    { name:'System Specifications and Architecture Design', pts:25, levels:[25,21.2,18.7,16.2,12], text:[
-      'Comprehensively addresses all criteria with in-depth articulation; outstanding architecture and user stories, strongly evidenced.',
-      'Extensively addresses the majority; good architecture and user stories, most claims well supported.',
-      'Addresses some criteria; acceptable architecture and brief user stories.',
-      'Misses a considerable portion; poor architecture and user stories, weak evidence.',
-      'Fails to address the criteria; not relevant or primarily AI-generated.'],
-      asks:['Functional & non-functional requirements','Testable, estimable user stories','Demo of implemented stories + incomplete ones','Architecture diagrams and component interaction','Design patterns, frameworks, what was built vs adopted','Client-requested changes since progress report'] },
-    { name:'Quality of Work', pts:40, levels:[40,33.49,29.49,25.49,19.49], text:[
-      'Thoroughly addresses test strategy, techniques, quality constraints and test demonstration; non-trivial algorithm; exceptional workload.',
-      'Addresses a substantial majority of testing criteria; non-trivial algorithm; meets all user requirements.',
-      'Addresses most testing criteria; adequate technical quality; meets most user requirements.',
-      'Misses a considerable portion; insufficient test summary and workload.',
-      'Fails to address the criteria; minimal workload or unusable project.'],
-      asks:['Test strategy with justification','Techniques: equivalence partitioning, boundary analysis','Quality constraints: security, performance, reliability','Acceptance tests per user story (normal / boundary / abnormal)','Coverage and why it is enough','Significance and limitations of tests'] },
-    { name:'Quality of Group Processes and Individual Contributions', pts:20, levels:[20,14.93,12.93,10.25,9.32], text:[
-      'Excellent evidence of self-managed, collaborative, productive dynamics all semester; professional tooling and reflections.',
-      'Meets most criteria; good evidence of collaboration; minor disputes possible.',
-      'Meets some criteria; basic evidence; possible unresolved disputes.',
-      'Explains a few criteria; minimal evidence; ongoing disputes.',
-      'Fails most criteria; invalid justification; inappropriate communication.'],
-      asks:['Individual contributions and task split','Tooling, task management, XP roles','Group contract, meeting minutes, status reports','Critique of teamwork and process'] },
-    { name:'Reflections and Conclusions', pts:5, levels:[5,4.2,3.7,3.2,2.45], text:[
-      'Excellent analysis of challenges, limitations, strengths and risks with a prioritised improvement plan.',
-      'Adequate analysis covering most areas; adequate reflections.',
-      'Basic analysis; basic next steps provided.',
-      'Partial analysis; vague improvement actions.',
-      'Little to no meaningful analysis; no actionable improvements.'],
-      asks:['Challenge and risk analysis','Limitations and primary strengths','Reflection on Extreme Programming','Version control, issue tracking, coding style'] },
-    { name:'Documentation Organization & Writing', pts:5, levels:[5,4,3.5,3,2.25], text:[
-      'Report and GitHub site professionally structured; links work; evidence easy to access; within page limits.',
-      'Well addresses all criteria; mostly clear and consistent; minor gaps.',
-      'Substantial majority addressed; some gaps, missing captions or links.',
-      'Logical structure needs substantial work; poor navigation.',
-      'Fails most criteria; low readability; many broken links.'],
-      asks:['Logical, professional report structure','Well-organised GitHub site and docs','Hyperlinked, cross-referenced evidence','Numbered, captioned figures; page limits; AI acknowledgement'] }
-  ];
-
-  var ASSIGN = [];
-
-  function clone(o){ return JSON.parse(JSON.stringify(o)); }
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
   var tick = '<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg>';
 
-  /* One editable copy per source, so switching tabs keeps your edits. */
-  function pasteVersion(){
-    var d = clone(RAW);
-    d[2].levels[1] = 3.49;   // LLM dropped a digit (screenshot shows 33.49)
-    return d;
+  function fromParsed(result, source){
+    var rubric = result.rubric || {};
+    FLAGS = {}; EDITED = {}; WARNINGS = (result.warnings || []).map(function(w){ return w.message || String(w); }); PARSER = result.parser || '';
+    R = {
+      title: rubric.title || 'Untitled rubric',
+      source: source,
+      criteria: (rubric.criteria || []).map(function(c, i){
+        var levels = c.levels || [];
+        levels.forEach(function(level, j){ if (level.prov && (level.prov.points === 'inferred' || level.prov.description === 'inferred' || level.prov.points === 'missing' || level.prov.description === 'missing')) FLAGS[i + '-' + j] = { why: 'Inferred by the parser — check it' }; });
+        return {
+          name: c.name || '', pts: c.weight == null ? '' : Number(c.weight),
+          labels: levels.map(function(level, j){ return level.label || ('Level ' + (j + 1)); }),
+          levels: levels.map(function(level){ return level.points == null ? '' : Number(level.points); }),
+          text: levels.map(function(level){ return level.description || ''; }),
+          asks: (c.aspects || []).map(function(a){ return a.label || a; })
+        };
+      })
+    };
+    state.open = 0; state.dirty = false;
+    render();
   }
-  var DATA = { canvas:clone(RAW), upload:clone(RAW), paste:pasteVersion() };
-  var FLAGS = {
-    canvas:{}, upload:{},
-    paste:{
-      '2-1':{ why:'Points disagree with the screenshot (33.49?)' },
-      '3-4':{ why:'Wording differs from the screenshot — check it' }
-    }
-  };
-  var EDITED = { canvas:{}, upload:{}, paste:{} };   // cells you touched
 
-  var SOURCE = {
-    canvas:{ ok:'Exact structure · pulled from Canvas API', src:'Canvas API · [Course name] · 73598' },
-    upload:{ ok:'Exact structure · mapped from rubric_73598_687002.json', src:'rubric_73598_687002.json · mapped' },
-    paste: { ok:'Reconstructed by LLM · checked by you', src:'Pasted text + screenshots · reconstructed by LLM' }
-  };
-
-  function cur(){ return DATA[state.tab]; }
-  function flags(){ return FLAGS[state.tab]; }
-
-  /* ---------- Consistency rules ---------- */
   function cellError(c, j){
     var v = Number(c.levels[j]);
     if (c.levels[j] === '' || isNaN(v)) return 'Not a number';
-    if (j === 0 && v !== Number(c.pts)) return '≠ criterion pts';
+    if (j === 0 && c.pts !== '' && v > Number(c.pts)) return '> criterion pts';
     if (j > 0 && !(v < Number(c.levels[j - 1]))) return 'Out of order';
     if (!String(c.text[j] || '').trim()) return 'Empty';
     return null;
   }
   function analyse(){
-    var d = cur(), f = flags();
-    var total = d.reduce(function(s, c){ return s + (Number(c.pts) || 0); }, 0);
-    total = Math.round(total * 100) / 100;
-    var errCells = 0, nameErr = 0;
-    d.forEach(function(c){
+    if (!R) return { total:0, errCells:0, review:0, issues:['nothing parsed yet'] };
+    var total = Math.round(R.criteria.reduce(function(s, c){ return s + (Number(c.pts) || 0); }, 0) * 100) / 100;
+    var errCells = 0, nameErr = 0, levelErr = 0;
+    R.criteria.forEach(function(c){
       if (!String(c.name).trim()) nameErr++;
+      if (c.levels.length < 2) levelErr++;
       c.levels.forEach(function(_, j){ if (cellError(c, j)) errCells++; });
     });
-    var review = Object.keys(f).length;
-    var issues = [];
-    if (total !== 100) issues.push('weights add to ' + total);
+    var review = Object.keys(FLAGS).length, issues = [];
+    if (!R.criteria.length) issues.push('no criteria found');
+    if (!(total > 0)) issues.push('total points missing');
     if (errCells) issues.push(errCells + ' cell' + (errCells > 1 ? 's' : '') + ' inconsistent');
+    if (levelErr) issues.push(levelErr + ' criteria need at least two levels');
     if (review) issues.push(review + ' cell' + (review > 1 ? 's' : '') + ' to review');
     if (nameErr) issues.push('a criterion has no name');
     return { total:total, errCells:errCells, review:review, issues:issues };
@@ -542,21 +470,25 @@
   function render(){
     document.querySelectorAll('.tabs button').forEach(function(b){ b.setAttribute('aria-selected', b.dataset.tab === state.tab ? 'true' : 'false'); });
     document.querySelectorAll('.pane').forEach(function(p){ p.hidden = p.dataset.pane !== state.tab; });
-
-    document.getElementById('assignments').innerHTML = ASSIGN.map(function(a, i){
-      return '<button type="button" class="assign" data-pick="' + i + '" aria-pressed="' + (i === state.picked) + '"' + (a.has ? '' : ' disabled') + '>' +
-        '<span class="t"><b>' + esc(a.name) + '</b><span class="muted">' + esc(a.meta) + '</span></span>' +
-        '<span class="badge ' + a.cls + '">' + a.badge + '</span></button>';
-    }).join('');
-
-    var f = flags();
-    document.getElementById('criteria').innerHTML = cur().map(function(c, i){
+    var head = document.getElementById('mHead'), box = document.getElementById('criteria');
+    if (!R){
+      head.innerHTML = '';
+      box.innerHTML = '<div class="empty-state">' + (state.busy ? 'Reading rubric structure…' : 'Upload a rubric file or paste the rubric text to see its structure here.') + '</div>';
+      document.getElementById('pTitle').textContent = 'No rubric yet';
+      refresh(); return;
+    }
+    var width = Math.max.apply(null, R.criteria.map(function(c){ return c.levels.length; }).concat([1]));
+    document.querySelector('.matrix').style.setProperty('--levels', width);
+    var labels = (R.criteria[0] || { labels:[] }).labels;
+    head.innerHTML = '<span>Criterion</span>' + Array.apply(null, Array(width)).map(function(_, j){ return '<span><i class="sw" style="background:var(--lv' + Math.min(j + 1, 5) + ')"></i>' + esc(labels[j] || ('Level ' + (j + 1))) + '</span>'; }).join('');
+    if (document.activeElement !== document.getElementById('pTitle')) document.getElementById('pTitle').textContent = R.title;
+    box.innerHTML = R.criteria.map(function(c, i){
       var open = state.open === i;
       var cells = c.levels.map(function(p, j){
-        var fl = f[i + '-' + j];
-        return '<div class="cell l' + (j + 1) + '" data-i="' + i + '" data-j="' + j + '">' +
-          '<div class="top"><input class="pts-in" data-k="lv" data-i="' + i + '" data-j="' + j + '" value="' + esc(p) + '" inputmode="decimal" aria-label="' + esc(c.name) + ' ' + LEVEL_NAMES[j] + ' points"><span class="lbl"></span></div>' +
-          '<span class="txt" contenteditable="true" data-k="tx" data-i="' + i + '" data-j="' + j + '" role="textbox" aria-multiline="true" aria-label="' + esc(c.name) + ' ' + LEVEL_NAMES[j] + ' description">' + esc(c.text[j]) + '</span>' +
+        var fl = FLAGS[i + '-' + j];
+        return '<div class="cell l' + Math.min(j + 1, 5) + '" data-i="' + i + '" data-j="' + j + '">' +
+          '<div class="top"><input class="pts-in" data-k="lv" data-i="' + i + '" data-j="' + j + '" value="' + esc(p) + '" inputmode="decimal" aria-label="' + esc(c.name) + ' ' + esc(c.labels[j]) + ' points"><span class="lbl"></span></div>' +
+          '<span class="txt" contenteditable="true" data-k="tx" data-i="' + i + '" data-j="' + j + '" role="textbox" aria-multiline="true" aria-label="' + esc(c.name) + ' ' + esc(c.labels[j]) + ' description">' + esc(c.text[j]) + '</span>' +
           '<span class="why">' + (fl ? esc(fl.why) : '') + '</span>' +
           '<button type="button" class="ok-btn" data-ok="' + i + '-' + j + '">✓ Looks right</button>' +
         '</div>';
@@ -565,9 +497,9 @@
         '<div class="grid"><div class="c-col">' +
           '<span class="c-name-ed" contenteditable="true" data-k="nm" data-i="' + i + '" role="textbox" aria-label="Criterion name">' + esc(c.name) + '</span>' +
           '<span class="c-meta"><span class="c-pts" data-cp="' + i + '"><input data-k="cp" data-i="' + i + '" value="' + esc(c.pts) + '" inputmode="decimal" aria-label="Criterion points">pts</span>' +
-          '<button type="button" class="c-toggle" data-open="' + i + '" aria-expanded="' + open + '">' + (open ? 'Hide details' : 'Show details') + '</button></span>' +
+          (c.asks.length ? '<button type="button" class="c-toggle" data-open="' + i + '" aria-expanded="' + open + '">' + (open ? 'Hide details' : 'Show details') + '</button>' : '') + '</span>' +
         '</div>' + cells + '</div>' +
-        '<div class="asks"><div class="h">What this criterion asks for</div><ul>' + c.asks.map(function(q){ return '<li>' + esc(q) + '</li>'; }).join('') + '</ul></div>' +
+        (c.asks.length ? '<div class="asks"><div class="h">What this criterion asks for</div><ul>' + c.asks.map(function(q){ return '<li>' + esc(q) + '</li>'; }).join('') + '</ul></div>' : '') +
       '</div>';
     }).join('');
     refresh();
@@ -575,68 +507,82 @@
 
   /* Light update after every edit — never re-renders, so the caret stays put. */
   function refresh(){
-    var d = cur(), f = flags(), ed = EDITED[state.tab], a = analyse();
-
-    document.querySelectorAll('.cell').forEach(function(el){
+    var a = analyse();
+    document.getElementById('pTotal').textContent = a.total + ' pts';
+    if (R) document.querySelectorAll('.cell').forEach(function(el){
       var i = Number(el.dataset.i), j = Number(el.dataset.j), key = i + '-' + j;
-      var err = cellError(d[i], j), fl = f[key];
-      el.className = 'cell ' + (fl ? 'flag' : err ? 'err' : 'l' + (j + 1));
+      var err = cellError(R.criteria[i], j), fl = FLAGS[key];
+      el.className = 'cell ' + (fl ? 'flag' : err ? 'err' : 'l' + Math.min(j + 1, 5));
       var lbl = el.querySelector('.lbl');
       if (fl){ lbl.className = 'lbl rev'; lbl.textContent = 'Review'; }
       else if (err){ lbl.className = 'lbl bad'; lbl.textContent = err; }
-      else if (ed[key]){ lbl.className = 'lbl chk'; lbl.textContent = '✓ Checked'; }
+      else if (EDITED[key]){ lbl.className = 'lbl chk'; lbl.textContent = '✓ Checked'; }
       else { lbl.className = 'lbl'; lbl.textContent = ''; }
     });
-    document.querySelectorAll('.c-pts').forEach(function(el){
-      var c = d[Number(el.dataset.cp)];
+    if (R) document.querySelectorAll('.c-pts').forEach(function(el){
+      var c = R.criteria[Number(el.dataset.cp)];
       el.classList.toggle('bad', isNaN(Number(c.pts)) || c.pts === '');
     });
-
-    // status line
     var st = document.getElementById('status'), stt = document.getElementById('statusText');
-    if (state.tab === 'paste' && a.review){ st.className = 'status recon'; stt.textContent = 'Reconstructed by LLM · ' + a.review + ' cell' + (a.review > 1 ? 's need' : ' needs') + ' your review'; }
-    else if (a.issues.length){ st.className = 'status recon'; stt.textContent = 'Inconsistent · ' + a.issues.join(' · '); }
-    else { st.className = 'status exact'; stt.textContent = SOURCE[state.tab].ok + (state.dirty && state.tab !== 'paste' ? ' · edited by you' : ''); }
-
-    // checks
-    var chips = [
-      ['good', d.length + ' criteria'],
-      ['good', '5 levels each'],
-      a.total === 100 ? ['good','Weights sum to 100'] : ['bad','Weights sum to ' + a.total],
-      a.errCells ? ['bad', a.errCells + ' inconsistent cell' + (a.errCells > 1 ? 's' : '')] : ['good','Points descend HD → FL'],
-      state.tab === 'paste'
-        ? (a.review ? ['warn', a.review + ' to review · text matched 98%'] : ['good','All flagged cells checked'])
-        : ['good','HTML cleaned']
-    ];
+    if (!R){ st.className = 'status recon'; stt.textContent = state.busy ? 'Parsing…' : 'Waiting for a rubric'; }
+    else if (a.issues.length){ st.className = 'status recon'; stt.textContent = 'Check before saving · ' + a.issues.join(' · '); }
+    else { st.className = 'status exact'; stt.textContent = R.source + (state.dirty ? ' · edited by you' : ''); }
+    var chips = !R ? [] : [
+      ['good', R.criteria.length + ' criteria'],
+      ['good', 'Levels as in the source'],
+      ['good', 'Total ' + a.total + ' pts'],
+      a.errCells ? ['bad', a.errCells + ' inconsistent cell' + (a.errCells > 1 ? 's' : '')] : ['good', 'Points descend across levels']
+    ].concat(WARNINGS.slice(0, 3).map(function(w){ return ['warn', w]; }));
     document.getElementById('checks').innerHTML = chips.map(function(c){
-      return '<span class="chip ' + c[0] + '">' + (c[0] === 'good' ? tick : '! ') + c[1] + '</span>';
-    }).join('') + '<span class="hint">Click any name, points or description to edit</span>';
-
-    // save
+      return '<span class="chip ' + c[0] + '">' + (c[0] === 'good' ? tick : '! ') + esc(c[1]) + '</span>';
+    }).join('') + (R ? '<span class="hint">Click any name, points or description to edit</span>' : '');
     var btn = document.getElementById('saveRubric'), note = document.getElementById('saveNote');
-    btn.disabled = a.issues.length > 0;
-    note.className = 'save-note' + (a.issues.length ? '' : ' ok');
-    note.textContent = a.issues.length ? 'Fix to save: ' + a.issues.join(', ') : 'Ready — saves to your rubric library';
+    btn.disabled = !R || a.issues.length > 0 || state.busy;
+    note.className = 'save-note' + (R && !a.issues.length ? ' ok' : '');
+    note.textContent = !R ? '' : a.issues.length ? 'Fix to save: ' + a.issues.join(', ') : 'Ready — saves to your rubric library (pinned to the top)';
   }
 
+  /* ---------- Parse: upload or paste, both through the API ---------- */
+  function parse(task, source){
+    state.busy = true; R = null; render();
+    return task.then(function(result){ state.busy = false; fromParsed(result, source); })
+      .catch(function(error){ state.busy = false; render(); document.getElementById('statusText').textContent = 'Could not parse: ' + error.message; });
+  }
+  document.getElementById('file').addEventListener('change', function(){
+    var file = this.files[0]; if (!file) return;
+    if (state.dirty && !confirm('Replace the rubric you are editing?')) { this.value = ''; return; }
+    document.getElementById('fileRow').hidden = false;
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileMeta').textContent = Math.max(1, Math.round(file.size / 1024)) + ' KB';
+    document.getElementById('fileState').textContent = 'Parsing…';
+    parse(MarkerAPI.parseRubricFile(file), 'Parsed from ' + file.name).then(function(){ document.getElementById('fileState').textContent = R ? 'Parsed' : 'Failed'; });
+  });
+  var paste = document.getElementById('paste'), pasteBtn = document.getElementById('pasteBtn');
+  paste.addEventListener('input', function(){ pasteBtn.disabled = !paste.value.trim(); });
+  pasteBtn.addEventListener('click', function(){
+    if (!paste.value.trim()) return;
+    if (state.dirty && !confirm('Replace the rubric you are editing?')) return;
+    pasteBtn.disabled = true;
+    parse(MarkerAPI.parseRubric(paste.value, 'pasted-rubric.txt'), 'Parsed from pasted text').then(function(){ pasteBtn.disabled = false; });
+  });
+
   /* ---------- Editing ---------- */
-  function touch(key){ state.dirty = true; if (key){ EDITED[state.tab][key] = true; delete flags()[key]; } }
+  function touch(key){ state.dirty = true; if (key){ EDITED[key] = true; delete FLAGS[key]; } }
+  document.getElementById('pTitle').addEventListener('input', function(){ if (R){ R.title = this.textContent.trim(); state.dirty = true; } });
 
   var crit = document.getElementById('criteria');
   crit.addEventListener('input', function(e){
-    var el = e.target, k = el.dataset.k; if (!k) return;
-    var c = cur()[Number(el.dataset.i)], j = Number(el.dataset.j);
+    var el = e.target, k = el.dataset.k; if (!k || !R) return;
+    var c = R.criteria[Number(el.dataset.i)], j = Number(el.dataset.j);
     if (k === 'lv'){ c.levels[j] = el.value.trim() === '' ? '' : Number(el.value); touch(el.dataset.i + '-' + j); }
     else if (k === 'tx'){ c.text[j] = el.innerText.replace(/\n+$/,''); touch(el.dataset.i + '-' + j); }
     else if (k === 'nm'){ c.name = el.innerText.trim(); touch(); }
     else if (k === 'cp'){ c.pts = el.value.trim() === '' ? '' : Number(el.value); touch(); }
     refresh();
   });
-  // Enter in a single-line field commits instead of adding a line break
   crit.addEventListener('keydown', function(e){
     if (e.key === 'Enter' && (e.target.dataset.k === 'nm' || e.target.tagName === 'INPUT')){ e.preventDefault(); e.target.blur(); }
   });
-  // Paste as plain text into editable spans
   crit.addEventListener('paste', function(e){
     if (!e.target.isContentEditable) return;
     e.preventDefault();
@@ -648,38 +594,24 @@
     var t = e.target.closest('button[data-open]');
     if (t){ var i = Number(t.dataset.open); state.open = state.open === i ? -1 : i; render(); }
   });
-
   document.querySelector('.tabs').addEventListener('click', function(e){
-    var b = e.target.closest('button[data-tab]'); if (!b) return; state.tab = b.dataset.tab; render();
-  });
-  document.getElementById('assignments').addEventListener('click', function(e){
-    var b = e.target.closest('button[data-pick]'); if (!b || b.disabled) return; state.picked = Number(b.dataset.pick); render();
+    var b = e.target.closest('button[data-tab]'); if (!b || b.disabled) return; state.tab = b.dataset.tab; render();
   });
 
-  /* ---------- Save / close → back to "Set up a marking batch" ---------- */
-  var RubricStore = {
-    save:function(r){ window.__DRAFT_RUBRIC = r; },
-    go:function(url, r){ location.href = url + '#saved=1&rubric=' + encodeURIComponent(JSON.stringify(r)); }
-  };
+  /* ---------- Save to the library (database), then open it there ---------- */
   document.getElementById('saveRubric').addEventListener('click', function(){
-    if (analyse().issues.length) return;
-    var ed = EDITED[state.tab], d = new Date();
-    var rubric = {
-      title:'Final Project Report', source:SOURCE[state.tab].src + (state.dirty ? ' · edited' : ''),
-      savedAt:d.getHours() + ':' + String(d.getMinutes()).padStart(2,'0'),
-      criteria: cur().map(function(c, i){
-        var touched = c.levels.some(function(_, j){ return ed[i + '-' + j]; });
-        return {
-          name:c.name, weight:Number(c.pts), levelPts:c.levels.map(Number),
-          conf: touched ? ['high','Checked by you'] : ['high', state.tab === 'paste' ? 'High confidence' : 'Exact structure'],
-          note: touched ? 'Edited on import — your wording is kept.' : (state.tab === 'paste' ? 'Reconstructed; matched the source text.' : 'Pulled field-by-field, nothing re-typed.'),
-          bands: c.text.slice()
-        };
+    if (!R || analyse().issues.length) return;
+    var btn = this; btn.disabled = true; document.getElementById('saveNote').textContent = 'Saving…';
+    MarkerAPI.createRubric({
+      title: R.title || 'Untitled rubric',
+      source: R.source + (state.dirty ? ' · edited' : ''),
+      criteria: R.criteria.map(function(c){
+        return { name: c.name, weight: Number(c.pts), levels: c.levels.map(function(points, j){ return { id: String(c.labels[j] || j).toLowerCase().replace(/[^a-z0-9]+/g, '-'), label: c.labels[j], points: Number(points), description: c.text[j] }; }) };
       })
-    };
-    var lib = RubricLib.fromBatchRubric(rubric);
-    state.dirty = false;
-    location.href = LIB + '#open=' + lib.id;
+    }).then(function(saved){
+      state.dirty = false;
+      location.href = LIB + '#open=' + encodeURIComponent(saved.rubric.id);
+    }).catch(function(error){ btn.disabled = false; document.getElementById('saveNote').textContent = 'Save failed: ' + error.message; });
   });
   document.getElementById('closeX').addEventListener('click', function(){
     if (state.dirty && !confirm('Close without saving? Your edits to this rubric will be lost.')) return;
@@ -687,13 +619,14 @@
   });
   document.addEventListener('keydown', function(e){
     if (e.key === 'Escape' && !document.getElementById('expMenu').hidden){ document.getElementById('expMenu').hidden = true; return; }
-    if (e.key === 'Escape' && !e.target.isContentEditable && e.target.tagName !== 'INPUT') document.getElementById('closeX').click();
+    if (e.key === 'Escape' && !e.target.isContentEditable && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') document.getElementById('closeX').click();
   });
 
   /* ---------- Export (one button, pick a format) ---------- */
   function currentRubric(){
-    return { title:'Final Project Report', total:100, levels:['HD','DI','CR','PS','FL'],
-      criteria: cur().map(function(c){ return { name:c.name, points:Number(c.pts), levelPoints:c.levels.map(Number), levels:c.text.slice() }; }) };
+    var labels = R ? (R.criteria[0] || { labels:[] }).labels : [];
+    return { title:R ? R.title : 'Rubric', total:analyse().total, levels:labels,
+      criteria: (R ? R.criteria : []).map(function(c){ return { name:c.name, points:Number(c.pts), levelPoints:c.levels.map(Number), levels:c.text.slice() }; }) };
   }
   function download(name, text, type){
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type:type }));
@@ -716,7 +649,8 @@
   document.addEventListener('click', function(e){ if (!e.target.closest('.exp')){ expMenu.hidden = true; expBtn.setAttribute('aria-expanded', 'false'); } });
   expMenu.addEventListener('click', function(e){
     var b = e.target.closest('[data-fmt]'); if (!b) return;
-    var r = currentRubric(), base = 'final-project-report-rubric';
+    if (!R) return;
+    var r = currentRubric(), base = (R.title || 'rubric').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-rubric';
     if (b.dataset.fmt === 'json') download(base + '.json', JSON.stringify(r, null, 2), 'application/json');
     if (b.dataset.fmt === 'md') download(base + '.md', asMarkdown(r), 'text/markdown');
     if (b.dataset.fmt === 'csv') download(base + '.csv', asCSV(r), 'text/csv');
@@ -726,7 +660,7 @@
   render();
 
 </script>
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
+<script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

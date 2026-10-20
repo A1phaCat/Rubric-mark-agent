@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -19,6 +19,8 @@ class Rubric(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    is_sample: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class RubricCriterion(Base):

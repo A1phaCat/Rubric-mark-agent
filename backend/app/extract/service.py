@@ -47,7 +47,10 @@ def _extract_docx(path: Path, submission_id: str, mime_type: str) -> dict[str, A
     lines = [paragraph.text for paragraph in source.paragraphs]
     for table in source.tables:
         lines.extend(" | ".join(cell.text for cell in row.cells) for row in table.rows)
-    return _document(submission_id, path.stem, mime_type, [_page(1, "\n".join(lines))])
+    title = str(source.core_properties.title or path.stem)
+    # Word already marks paragraph boundaries; keep each one as its own block
+    # instead of re-flowing short paragraphs into their neighbours.
+    return _document(submission_id, title, mime_type, [_page(1, "\n\n".join(lines))])
 
 
 def _page(number: int, text: str) -> dict[str, Any]:

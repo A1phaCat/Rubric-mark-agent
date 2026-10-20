@@ -38,7 +38,6 @@ def _batch(session: Session, status: str = "processing") -> Batch:
             sid="SID-1",
             status="queued",
             flags_json="[]",
-            is_mock=False,
             version=1,
             updated_at=now,
         )

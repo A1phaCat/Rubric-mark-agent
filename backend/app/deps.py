@@ -22,4 +22,12 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def get_current_user() -> dict[str, Any]:
-    return {"id": "usr_jalvarez", "name": "J. Alvarez", "role": "tutor"}
+    """The single local user (no authentication in the local MVP), read from the database."""
+
+    from app.db.models.core import User
+
+    with SessionLocal() as session:
+        user = session.get(User, settings.local_user_id)
+        if user is None:
+            return {"id": settings.local_user_id, "name": "Local tutor", "role": "tutor"}
+        return {"id": user.id, "name": user.name, "role": user.role}

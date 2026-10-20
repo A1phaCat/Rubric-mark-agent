@@ -46,3 +46,30 @@ def test_only_llm_package_imports_httpx() -> None:
         ):
             offenders.append(str(path.relative_to(APP)))
     assert not offenders
+
+
+def test_no_fixture_or_mock_data_paths_in_the_application() -> None:
+    offenders = []
+    for path in APP.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        if any(token in text for token in ("FixtureStore", "fixtures_dir", "fixtures/demo", "is_mock", "use_mocks")):
+            offenders.append(str(path.relative_to(APP)))
+    assert not offenders
+
+
+def test_jobs_do_not_import_the_http_layer() -> None:
+    for path in (APP / "jobs").rglob("*.py"):
+        forbidden = {name for name in imported_modules(path) if name.startswith("app.api")}
+        assert not forbidden, f"{path.relative_to(APP)}: {sorted(forbidden)}"
+
+
+def test_frontend_has_no_mock_mode() -> None:
+    frontend = ROOT / "frontend"
+    offenders = []
+    for path in list(frontend.rglob("*.js")) + list(frontend.rglob("*.html")):
+        if "pdfjs" in path.parts:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if any(token in text for token in ("mock-adapter", "mocks=1", "MarkerMockAdapter", "/fixtures/demo")):
+            offenders.append(str(path.relative_to(frontend)))
+    assert not offenders

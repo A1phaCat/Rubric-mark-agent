@@ -20,7 +20,7 @@ from app.db.session import SessionLocal, engine
 async def lifespan(_app: FastAPI):
     settings.runtime_paths()
     Base.metadata.create_all(engine)
-    from app.api.settings import load_ai_settings
+    from app.services.settings_service import load_ai_settings
 
     with SessionLocal() as session:
         load_ai_settings(session, settings)
@@ -47,10 +47,8 @@ def create_app() -> FastAPI:
 
     root = Path(__file__).resolve().parents[2]
     frontend = (root / "frontend").resolve()
-    fixtures = (root / "fixtures" / "demo").resolve()
     app.mount("/prototype", StaticFiles(directory=root / "prototype", html=True), name="prototype")
     app.mount("/js", StaticFiles(directory=frontend / "js"), name="js")
-    app.mount("/fixtures/demo", StaticFiles(directory=fixtures), name="fixtures")
 
     @app.exception_handler(HTTPException)
     async def http_error(_request: Request, exc: HTTPException) -> JSONResponse:

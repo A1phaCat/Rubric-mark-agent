@@ -2,66 +2,41 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.common import mock, translate_error
-from app.api.settings import load_ai_settings
+from app.api.common import translate_error
 from app.config import Settings
 from app.db.models.batch import Batch
-from app.db.models.submission import Submission
+from app.db.models.submission import File, Submission
+from app.db.session import SessionLocal
 from app.deps import get_current_user, get_db, get_settings
-from app.events.bus import event_bus
-from app.services.batch_service import BatchUseCases
-from app.services.fixture_service import FixtureStore
+from app.services.batch_service import PROCESSING_STATES, BatchUseCases
+from app.services.review_service import MANUAL_STATES, READY_STATES, ReviewUseCases
+from app.services.settings_service import load_ai_settings
+from app.services.submission_service import marker_names, submission_row
 
 router = APIRouter(prefix="/batches", tags=["batches"])
 
 
 @router.get("")
 def list_batches(
-    response: Response,
     active: bool | None = None,
     term: str | None = None,
     status: str | None = None,
     q: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-    settings: Settings = Depends(get_settings),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ) -> dict:
-    service = BatchUseCases(db)
-    persisted = [service.serialize(item) for item in db.scalars(select(Batch).order_by(Batch.created_at.desc()))]
-    persisted_ids = {item["id"] for item in persisted}
-    items = persisted + [
-        item for item in FixtureStore(settings.fixtures_dir).batches() if item["id"] not in persisted_ids
-    ]
-    if active:
-        items = [item for item in items if item["status"] not in {"finalised", "cancelled"}]
-    if term:
-        items = [item for item in items if item["term"]["id"] == term]
-    if status:
-        items = [item for item in items if item["status"] == status]
-    if q:
-        lowered = q.lower()
-        items = [
-            item for item in items if lowered in f"{item['name']} {item.get('unit', '')}".lower()
-        ]
-    items.sort(key=lambda item: item.get("created_at") or "", reverse=True)
-    start = (page - 1) * page_size
-    return mock(
-        response,
-        {
-            "items": items[start : start + page_size],
-            "page": page,
-            "page_size": page_size,
-            "total": len(items),
-        },
+    return BatchUseCases(db).list(
+        active=active, term=term, status=status, q=q, page=page, page_size=page_size
     )
 
 
@@ -77,18 +52,7 @@ def create_batch(
 
 
 @router.get("/{batch_id}")
-def get_batch(
-    batch_id: str,
-    response: Response,
-    db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
-) -> dict:
-    fixture = FixtureStore(settings.fixtures_dir).batch(batch_id)
-    if fixture:
-        return mock(
-            response,
-            {"batch": fixture, "rubric_snapshot": None, "previous_batch": None, "next_batch": None},
-        )
+def get_batch(batch_id: str, db: Session = Depends(get_db)) -> dict:
     try:
         batch = db.get(Batch, batch_id)
         if batch is None:
@@ -105,90 +69,69 @@ def get_batch(
         raise translate_error(exc) from exc
 
 
+SUBMISSION_FILTERS = {
+    "ready": lambda item: item.status in READY_STATES,
+    "low_confidence": lambda item: item.status in READY_STATES and item.min_confidence == "low",
+    "needs_manual": lambda item: item.status in MANUAL_STATES,
+    "processing": lambda item: item.status in PROCESSING_STATES,
+    "confirmed": lambda item: item.status == "confirmed",
+    "failed": lambda item: item.status == "failed",
+}
+
+
 @router.get("/{batch_id}/submissions")
 def list_submissions(
     batch_id: str,
-    response: Response,
     filter: str = "all",
-    page: int = 1,
-    page_size: int = 50,
-    settings: Settings = Depends(get_settings),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ) -> dict:
-    store = FixtureStore(settings.fixtures_dir)
-    fixture_batch = store.batch(batch_id)
-    if fixture_batch is None:
+    try:
+        if db.get(Batch, batch_id) is None:
+            raise KeyError(batch_id)
+        service = BatchUseCases(db)
         records = list(
             db.scalars(
-                select(Submission).where(Submission.batch_id == batch_id).order_by(Submission.id)
+                select(Submission)
+                .where(Submission.batch_id == batch_id)
+                .order_by(Submission.sid, Submission.id)
             )
         )
-        if not records and db.get(Batch, batch_id) is None:
-            raise translate_error(KeyError(batch_id))
-        rows = [
-            {
-                "id": item.id,
-                "batch_id": item.batch_id,
-                "sid": item.sid,
-                "filename": item.sid or item.id,
-                "status": item.status,
-                "ai_total": item.ai_total,
-                "final_total": item.final_total,
-                "confidence": item.min_confidence,
-                "progress": item.ai_summary,
-                "marker": None,
-                "flags": json.loads(item.flags_json),
-                "error": {
-                    "code": "processing_failed",
-                    "message": item.error_reason or "AI grading failed without an error message",
-                }
-                if item.status == "failed"
-                else None,
-                "updated_at": item.updated_at.isoformat(),
-                "version": item.version,
-                "_mock": item.is_mock,
-            }
-            for item in records
-        ]
-        counts = BatchUseCases(db).counts(batch_id)
+        adjusted = service.adjusted_submission_ids(batch_id)
+        if filter == "adjusted":
+            records = [item for item in records if item.id in adjusted]
+        elif filter in SUBMISSION_FILTERS:
+            records = [item for item in records if SUBMISSION_FILTERS[filter](item)]
+        elif filter != "all":
+            raise ValueError(f"Unknown submission filter: {filter}")
+        files = {
+            item.id: item
+            for item in db.scalars(select(File).where(File.batch_id == batch_id))
+        }
+        markers = marker_names(db)
         start = (page - 1) * page_size
         return {
-            "items": rows[start : start + page_size],
+            "items": [
+                submission_row(item, files.get(item.file_id or ""), markers, adjusted=item.id in adjusted)
+                for item in records[start : start + page_size]
+            ],
             "page": page,
             "page_size": page_size,
-            "total": len(rows),
-            "filter_counts": counts,
+            "total": len(records),
+            "filter_counts": service.counts(batch_id),
         }
-    rows = [item for item in store.submissions() if item["batch_id"] == batch_id]
-    if filter != "all":
-        if filter == "ready":
-            rows = [item for item in rows if item["status"] in {"ai_done", "in_review"}]
-        elif filter == "low_confidence":
-            rows = [item for item in rows if item.get("confidence") == "low"]
-        elif filter == "needs_manual":
-            rows = [item for item in rows if "needs_manual" in item.get("flags", [])]
-        elif filter == "processing":
-            rows = [
-                item
-                for item in rows
-                if item["status"] in {"uploaded", "extracting", "queued", "marking"}
-            ]
-        else:
-            rows = [
-                item for item in rows if item["status"] == filter or filter in item.get("flags", [])
-            ]
-    batch = fixture_batch
-    start = (page - 1) * page_size
-    return mock(
-        response,
-        {
-            "items": rows[start : start + page_size],
-            "page": page,
-            "page_size": page_size,
-            "total": len(rows),
-            "filter_counts": batch["counts"] if batch else {},
-        },
-    )
+    except Exception as exc:
+        raise translate_error(exc) from exc
+
+
+@router.put("/{batch_id}/pin")
+def pin_batch(batch_id: str, payload: dict[str, Any], db: Session = Depends(get_db)) -> dict:
+    try:
+        with db.begin():
+            return BatchUseCases(db).set_pinned(batch_id, bool(payload.get("pinned", True)))
+    except Exception as exc:
+        raise translate_error(exc) from exc
 
 
 @router.post("/{batch_id}/start")
@@ -284,62 +227,63 @@ def delete_batch(
 
 
 @router.get("/{batch_id}/queue/next")
-def next_submission(
-    batch_id: str,
-    response: Response,
-    after: str | None = None,
-    settings: Settings = Depends(get_settings),
-) -> dict:
-    rows = [
-        item
-        for item in FixtureStore(settings.fixtures_dir).submissions()
-        if item["batch_id"] == batch_id and item["status"] in {"ai_done", "in_review"}
-    ]
-    index = next((i for i, item in enumerate(rows) if item["id"] == after), -1)
-    next_id = rows[index + 1]["id"] if index + 1 < len(rows) else None
-    batch = FixtureStore(settings.fixtures_dir).batch(batch_id)
-    counts = batch["counts"] if batch else {}
-    return mock(
-        response,
-        {
-            "next_id": next_id,
+def next_submission(batch_id: str, after: str | None = None, db: Session = Depends(get_db)) -> dict:
+    try:
+        if db.get(Batch, batch_id) is None:
+            raise KeyError(batch_id)
+        upcoming = ReviewUseCases(db).queue(batch_id, limit=1, after=after, exclude={after} if after else None)
+        counts = BatchUseCases(db).counts(batch_id)
+        return {
+            "next_id": upcoming[0].id if upcoming else None,
             "remaining": {
-                "ready": counts.get("ready", 0),
-                "processing": counts.get("processing", 0),
-                "failed": counts.get("failed", 0),
+                "ready": counts["ready"],
+                "needs_manual": counts["needs_manual"],
+                "processing": counts["processing"],
+                "failed": counts["failed"],
             },
-        },
-    )
+        }
+    except Exception as exc:
+        raise translate_error(exc) from exc
 
 
 @router.get("/{batch_id}/events")
-async def events(
-    batch_id: str, request: Request, settings: Settings = Depends(get_settings)
-) -> StreamingResponse:
-    fixture_batch = FixtureStore(settings.fixtures_dir).batch(batch_id)
+async def events(batch_id: str, request: Request) -> StreamingResponse:
+    """Progress events read from the database, so updates written by the separate
+    worker process reach the browser (an in-memory bus cannot cross processes)."""
+
+    def snapshot() -> tuple[int, dict[str, Any]] | None:
+        with SessionLocal() as session:
+            batch = session.get(Batch, batch_id)
+            if batch is None:
+                return None
+            counts = BatchUseCases(session).counts(batch_id)
+            return batch.version, {
+                "batch_id": batch_id,
+                "status": batch.status,
+                "counts": counts,
+                "eta_seconds": None,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
 
     async def stream():
-        if fixture_batch:
-            yield f"event: batch_progress\ndata: {json.dumps({'batch_id': batch_id, 'status': fixture_batch['status'], 'counts': fixture_batch['counts'], 'eta_seconds': fixture_batch.get('eta_seconds'), '_mock': True})}\n\n"
-        queue = event_bus.subscribe(batch_id)
-        try:
-            while not await request.is_disconnected():
-                try:
-                    event = await asyncio.wait_for(queue.get(), timeout=15)
-                    yield f"event: {event['event']}\ndata: {json.dumps(event['data'])}\n\n"
-                except asyncio.TimeoutError:
-                    yield ": heartbeat\n\n"
-        finally:
-            event_bus.unsubscribe(batch_id, queue)
+        last_version: int | None = None
+        idle = 0.0
+        while not await request.is_disconnected():
+            current = snapshot()
+            if current is None:
+                yield "event: error\ndata: {\"code\": \"not_found\"}\n\n"
+                return
+            version, data = current
+            if version != last_version:
+                last_version, idle = version, 0.0
+                yield f"event: batch_progress\ndata: {json.dumps(data)}\n\n"
+            elif idle >= 15:
+                idle = 0.0
+                yield ": heartbeat\n\n"
+            await asyncio.sleep(2)
+            idle += 2
 
-    return StreamingResponse(
-        stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            **({"X-Mock": "true"} if fixture_batch else {}),
-        },
-    )
+    return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 @router.post("/{batch_id}/report-export")

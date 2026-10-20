@@ -65,6 +65,10 @@
   .bd-row .pts{ font-family:'IBM Plex Mono',monospace; text-align:right; }
 
   /* AI summary */
+  .audience{ display:inline-flex; border:1px solid var(--border-strong); border-radius:7px; overflow:hidden; margin-top:10px; }
+  .audience button{ font:500 12px Inter,sans-serif; padding:5px 10px; border:0; background:var(--surface); color:var(--ink-soft); cursor:pointer; }
+  .audience button.on{ background:var(--ink); color:#fff; }
+  .sample-note{ font-size:12px; color:var(--primary); margin-top:6px; }
   .ai-sum{ background:var(--ai-bg); border-radius:12px; padding:22px 26px; margin-bottom:28px; }
   .ai-sum .hd{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
   .ai-sum .badge{ font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; color:#fff; background:var(--ai); padding:3px 9px; border-radius:5px; }
@@ -189,7 +193,7 @@
       <span class="ab-name">AI-assisted marker</span>
       <span class="ab-proto" title="Internal coursework demo — not an official University of Sydney service">Prototype</span>
     </a>
-    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><a href="04-batch-complete.html">Quiz 3 Short Answers</a></li><li><span aria-current="page" id="bcCur">SID-50102 report</span></li></ol><a class="bc-up" href="04-batch-complete.html"><span aria-hidden="true">‹</span><span class="t">Quiz 3 Short Answers</span></a></nav>
+    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><a id="bcBatch" href="07-batches.html">Batch</a></li><li><span aria-current="page" id="bcCur">Report</span></li></ol><a class="bc-up" id="bcUp" href="07-batches.html"><span aria-hidden="true">‹</span><span class="t">Results</span></a></nav>
   </div>
   <div class="ab-right">
     <div class="ab-actions hide-sm">
@@ -200,91 +204,11 @@
   </div>
 </header>
 
-<main>
-  <section class="report">
-    <div class="rh">
-      <div>
-        <div class="eyebrow">Mark report</div>
-        <h1>Quiz 3 — Short Answers</h1>
-        <dl>
-          <dt>Student</dt><dd>SID-50102</dd>
-          <dt>Marked by</dt><dd>J. Alvarez</dd>
-          <dt>Finalised</dt><dd>12 Oct 2026, 4:18 pm</dd>
-          <dt>Status</dt><dd><span class="rel">✓ Released to student via Canvas</span></dd>
-        </dl>
-      </div>
-      <div class="score">
-        <div class="big">68<small> / 100</small></div>
-        <span class="band CR">CR · Credit</span>
-        <div class="ai-note">AI suggested <s>72</s> · adjusted −4 by tutor</div>
-      </div>
-    </div>
-    <div class="breakdown" aria-label="Marks by criterion">
-      <div class="bd-row"><span>Q1 — Concept definitions</span><span class="track"><span style="width:80%"></span></span><span class="pts">24 / 30</span></div>
-      <div class="bd-row"><span>Q2 — Applying the model</span><span class="track"><span style="width:72.5%"></span></span><span class="pts">29 / 40</span></div>
-      <div class="bd-row"><span>Q3 — Evaluating trade-offs</span><span class="track"><span style="width:50%"></span></span><span class="pts">15 / 30</span></div>
-    </div>
-  </section>
-
-  <section class="ai-sum" aria-label="AI summary">
-    <div class="hd">
-      <h2><span class="badge">AI</span>Summary of this submission</h2>
-      <span class="rev">Reviewed by J. Alvarez before release</span>
-    </div>
-    <p>A solid set of answers with accurate, well-chosen definitions and a confident application of the governance model in Q2. The main gap is in Q3, which describes both organisational models clearly but stops short of judging between them.</p>
-    <ul>
-      <li><b>Strongest:</b> Q1 — precise definitions supported by a relevant open-source example.</li>
-      <li><b>To improve:</b> Q3 — move from describing each model to weighing them and reaching a conclusion about when each is preferable.</li>
-      <li><b>Next step:</b> in evaluative questions, end with a clear judgement and the reason for it.</li>
-    </ul>
-  </section>
-
-  <h2 class="section-title">Feedback by criterion</h2>
-
-  <article class="crit">
-    <div class="crit-top">
-      <div><h3>Q1 — Concept definitions</h3><p class="desc">Defines coordination cost and transaction cost accurately, with an example.</p></div>
-      <div class="pts"><b>24<small> / 30</small></b><span class="band DI">DI</span></div>
-    </div>
-    <div class="comment">
-      <span class="avatar">JA</span>
-      <div><div class="who"><b>J. Alvarez</b> · tutor comment</div>
-        <p>Accurate definitions of both terms, and the open-source example is a good fit. To reach HD, explain <em>why</em> coordination cost grows with group size rather than only stating that it does.</p></div>
-    </div>
-    <div class="src">Evidence used <span>Q1 ¶1</span><span>Q1 ¶2</span></div>
-  </article>
-
-  <article class="crit">
-    <div class="crit-top">
-      <div><h3>Q2 — Applying the model</h3><p class="desc">Applies Ostrom's design principles to a real organisation.</p></div>
-      <div class="pts"><b>29<small> / 40</small></b><span class="band CR">CR</span></div>
-    </div>
-    <div class="comment">
-      <span class="avatar">JA</span>
-      <div><div class="who"><b>J. Alvarez</b> · tutor comment</div>
-        <p>Good use of three of Ostrom's principles — the monitoring example is especially apt. The answer would be stronger if it considered what happens when long-standing contributors leave the project.</p></div>
-    </div>
-    <div class="src">Evidence used <span>Q2 ¶1</span><span>Q2 ¶3</span></div>
-  </article>
-
-  <article class="crit">
-    <div class="crit-top">
-      <div><h3>Q3 — Evaluating trade-offs</h3><p class="desc">Weighs hierarchy against decentralisation and reaches a justified judgement.</p></div>
-      <div class="pts"><b>15<small> / 30</small></b><span class="band PS">PS</span></div>
-    </div>
-    <span class="adj"><span class="delta">−4</span>AI suggested 19 · adjusted by tutor</span>
-    <div class="comment">
-      <span class="avatar">JA</span>
-      <div><div class="who"><b>J. Alvarez</b> · tutor comment</div>
-        <p>You describe hierarchy and decentralisation clearly, but the question asks you to evaluate them. I've lowered the suggested mark because the answer doesn't reach a conclusion about when each model is preferable, or why.</p></div>
-    </div>
-    <div class="src">Evidence used <span>Q3 ¶1</span><span>Q3 ¶2</span></div>
-  </article>
-
-  <p class="footnote"><span class="dot"></span>Marks were suggested by AI from the evidence in your submission and confirmed or adjusted by your tutor. Every final mark and comment on this page was approved by a person.</p>
+<main id="reportMain">
+  <section class="report"><div class="rh"><div><div class="eyebrow">Mark report</div><h1>Loading report…</h1></div></div></section>
 </main>
 
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
-<script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
+<script src="/js/api.js"></script>
+<script src="account-menu.js"></script><script src="/js/render-report.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

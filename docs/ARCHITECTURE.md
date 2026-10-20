@@ -22,7 +22,7 @@ flowchart LR
   C --> RP[report]
   RP --> E[CSV / single PDF]
   X --> FS[(versioned data/ files)]
-  S --> SSE[SSE events]
+  DB --> SSE[SSE / polling reads]
   SSE --> UI
 ```
 
@@ -33,15 +33,14 @@ Main data flow: upload → safe manifest/fix files → extract → grade → ope
 | Path | Belongs here | Must not live here | Lifecycle |
 |---|---|---|---|
 | `prototype/` | Frozen HTML/JS baseline and generated baseline screenshots | Runtime imports, fixes, mutable demo state | Source-controlled; frozen |
-| `frontend/` | Working pages, browser client, mock adapter, UI checklist | Provider keys, SQL, direct provider URLs | Source-controlled |
-| `backend/` | Python app, migration source, module tests | Uploads, reports, fixture truth | Source-controlled |
+| `frontend/` | Working pages, browser client (`api.js`), page renderers, UI checklist | Provider keys, SQL, direct provider URLs, embedded display data | Source-controlled |
+| `backend/` | Python app, migration source, module tests, sample loader and sample files (`app/sample/`) | Uploads, reports, runtime data | Source-controlled |
 | `contracts/` | OpenAPI, stable errors, LLM JSON Schemas | Implementations or secrets | Source-controlled |
-| `fixtures/demo/` | One deterministic cross-page dataset and FakeLLM recordings | Real student work or keys | Source-controlled/generated deterministically |
 | `docs/` | Review, this map and decision records | Duplicate endpoint implementation detail | Source-controlled |
 | `tests/` | Cross-cutting architecture, e2e and visual tests | Module unit tests | Source-controlled; outputs ignored |
 | `eval/` | Runner/metric skeleton and dataset interface | Private golden submissions | Source-controlled; datasets ignored |
-| `scripts/` | Task, fixture, seed and validation entrypoints | Business rules | Source-controlled |
-| `data/` | DB, uploads, extracted versions, index, reports, exports, cache, safe logs | Source code or fixtures | Runtime-generated; ignored |
+| `scripts/` | Task, reset, sample-file build and validation entrypoints | Business rules | Source-controlled |
+| `data/` | DB, uploads, extracted versions, index, reports, exports, cache, safe logs | Source code | Runtime-generated; ignored |
 
 Runtime partitions are created only by `config.py`: `db/`, `uploads/tmp/`, `rubrics/source/`, `files/`, `extracted/`, `index/`, `reports/`, `exports/`, `cache/`, and `logs/`. Paths are constructed from IDs/hashes, never user filenames.
 
@@ -62,7 +61,7 @@ Runtime partitions are created only by `config.py`: `db/`, `uploads/tmp/`, `rubr
 | `report/` | audience projections and HTML/PDF render | Changing marks | Source; output runtime |
 | `jobs/` | enqueue/lease/heartbeat/retry/dispatch | Domain logic hidden in handlers | Source; job rows runtime |
 | `analytics/` | read projections, results and CSV | Writes to owned aggregates | Source |
-| `events/` | transient event fan-out to SSE | Durable truth | Source/runtime memory |
+| `events/` | notes on progress events; the SSE endpoint reads batch state from the DB | Durable truth | Source |
 | `security/` | secret storage, guards, flags and redaction | Provider selection policy | Source |
 
 ## Module responsibility matrix
@@ -94,7 +93,8 @@ Runtime partitions are created only by `config.py`: `db/`, `uploads/tmp/`, `rubr
 - Errors use `{error:{code,message,details}}` and `contracts/errors.yaml`. Do not leak provider bodies, paths or secrets.
 - Configuration enters through `config.py`; no module reads ad-hoc environment variables.
 - API handlers call services. Jobs call services/processing modules. Provider network calls exist only in `llm/`. Browser backend URLs exist only in `frontend/js/api.js`.
-- Unit tests mirror packages; route/fixture tests are contract tests; ownership rules are AST-tested; critical flows have Playwright tests.
+- Unit tests mirror packages; route tests are contract tests; ownership rules (including "no fixture or mock data in app/ or frontend/") are AST/text-tested; critical flows have Playwright tests.
+- Displayed data always comes from the database. Sample data is loaded by `app.sample.seed` through the real services (ADR 0005).
 
 ## Development plan
 

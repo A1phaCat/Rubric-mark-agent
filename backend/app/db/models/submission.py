@@ -49,7 +49,8 @@ class Submission(Base):
     excluded_reason: Mapped[Optional[str]] = mapped_column(Text)
     marker_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id"))
     flags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
-    is_mock: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Reviewed, student-facing summary (summary/strengths/improvements/next_steps).
+    feedback_json: Mapped[Optional[str]] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

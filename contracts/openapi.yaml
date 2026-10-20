@@ -6,6 +6,8 @@ info:
 servers:
   - url: http://127.0.0.1:8000
 paths:
+  /api/v1/me:
+    get: {operationId: getMe, description: Local user and current term, responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
   /api/v1/me/summary:
     get: {operationId: getMySummary, responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
   /api/v1/me/queue:
@@ -111,6 +113,13 @@ paths:
   /api/v1/batches/{batch_id}/export.csv:
     parameters: [{$ref: '#/components/parameters/BatchId'}]
     get: {operationId: exportBatchCsv, responses: {'200': {description: CSV export, content: {text/csv: {schema: {type: string}}}}}}
+  /api/v1/batches/{batch_id}/pin:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    put:
+      operationId: pinBatch
+      description: Pin or unpin; pinned items are listed first (new items start pinned).
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [pinned], properties: {pinned: {type: boolean}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}
   /api/v1/batches/{batch_id}/finalise:
     parameters: [{$ref: '#/components/parameters/BatchId'}]
     post:
@@ -151,6 +160,13 @@ paths:
       operationId: parseRubricFile
       requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [file], properties: {file: {type: string, format: binary}, use_ai: {type: boolean}}}}}}
       responses: {'200': {$ref: '#/components/responses/JsonObject'}, '202': {$ref: '#/components/responses/JsonObject'}}
+  /api/v1/rubrics/{rubric_id}/pin:
+    parameters: [{name: rubric_id, in: path, required: true, schema: {type: string}}]
+    put:
+      operationId: pinRubric
+      description: Pin or unpin; pinned items are listed first (new items start pinned).
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [pinned], properties: {pinned: {type: boolean}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}
   /api/v1/rubrics/{rubric_id}:
     parameters: [{$ref: '#/components/parameters/RubricId'}]
     get: {operationId: getRubric, responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}}

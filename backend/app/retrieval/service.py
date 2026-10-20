@@ -277,3 +277,29 @@ def retrieve_passages(
         )
         for index in final_order
     ]
+
+
+@dataclass(frozen=True)
+class QuoteLocation:
+    page: int
+    paragraph: str
+    start_offset: int
+    end_offset: int
+
+
+def locate_quote(document: dict[str, Any], quote: str) -> QuoteLocation | None:
+    """Find a verbatim quote in an extracted document using the retrieval offsets.
+
+    Offsets use the same running-offset convention as retrieved passages, so evidence
+    recorded here and evidence produced by grading are interchangeable.
+    """
+
+    needle = quote.strip()
+    if not needle:
+        return None
+    for passage in _passages(document):
+        index = passage.text.find(needle)
+        if index >= 0:
+            start = passage.start_offset + index
+            return QuoteLocation(passage.page, passage.paragraph, start, start + len(needle))
+    return None

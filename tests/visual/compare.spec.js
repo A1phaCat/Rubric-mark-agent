@@ -12,7 +12,11 @@ for (const name of pages) for (const size of sizes) {
     const baselinePath=path.join('prototype','screenshots',`${name}-${size.name}.png`);
     test.skip(!fs.existsSync(baselinePath),'Run make screenshots once.');
     await page.setViewportSize({width:size.width,height:size.height});
-    await page.goto(`/${name}?mocks=1`,{waitUntil:'networkidle'});
+    const asgn2=await (await page.request.get('/api/v1/batches/bat_sample_asgn2/submissions')).json();
+    const quiz3=await (await page.request.get('/api/v1/batches/bat_sample_quiz3/submissions')).json();
+    const ready=asgn2.items.find((item)=>item.status==='ai_done'||item.status==='in_review');
+    const query={'02-batch-status.html':'?batch_id=bat_sample_asgn2','03b-review-split.html':`?submission_id=${ready.id}`,'04-batch-complete.html':'?batch_id=bat_sample_quiz3','05-mark-report.html':`?submission_id=${quiz3.items[0].id}`}[name]||'';
+    await page.goto(`/${name}${query}`,{waitUntil:'networkidle'});
     await expect(page.locator('html')).toHaveAttribute('data-api-state','ready');
     const actualBuffer=await page.screenshot({fullPage:true});
     const baseline=PNG.sync.read(fs.readFileSync(baselinePath)), actual=PNG.sync.read(actualBuffer);

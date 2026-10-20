@@ -1,23 +1,24 @@
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
 
-from app.api.common import mock
-from app.config import Settings
-from app.deps import get_settings
-from app.services.fixture_service import FixtureStore
+from app.analytics.service import AnalyticsUseCases
+from app.db.models.core import Term
+from app.deps import get_current_user, get_db
 
 router = APIRouter(prefix="/me", tags=["me"])
 
 
+@router.get("")
+def me(user: dict = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    terms = [{"id": item.id, "label": item.label} for item in db.query(Term).order_by(Term.id.desc())]
+    return {"user": user, "term": terms[0] if terms else None}
+
+
 @router.get("/summary")
-def summary(response: Response, settings: Settings = Depends(get_settings)) -> dict:
-    return mock(response, FixtureStore(settings.fixtures_dir).read("home.json")["summary"])
+def summary(user: dict = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return AnalyticsUseCases(db).home_summary(user["id"])
 
 
 @router.get("/queue")
-def queue(
-    response: Response,
-    limit: int = Query(5, ge=1, le=50),
-    settings: Settings = Depends(get_settings),
-) -> dict:
-    items = FixtureStore(settings.fixtures_dir).read("home.json")["queue"][:limit]
-    return mock(response, {"items": items, "limit": limit})
+def queue(limit: int = Query(5, ge=1, le=50), db: Session = Depends(get_db)) -> dict:
+    return AnalyticsUseCases(db).home_queue(limit)

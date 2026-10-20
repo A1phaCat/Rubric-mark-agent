@@ -339,7 +339,7 @@
     <div class="col col-right">
       <div class="sec-title"><h2><span class="n" id="n2">2</span>Submissions</h2></div>
 
-      <section class="box" id="boxCanvas">
+      <section class="box" id="boxCanvas" hidden>
         <div class="box-h"><span class="tag">A</span><h3>From a Canvas assignment</h3><span class="chosen">Using this</span></div>
         <p class="hint">Not available in local MVP. Upload PDF, DOCX or ZIP files instead.</p>
         <select class="sel" id="assnSel" aria-label="Canvas assignment" disabled title="Not available in local MVP">
@@ -348,14 +348,12 @@
         <div class="assn" id="assnInfo"></div>
       </section>
 
-      <div class="or">or</div>
-
       <section class="box" id="boxZip">
-        <div class="box-h"><span class="tag">B</span><h3>Upload submissions</h3><span class="chosen">Using this</span></div>
+        <div class="box-h"><h3>Upload submissions</h3><span class="chosen">Using this</span></div>
         <p class="hint">Upload one PDF, DOCX or TXT for this check. Put the SID in the filename or enter it in the Fix files field.</p>
         <div class="dropzone" id="drop" tabindex="0" role="button" aria-label="Upload submission files"><span class="ic">⤒</span><b>Drop submission files here</b> or click to browse</div>
         <input type="file" id="zipIn" accept=".zip,.pdf,.docx,.txt" multiple hidden>
-        <div class="row-btns"><button class="linkbtn" type="button" id="sampleZip">Use the sample zip</button></div>
+        <div class="row-btns" hidden><button class="linkbtn" type="button" id="sampleZip">Use the sample zip</button></div>
         <div class="files" id="zipFiles"></div>
       </section>
 
@@ -631,7 +629,7 @@
   }
   $('startBtn').addEventListener('click', function(){
     if (this.disabled) return;
-    if(MarkerAPI.mode==='mock'){toast('Open this page at http://127.0.0.1:8000/01-upload.html to create a real batch.');return;}
+
     var button=this;button.disabled=true;button.textContent='Creating batch…';$('why').textContent='Saving rubric and uploading submission';
     var rubricPayload={title:R.title,source:R.source||'Uploaded / AI parsed',parser:R.parser||null,save_to_library:$('saveLib').checked,criteria:R.criteria.map(function(c){return {name:c.name,weight:Number(c.weight),description:c.description||'',stated_percent:c.stated_percent,grading_mode:c.grading_mode,scoring_mode:c.scoring_mode,score_mapping:c.score_mapping,granularity:c.granularity,aspects:c.aspects||[],prov:c.prov||{},source_text:c.source_text||{},levels:c.levels.map(function(level,j){return {id:level.id||('level-'+(j+1)),label:level.label,points:Number(level.points),min_score:level.min_score==null?Number(level.points):Number(level.min_score),max_score:level.max_score==null?Number(level.points):Number(level.max_score),min_inclusive:level.min_inclusive!==false,max_inclusive:level.max_inclusive!==false,description:level.description,prov:level.prov||{},source_text:level.source_text||{}};})};})};
     var rubricPromise=R.libId?MarkerAPI.getRubric(R.libId):MarkerAPI.createRubric(rubricPayload);
@@ -671,7 +669,7 @@
 })();
 </script>
 
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
+<script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

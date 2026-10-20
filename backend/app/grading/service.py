@@ -356,6 +356,8 @@ async def grade_criterion(
 
     started = time.perf_counter()
     if settings.llm == "fake":
+        if not settings.fake_llm_allowed:
+            raise ValueError("The offline FakeLLM is available only when MARKER_ENV=test")
         gate = _fake_gate(criterion, passages)
         return _fake_grade(criterion, gate) if gate["evidence"] else _lowest_result(criterion, gate)
 

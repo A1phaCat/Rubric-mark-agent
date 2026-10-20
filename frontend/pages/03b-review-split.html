@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SID-40219 — Review — AI-assisted marker</title>
+<title>Review — AI-assisted marker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -55,9 +55,10 @@
   /* Left: submission */
   .doc-pane{ display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; background:#E9E2D9; border-right:1px solid var(--border); }
   .doc-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px; background:var(--surface); border-bottom:1px solid var(--border); flex:none; }
-  .doc-bar .file{ display:flex; align-items:center; gap:10px; min-width:0; }
+  .doc-bar{ flex-wrap:wrap; row-gap:6px; }
+  .doc-bar .file{ display:flex; align-items:center; gap:10px; min-width:0; flex:1 1 220px; overflow:hidden; }
   .doc-bar .file b{ font-weight:500; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .doc-bar .file span{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft); white-space:nowrap; }
+  .doc-bar .file span{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   .doc-tools{ display:flex; align-items:center; gap:10px; flex:none; }
   .switch{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-soft); cursor:pointer; user-select:none; }
   .switch input{ accent-color:var(--primary); width:15px; height:15px; }
@@ -417,14 +418,14 @@
       <span class="ab-name">AI-assisted marker</span>
       <span class="ab-proto" title="Internal coursework demo — not an official University of Sydney service">Prototype</span>
     </a>
-    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><a href="02-batch-status.html">ASGN2 Critical Essay</a></li><li><span aria-current="page" id="bcCur">SID-40219</span></li></ol><a class="bc-up" href="02-batch-status.html"><span aria-hidden="true">‹</span><span class="t">ASGN2 Critical Essay</span></a></nav>
+    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><a href="07-batches.html">Batch</a></li><li><span aria-current="page" id="bcCur">Submission</span></li></ol><a class="bc-up" href="07-batches.html"><span aria-hidden="true">‹</span><span class="t">Batch</span></a></nav>
   </div>
   <div class="ab-right">
     <div class="ab-actions">
       <div class="rv-prog" title="Reviewed / ready for review. Submissions still being marked by AI are added to the queue as they finish.">
         <div class="rv-top">
           <span class="rv-lbl">Reviewed</span>
-          <span class="rv-num"><b id="pgDone">15</b><span class="sl">/</span><span id="pgReady">34</span></span>
+          <span class="rv-num"><b id="pgDone">–</b><span class="sl">/</span><span id="pgReady">–</span></span>
           <span class="rv-unit">ready</span>
         </div>
         <div class="rv-bar" aria-hidden="true"><i id="pgFill"></i><s id="pgReadyFill"></s></div>
@@ -445,7 +446,7 @@
     <div class="doc-bar">
       <div class="file">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E64626" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></svg>
-        <b>SID-40219_ASGN2.pdf</b><span>6 pages · 8 evidence spans</span>
+        <b>Loading…</b><span></span>
       </div>
       <div class="doc-tools">
         <label class="switch"><input type="checkbox" id="showAll" checked>Show all evidence</label>
@@ -461,55 +462,7 @@
       <button type="button" class="n-close" aria-label="Stop highlighting">×</button>
     </div>
     <div class="doc-scroll show-all" id="doc">
-
-      <article class="sheet" data-page="1">
-        <span class="pno">p.1</span>
-        <h1>Decentralised Governance and the Hidden Cost of Coordination</h1>
-        <p class="byline">SID-40219 · ASGN2 Critical Essay · 2,180 words</p>
-        <p data-p="¶1">Over the past decade, decentralised governance has moved from the margins of political theory into the everyday operating models of cooperatives, open-source foundations and blockchain-based organisations. Its appeal is easy to understand: distributing authority promises resilience, legitimacy and a genuine voice for every participant.</p>
-        <p data-p="¶2"><mark class="ev" data-ev="e1"><span class="tag">1</span>This essay argues that decentralised governance models, while promising in theory, consistently underperform in practice due to coordination costs that scale non-linearly with participant count.</mark> Section 2 sets out the theoretical case for decentralisation, Section 3 reviews the empirical evidence, and Section 4 considers an alternative explanation before the conclusion returns to the central claim.</p>
-      </article>
-
-      <article class="sheet" data-page="2">
-        <span class="pno">p.2</span>
-        <h2>2. The theoretical case</h2>
-        <p data-p="¶1">Proponents of decentralisation draw heavily on Ostrom's work on common-pool resources, which showed that communities can govern shared assets without a central authority when rules are designed locally and monitored by the people who use them.</p>
-        <p data-p="¶2">Later advocates extended this argument to digital organisations, claiming that transparent protocols could replace managerial hierarchy altogether. On this view, coordination stops being a social problem and becomes a technical one that better tooling can solve.</p>
-        <p data-p="¶3">These claims deserve to be taken seriously. The evidence for this optimism, however, comes mostly from small and stable communities, <mark class="ev" data-ev="e7"><span class="tag">4</span>which, it should be noted, is not to say that the model does not have merit in certain more smaller-scale contexts where</mark> trust is already established and membership changes slowly.</p>
-      </article>
-
-      <article class="sheet" data-page="3">
-        <span class="pno">p.3</span>
-        <h2>3. What the evidence shows</h2>
-        <p data-p="¶1"><mark class="ev" data-ev="e4"><span class="tag">2</span>Studies of large open-source projects show that decision latency grows sharply as contributor numbers rise.</mark> In one widely cited analysis, the median time to resolve a governance proposal tripled once a project passed two hundred active contributors.</p>
-        <p data-p="¶2">Blockchain-based organisations display a similar pattern. Voter turnout on most proposals falls below ten per cent, and the small group that does vote tends to be the same few large holders each time.</p>
-        <p data-p="¶3">The common thread is that every additional participant adds not one new relationship but many, because each person must, in principle, be informed, consulted and persuaded.</p>
-        <p data-p="¶4"><mark class="ev" data-ev="e3"><span class="tag">2</span>A 2019 study (Kessler &amp; Boone) found similar coordination overhead in cooperative networks, though the sample was limited to twelve organisations.</mark> Even so, its findings point in the same direction as the open-source data.</p>
-      </article>
-
-      <article class="sheet" data-page="4">
-        <span class="pno">p.4</span>
-        <h2>4. An alternative explanation</h2>
-        <p data-p="¶1"><mark class="ev" data-ev="e5"><span class="tag">3</span>Yet this reading understates a second possibility: coordination costs may not be intrinsic to decentralisation itself, but to the specific incentive structures layered on top of it.</mark></p>
-        <p data-p="¶2">Where participants are rewarded for activity rather than outcomes, proposals multiply and attention fragments. Where voting power tracks token holdings, the few who hold the most have little reason to build consensus with everyone else.</p>
-        <p data-p="¶3"><mark class="ev" data-ev="e6"><span class="tag">3</span>If this is right, the underperformance documented in Section 3 says more about how decentralised systems are designed than about decentralisation as such</mark> — and better-designed incentives could narrow the gap considerably.</p>
-      </article>
-
-      <article class="sheet" data-page="5">
-        <span class="pno">p.5</span>
-        <h2>5. A counter-argument</h2>
-        <p data-p="¶1">Some critics respond that hierarchies face coordination costs too, and that the comparison is therefore unfair. Large firms spend heavily on meetings, reporting lines and middle management simply to keep their parts aligned.</p>
-        <p data-p="¶2"><mark class="ev" data-ev="e8"><span class="tag">4</span>It is, perhaps, worth considering that the costs that are borne by hierarchical organisations, which are themselves not insignificant, may in some respects be comparable, although not necessarily in every respect, to those that have been described above.</mark></p>
-        <p data-p="¶3">Hierarchies, however, can choose to cap how many people are involved in a decision. Decentralised systems, by design, cannot.</p>
-      </article>
-
-      <article class="sheet" data-page="6">
-        <span class="pno">p.6</span>
-        <h2>6. Conclusion</h2>
-        <p data-p="¶1"><mark class="ev" data-ev="e2"><span class="tag">1</span>In conclusion, the evidence reviewed here supports the claim that decentralised governance tends to underperform as it scales, because the cost of coordinating many participants grows faster than the benefit of including them.</mark></p>
-        <p data-p="¶2">This does not make decentralisation a failed idea. It suggests that future designs should treat coordination as the central constraint — limiting the size of decision groups, rewarding outcomes over activity, and accepting that some decisions are better delegated than shared.</p>
-      </article>
-
+      <article class="sheet" data-page="1"><p class="byline">Loading submission…</p></article>
     </div>
   </section>
 
@@ -526,7 +479,7 @@
     <div class="mark-inner">
       <div class="doc-header">
         <div>
-          <h1>Review — SID-40219</h1>
+          <h1>Review</h1>
           <p>4 criteria · 8 evidence spans across 6 pages · 1 criterion flagged low-confidence</p>
         </div>
         <button class="fold-all" type="button" id="foldAll">Collapse all</button>
@@ -863,148 +816,9 @@
   });
   recompute();
 
-  /* ---- Review queue: progress (top right) + Previous / Skip / Confirm & next (footer) ----
-     When nothing is left to review the page shows an end card:
-       • batch complete  → "Batch complete" with View results (no automatic redirect)
-       • others still with the AI → "waiting" card; "Next ready" lights up when one finishes
-     Demo modes (URL):  ?demo=single  one-file batch · ?demo=last  last one of 48 · ?demo=wait  waiting for the AI
-     Default: 48 in batch, 34 marked by AI, 15 reviewed; the AI finishes one every 7 s. */
-  (function(){
-    var liveParams = new URLSearchParams(location.search);
-    if (liveParams.get('submission_id') && liveParams.get('mocks') !== '1' && window.USE_MOCKS !== true) return;
-    var mode = (location.search.match(/[?&]demo=(\w+)/) || [])[1] || '';
-    var CFG = {
-      single: { total:1,  ready:1,  done:0,  tick:0 },
-      last:   { total:48, ready:48, done:47, tick:0 },
-      wait:   { total:48, ready:16, done:15, tick:9000 },
-      '':     { total:48, ready:34, done:15, tick:7000 }
-    }[mode] || { total:48, ready:34, done:15, tick:7000 };
-    var TOTAL = CFG.total, ready = CFG.ready, done = 0;
-    var reviewed = {}, queue = [], history = [];
-    for (var i = 0; i < ready; i++) queue.push('SID-' + (40204 + i));
-    if (mode === 'single') queue = ['SID-40219'];
-    var pos = Math.max(0, queue.indexOf('SID-40219'));
-    // mark CFG.done submissions as already reviewed, never the one on screen
-    for (var j = 0, n = 0; j < queue.length && n < CFG.done; j++){ if (j !== pos){ reviewed[queue[j]] = true; n++; } }
-    done = CFG.done;
-
-    var $ = function(id){ return document.getElementById(id); };
-    var meta = document.getElementById('bcCur'), fileName = document.querySelector('.doc-bar .file b');
-    var toastT;
-    function toast(msg){ var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(function(){ t.classList.remove('show'); }, 2200); }
-    function isComplete(){ return done >= TOTAL; }
-
-    function render(){
-      $('pgDone').textContent = done;
-      $('pgReady').textContent = ready;
-      $('pgFill').style.width = (done / TOTAL * 100) + '%';
-      $('pgReadyFill').style.width = (ready / TOTAL * 100) + '%';
-      var proc = TOTAL - ready;
-      $('pgSub').classList.toggle('done', proc === 0);
-      $('pgSub').innerHTML = isComplete() ? '<span class="dot"></span>All ' + TOTAL + ' reviewed · batch complete'
-        : proc > 0 ? '<span class="dot"></span>' + proc + ' still with AI · ' + TOTAL + ' in batch'
-        : '<span class="dot"></span>All ' + TOTAL + ' marked by AI';
-      $('btnPrev').disabled = history.length === 0;
-      $('btnNext').disabled = isComplete(); $('btnSkip').disabled = isComplete() || !anyOtherUnreviewed();
-      var sid = queue[pos];
-      meta.textContent = sid;
-      fileName.textContent = sid + '_ASGN2.pdf';
-      var h = document.querySelector('.doc-header h1'); if (h) h.textContent = 'Review — ' + sid;
-      document.title = sid + ' — Review — AI-assisted marker';
-    }
-    function anyOtherUnreviewed(){ return queue.some(function(q, k){ return k !== pos && !reviewed[q]; }); }
-    function nextUnreviewed(from){
-      for (var k = 1; k <= queue.length; k++){ var p = (from + k) % queue.length; if (!reviewed[queue[p]]) return p; }
-      return -1;
-    }
-    function go(p, msg){
-      if (p < 0){ showEnd(); return; }
-      history.push(pos); pos = p; render();
-      document.querySelector('.mark-pane') && (document.querySelector('.mark-pane').scrollTop = 0);
-      document.querySelector('.doc-scroll') && (document.querySelector('.doc-scroll').scrollTop = 0);
-      toast(msg + ' — ' + queue[pos] + ' (sample essay shown)');
-    }
-
-    /* ---------- End card ---------- */
-    function adjustedHere(){
-      return Array.prototype.filter.call(document.querySelectorAll('.score-input'), function(i){ return Number(i.value) !== Number(i.dataset.ai); }).length ? 1 : 0;
-    }
-    function showEnd(){
-      var card = $('endCard'), body;
-      if (isComplete()){
-        var adj = adjustedHere() + (TOTAL > 1 ? Math.round((TOTAL - 1) * 0.12) : 0);
-        body =
-          '<div class="ec-icon ok" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg></div>' +
-          '<div class="ec-kicker">Batch complete</div>' +
-          '<h2 id="ecTitle">' + TOTAL + ' of ' + TOTAL + ' reviewed</h2>' +
-          '<p class="ec-sub">ASGN2 — Critical Essay is now marked <b>Complete</b>. Results stay editable until you finalise them.</p>' +
-          '<div class="ec-stats"><span><b>' + TOTAL + '</b>confirmed</span><span><b>' + adj + '</b>adjusted from AI</span><span><b>0</b>still with AI</span></div>' +
-          '<div class="ec-actions">' +
-            '<a class="btn btn-primary" href="04-batch-complete.html">View results →</a>' +
-            '<a class="btn btn-ghost" href="05-mark-report.html">' + (TOTAL === 1 ? 'Mark report' : 'Mark report for ' + queue[pos]) + '</a>' +
-          '</div>' +
-          '<div class="ec-links"><a href="00-home.html">Back to Home</a><button type="button" data-close>Stay on this submission</button></div>';
-        $('pgSub').classList.add('done');
-      } else {
-        var proc = TOTAL - ready;
-        body =
-          '<div class="ec-icon wait" aria-hidden="true"><span class="ec-spin"></span></div>' +
-          '<div class="ec-kicker">Nothing ready right now</div>' +
-          '<h2 id="ecTitle">All ready submissions reviewed</h2>' +
-          '<p class="ec-sub"><b id="ecProc">' + proc + '</b> still with the AI. The next one appears here as soon as it is marked — you don’t need to refresh.</p>' +
-          '<div class="ec-stats"><span><b>' + done + '</b>reviewed</span><span><b id="ecProc2">' + proc + '</b>still with AI</span><span><b>' + TOTAL + '</b>in batch</span></div>' +
-          '<div class="ec-actions">' +
-            '<button class="btn btn-primary" type="button" id="ecNext" disabled>Waiting for the AI…</button>' +
-            '<a class="btn btn-ghost" href="02-batch-status.html">Back to batch</a>' +
-          '</div>' +
-          '<div class="ec-links"><a href="00-home.html">Back to Home</a><button type="button" data-close>Stay on this submission</button></div>';
-      }
-      $('endBody').innerHTML = body;
-      card.hidden = false; card.dataset.kind = isComplete() ? 'done' : 'wait';
-      render();
-      var f = card.querySelector('.btn-primary'); if (f && !f.disabled) f.focus();
-    }
-    function hideEnd(){ $('endCard').hidden = true; }
-    $('endCard').addEventListener('click', function(e){
-      if (e.target.closest('[data-close]')) hideEnd();
-      if (e.target.id === 'ecNext' && !e.target.disabled){ hideEnd(); go(nextUnreviewed(pos), 'Next ready'); }
-    });
-    document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !$('endCard').hidden) hideEnd(); });
-
-    $('btnNext').addEventListener('click', function(){
-      if (isComplete()) { showEnd(); return; }
-      if (!reviewed[queue[pos]]){ reviewed[queue[pos]] = true; done++; }
-      go(nextUnreviewed(pos), 'Saved. Next');
-    });
-    $('btnSkip').addEventListener('click', function(){
-      var p = nextUnreviewed(pos);
-      if (p === pos || p < 0){ toast('Nothing else is ready — this is the only one left to review'); return; }
-      go(p, 'Skipped. Next');
-    });
-    $('btnPrev').addEventListener('click', function(){
-      if (!history.length) return; hideEnd(); pos = history.pop(); render(); toast('Back to ' + queue[pos]);
-    });
-
-    // AI finishes more submissions over time → they join the review queue
-    if (CFG.tick){
-      var tick = setInterval(function(){
-        if (ready >= TOTAL){ clearInterval(tick); return; }
-        ready++; queue.push('SID-' + (40204 + ready - 1)); render();
-        var r = $('pgReady'); r.classList.add('bump'); setTimeout(function(){ r.classList.remove('bump'); }, 900);
-        var card = $('endCard');
-        if (!card.hidden && card.dataset.kind === 'wait'){
-          var b = $('ecNext'), left = TOTAL - ready;
-          b.disabled = false; b.textContent = 'Open ' + queue[queue.length - 1] + ' →'; b.classList.add('pulse');
-          $('ecProc').textContent = left; $('ecProc2').textContent = left;
-          card.querySelector('.ec-kicker').textContent = '1 new submission ready';
-        }
-      }, CFG.tick);
-    }
-    render();
-    if (mode) toast({ single:'Demo: one-file batch', last:'Demo: last submission of 48', wait:'Demo: waiting for the AI' }[mode] || '');
-  })();
+  /* Review queue, Skip/Next and end cards are driven by the API in /js/app-wire.js. */
 </script>
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
+<script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/pdf-original-viewer.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

@@ -14,26 +14,55 @@ async function cleanupBatch(request, batchId) {
   await request.delete(`/api/v1/batches/${batchId}?version=${batch.version}`);
 }
 
-const pages = [
-  '00-home.html', '01-upload.html', '01a-rubric-import.html', '02-batch-status.html',
-  '03b-review-split.html', '04-batch-complete.html', '05-mark-report.html',
-  '06-rubrics.html', '07-batches.html'
-];
-
-for (const name of pages) {
-  test(`mock smoke: ${name}`, async ({ page }) => {
-    await page.goto(`/${name}?mocks=1`);
-    await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
-    await expect(page.locator('body')).toBeVisible();
-  });
+/* Every page is rendered from the database. The sample batches are loaded with
+   `python -m app.sample.seed`; their submission IDs are looked up through the API. */
+async function sampleUrls(request) {
+  const asgn2 = await (await request.get('/api/v1/batches/bat_sample_asgn2/submissions')).json();
+  const quiz3 = await (await request.get('/api/v1/batches/bat_sample_quiz3/submissions')).json();
+  const ready = asgn2.items.find((item) => item.status === 'ai_done' || item.status === 'in_review');
+  return {
+    '00-home.html': '/00-home.html',
+    '01-upload.html': '/01-upload.html',
+    '01a-rubric-import.html': '/01a-rubric-import.html',
+    '02-batch-status.html': '/02-batch-status.html?batch_id=bat_sample_asgn2',
+    '03b-review-split.html': `/03b-review-split.html?submission_id=${ready.id}`,
+    '04-batch-complete.html': '/04-batch-complete.html?batch_id=bat_sample_quiz3',
+    '05-mark-report.html': `/05-mark-report.html?submission_id=${quiz3.items[0].id}`,
+    '06-rubrics.html': '/06-rubrics.html',
+    '07-batches.html': '/07-batches.html',
+  };
 }
 
-test('mock review uses injected single-item fixture, not a URL mode', async ({ page }) => {
-  await page.addInitScript(() => { window.MARKER_TEST_FIXTURE = 'single'; });
-  await page.goto('/03b-review-split.html?mocks=1&submission_id=sub_asgn2_000001');
+test('every page renders sample data from the API', async ({ page }) => {
+  const urls = await sampleUrls(page.request);
+  for (const url of Object.values(urls)) {
+    await page.goto(url);
+    await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
+    await expect(page.locator('[data-load-error]')).toHaveCount(0);
+  }
+});
+
+test('home lists pinned sample batches and the database counts', async ({ page }) => {
+  await page.goto('/00-home.html');
   await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
-  await page.locator('#btnNext').click();
-  await expect(page.locator('#endCard')).toContainText('Batch complete');
+  await expect(page.locator('#homeBatches .batch')).toHaveCount(3);
+  await expect(page.locator('#homeBatches')).toContainText('ASGN2 — Critical Essay');
+  await expect(page.locator('#homeStats .stat').nth(2)).toContainText('1');
+  await expect(page.locator('#homeQueue .q-item').first()).toContainText('SID-');
+});
+
+test('results and report pages render stored marks, feedback and evidence', async ({ page }) => {
+  await page.goto('/04-batch-complete.html?batch_id=bat_sample_quiz3');
+  await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
+  await expect(page.locator('#resultsMain h1')).toContainText('Quiz 3');
+  await expect(page.locator('table.subs tbody tr')).toHaveCount(5);
+  await page.locator('table.subs .rep').first().click();
+  await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
+  await expect(page.locator('.ai-sum')).toBeVisible();
+  await expect(page.locator('.crit .evidence-used').first()).toContainText('p.1');
+  await page.locator('.audience [data-a="student"]').click();
+  await expect(page.locator('.eyebrow')).toContainText('student view');
+  await expect(page.locator('.ai-note')).toHaveCount(0);
 });
 
 test('local-fake API completes a new single-file batch', async ({ request, page }) => {
@@ -115,6 +144,9 @@ test('setup UI parses variable levels and opens the newly created batch', async 
     await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
     const createdRow = page.locator('.brow', { hasText:'Short response rubric (9 marks) — validation batch' }).first();
     await expect(createdRow).toBeVisible();
+    // A batch created during the demo is saved and pinned above the samples.
+    await expect(page.locator('.brow').first()).toContainText('Short response rubric (9 marks) — validation batch');
+    await expect(createdRow.locator('[data-act="pin"]')).toContainText('Pinned');
     await expect(createdRow.locator('[data-act="delete"]')).toBeVisible();
     await page.goto('/06-rubrics.html');
     await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');

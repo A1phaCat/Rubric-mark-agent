@@ -10,7 +10,9 @@ from app.llm.providers.university import UniversityLLM
 
 def build_llm(settings: Settings) -> LLM:
     if settings.llm == "fake":
-        return FakeLLM(settings.fixtures_dir / "llm")
+        if not settings.fake_llm_allowed:
+            raise ValueError("The offline FakeLLM is available only when MARKER_ENV=test")
+        return FakeLLM()
     if settings.llm == "university":
         if not settings.ai_base_url or not settings.ai_api_key:
             raise ValueError("university requires MARKER_AI_BASE_URL and MARKER_AI_API_KEY")

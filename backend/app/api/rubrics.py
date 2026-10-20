@@ -409,6 +409,15 @@ def update_rubric(rubric_id: str, payload: dict[str, Any], db: Session = Depends
         raise translate_error(exc) from exc
 
 
+@router.put("/{rubric_id}/pin")
+def pin_rubric(rubric_id: str, payload: dict[str, Any], db: Session = Depends(get_db)) -> dict:
+    try:
+        with db.begin():
+            return RubricUseCases(db).set_pinned(rubric_id, bool(payload.get("pinned", True)))
+    except Exception as exc:
+        raise translate_error(exc) from exc
+
+
 @router.delete("/{rubric_id}")
 def delete_rubric(rubric_id: str, version: int = Query(...), db: Session = Depends(get_db)) -> dict:
     try:
@@ -450,7 +459,6 @@ async def _parse(text: str, source_name: str | None, settings: Settings) -> dict
         "questions": list(parsed.pop("questions", [])),
         "parser": parser,
         "mode": "draft" if parser.startswith("ai-draft:") else "parsed",
-        "_mock": False,
     }
 
 

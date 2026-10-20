@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.models.batch import Batch
 from app.db.models.rubric import Rubric, RubricCriterion
 from app.domain.ids import new_id
+from app.domain.timefmt import iso_utc
 
 
 class RubricUseCases:
@@ -18,7 +19,9 @@ class RubricUseCases:
 
     def list(self, query: str | None = None, page: int = 1, page_size: int = 50) -> dict[str, Any]:
         statement = (
-            select(Rubric).where(Rubric.archived_at.is_(None)).order_by(Rubric.updated_at.desc())
+            select(Rubric)
+            .where(Rubric.archived_at.is_(None))
+            .order_by(Rubric.pinned.desc(), Rubric.created_at.desc())
         )
         if query:
             statement = statement.where(Rubric.title.ilike(f"%{query}%"))
@@ -51,7 +54,7 @@ class RubricUseCases:
             "rubric": {
                 **self._summary(rubric),
                 "criteria": [self._criterion(item) for item in criteria],
-                "created_at": rubric.created_at.isoformat(),
+                "created_at": iso_utc(rubric.created_at),
             },
             "used_by": [
                 {"batch_id": b.id, "batch_name": b.name, "rubric_version": b.rubric_version}
@@ -59,9 +62,18 @@ class RubricUseCases:
             ],
         }
 
-    def create(self, payload: dict[str, Any], actor_id: str) -> dict[str, Any]:
+    def create(
+        self,
+        payload: dict[str, Any],
+        actor_id: str,
+        *,
+        rubric_id: str | None = None,
+        is_sample: bool = False,
+    ) -> dict[str, Any]:
+        """Create a library rubric. ``rubric_id``/``is_sample`` are used only by the sample seeder."""
+
         now = datetime.now(timezone.utc)
-        rubric_id = new_id("rub")
+        rubric_id = rubric_id or new_id("rub")
         rubric = Rubric(
             id=rubric_id,
             title=payload["title"],
@@ -70,6 +82,8 @@ class RubricUseCases:
             created_by=actor_id,
             created_at=now,
             updated_at=now,
+            is_sample=is_sample,
+            pinned=True,
         )
         self.session.add(rubric)
         self._add_criteria(rubric_id, 1, payload["criteria"])
@@ -93,6 +107,14 @@ class RubricUseCases:
         self._add_criteria(rubric_id, rubric.version, payload["criteria"])
         self.session.flush()
         return self.get(rubric_id)
+
+    def set_pinned(self, rubric_id: str, pinned: bool) -> dict[str, Any]:
+        rubric = self.session.get(Rubric, rubric_id)
+        if rubric is None or rubric.archived_at is not None:
+            raise KeyError(rubric_id)
+        rubric.pinned = bool(pinned)
+        self.session.flush()
+        return {"rubric_id": rubric.id, "pinned": rubric.pinned}
 
     def delete(self, rubric_id: str, version: int) -> dict[str, Any]:
         rubric = self.session.get(Rubric, rubric_id)
@@ -212,7 +234,9 @@ class RubricUseCases:
             "criteria_count": criteria_count,
             "total_weight": float(total_weight),
             "used_by_count": used_by_count,
-            "updated_at": rubric.updated_at.isoformat(),
+            "is_sample": bool(rubric.is_sample),
+            "pinned": bool(rubric.pinned),
+            "updated_at": iso_utc(rubric.updated_at),
         }
 
     @staticmethod

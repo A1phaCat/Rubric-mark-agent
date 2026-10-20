@@ -190,6 +190,8 @@
   }
   .ab-crumbs .bc-up .t{ overflow:hidden; text-overflow:ellipsis; }
   @media print{ header.app-bar, .ab-steps{ display:none; } }
+  .tag-sample{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--primary); border:1px solid var(--primary); border-radius:4px; padding:1px 5px; margin-left:8px; vertical-align:2px; }
+  .pin-btn[aria-pressed="true"]{ color:var(--primary); }
 </style>
 </head>
 <body>
@@ -294,15 +296,16 @@
       var t = L.total(r);
       var used = r.usedBy.length ? r.usedBy.map(function(b){ return '<span class="used">' + esc(b) + '</span>'; }).join('') : '<span class="unused">Not in use</span>';
       var weights = r.criteria.map(function(c){ return '<i style="flex:' + (Number(c.weight) || 1) + '" title="' + esc(c.name) + ' · ' + c.weight + ' pts"></i>'; }).join('');
-      return '<article class="rub" data-id="' + r.id + '">' +
+      return '<article class="rub' + (r.pinned ? ' pinned' : '') + '" data-id="' + r.id + '">' +
         '<div class="rub-main">' +
-          '<button class="rub-title" type="button" data-act="preview">' + esc(r.title) + '</button>' +
+          '<button class="rub-title" type="button" data-act="preview">' + esc(r.title) + '</button>' + (r.isSample ? '<span class="tag-sample">Sample</span>' : '') +
           '<div class="rub-meta"><span class="mono">' + r.criteria.length + ' criteria · ' + t + ' pts</span><span>·</span><span>' + esc(r.source) + '</span><span>·</span><span>Updated ' + L.ago(r.updated) + '</span></div>' +
           '<div class="weights" aria-hidden="true">' + weights + '</div>' +
           '<div class="rub-crit">' + r.criteria.map(function(c){ return esc(c.name); }).join(' · ') + '</div>' +
         '</div>' +
         '<div class="rub-used">' + used + '</div>' +
         '<div class="rub-act">' +
+          '<button class="btn btn-ghost sm pin-btn" type="button" data-act="pin" aria-pressed="' + !!r.pinned + '" title="' + (r.pinned ? 'Unpin' : 'Pin to top') + '">' + (r.pinned ? '📌 Pinned' : 'Pin') + '</button>' +
           '<button class="btn btn-ghost sm" type="button" data-act="preview">Preview</button>' +
           '<button class="btn btn-ghost sm" type="button" data-act="edit">Edit</button>' +
         '</div>' +
@@ -311,7 +314,13 @@
   }
   $('list').addEventListener('click', function(e){
     var b = e.target.closest('[data-act]'); if (!b) return;
-    open(b.closest('.rub').dataset.id, b.dataset.act === 'edit');
+    var id = b.closest('.rub').dataset.id;
+    if (b.dataset.act === 'pin'){
+      var r = L.get(id); b.disabled = true;
+      MarkerAPI.pinRubric(id, !r.pinned).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){ render(); toast(r.pinned ? 'Unpinned' : 'Pinned to top'); }).catch(function(err){ b.disabled = false; alert(err.message); });
+      return;
+    }
+    open(id, b.dataset.act === 'edit');
   });
   $('q').addEventListener('input', render);
   document.querySelectorAll('.filters .chip').forEach(function(c){
@@ -401,13 +410,19 @@
   });
   $('dSave').addEventListener('click', function(){
     if (!draft.title) draft.title = 'Untitled rubric';
-    L.upsert(draft); editing = false; draft = null; drawBody(); render(); toast('Rubric saved');
+    var btn = $('dSave'); btn.disabled = true;
+    var payload = { version: draft.version, title: draft.title, source: draft.source, criteria: draft.criteria.map(function(c){ return { name:c.name, weight:Number(c.weight), grading_mode:c.grading_mode, levels:levelsFor(c) }; }) };
+    MarkerAPI.updateRubric(draft.id, payload).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){
+      editing = false; draft = null; drawBody(); render(); toast('Rubric saved as a new version');
+    }).catch(function(err){ btn.disabled = false; alert(err.message); });
   });
   $('dDelete').addEventListener('click', function(){
     var r = L.get(openId);
     if (r.usedBy.length){ alert('“' + r.title + '” is used by ' + r.usedBy.join(', ') + '. It can be deleted once that batch is closed.'); return; }
     if (!confirm('Delete “' + r.title + '” from your library?')) return;
-    L.remove(openId); editing = false; close(); render(); toast('Rubric deleted');
+    MarkerAPI.deleteRubric(openId, r.version).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){
+      editing = false; close(); render(); toast('Rubric deleted');
+    }).catch(function(err){ alert(err.message); });
   });
   $('dUse').addEventListener('click', function(e){
     e.preventDefault();
@@ -424,7 +439,7 @@
 })();
 </script>
 
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
+<script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

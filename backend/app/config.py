@@ -18,13 +18,12 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     data_dir: Path = PROJECT_ROOT / "data"
-    fixtures_dir: Path = PROJECT_ROOT / "fixtures/demo"
     frontend_dir: Path = PROJECT_ROOT / "frontend"
     database_url: str = f"sqlite:///{(PROJECT_ROOT / 'data/db/marker.sqlite3').as_posix()}"
     llm: str = "university"
-    use_mocks: bool = False
     timezone: str = "Australia/Sydney"
     worker_id: str = "local-worker-1"
+    local_user_id: str = "usr_jalvarez"
     job_lease_seconds: int = 60
     job_max_attempts: int = 3
     ai_base_url: str | None = None
@@ -35,6 +34,12 @@ class Settings(BaseSettings):
     embedding_threads: int = 2
     retrieval_candidate_limit: int = 12
     evidence_top_k: int = 5
+
+    @property
+    def fake_llm_allowed(self) -> bool:
+        """The deterministic FakeLLM exists for automated tests only."""
+
+        return self.env == "test"
 
     def runtime_paths(self) -> Dict[str, Path]:
         root = self.data_dir.resolve()

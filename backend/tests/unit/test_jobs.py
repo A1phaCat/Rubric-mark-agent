@@ -4,7 +4,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
-from app.events.bus import event_bus
 from app.jobs.queue import JobQueue
 from app.jobs.worker import handle
 
@@ -15,7 +14,7 @@ def test_enqueue_lease_heartbeat_and_done() -> None:
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     with session_factory.begin() as session:
         queued = JobQueue(session).enqueue(
-            "demo_progress", {"batch_id": "bat_demo"}, run_after=datetime.now(timezone.utc)
+            "grade", {"batch_id": "bat_test", "submission_id": "sub_test"}, run_after=datetime.now(timezone.utc)
         )
         assert queued.status == "queued"
     with session_factory.begin() as session:
@@ -45,12 +44,8 @@ def test_failed_job_retries_then_exhausts_attempts() -> None:
         assert job.status == "failed"
 
 
-def test_demo_handler_publishes_batch_progress() -> None:
-    queue = event_bus.subscribe("bat_demo")
-    try:
-        handle("demo_progress", {"batch_id": "bat_demo", "status": "processing"})
-        event = queue.get_nowait()
-        assert event["event"] == "batch_progress"
-        assert event["data"]["batch_id"] == "bat_demo"
-    finally:
-        event_bus.unsubscribe("bat_demo", queue)
+def test_unknown_job_kind_is_rejected() -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        handle("demo_progress", {"batch_id": "bat_test"})

@@ -15,11 +15,13 @@ class Retriever(Protocol):
     def context_for(self, submission_id: str, criterion_id: str) -> list[ContextChunk]: ...
 
 
-from .service import RetrievedPassage, retrieve_passages  # noqa: E402
+from .service import QuoteLocation, RetrievedPassage, locate_quote, retrieve_passages  # noqa: E402
 
 __all__ = [
     "ContextChunk",
+    "QuoteLocation",
     "Retriever",
     "RetrievedPassage",
+    "locate_quote",
     "retrieve_passages",
 ]

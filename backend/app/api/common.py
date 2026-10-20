@@ -1,12 +1,5 @@
-from typing import Any
-
-from fastapi import HTTPException, Response
+from fastapi import HTTPException
 from sqlalchemy.exc import OperationalError
-
-
-def mock(response: Response, payload: dict[str, Any]) -> dict[str, Any]:
-    response.headers["X-Mock"] = "true"
-    return {**payload, "_mock": True}
 
 
 def translate_error(exc: Exception) -> HTTPException:
@@ -35,6 +28,8 @@ def translate_error(exc: Exception) -> HTTPException:
         "manifest_unresolved": 422,
         "batch_must_be_cancelled": 409,
         "finalised_batch_locked": 409,
+        "report_not_ready": 409,
+        "claim_conflict": 409,
     }
     return HTTPException(
         codes.get(value, 422),

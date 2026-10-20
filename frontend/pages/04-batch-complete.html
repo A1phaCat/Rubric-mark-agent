@@ -43,6 +43,10 @@
   .pill{ display:inline-flex; align-items:center; gap:6px; font-family:'Inter',sans-serif; font-size:12px; padding:4px 10px; border-radius:20px; font-weight:500; }
   .pill .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
   .pill.final{ background:var(--conf-high-bg); color:var(--conf-high); }
+  .pill.completed{ background:var(--info-bg); color:var(--info); }
+  .pill.sample{ background:transparent; color:var(--primary); border:1px solid var(--primary); }
+  .chip{ cursor:pointer; }
+  .btn[disabled]{ opacity:.55; cursor:wait; }
   .actions{ display:flex; gap:8px; flex-wrap:wrap; }
   .btn{ display:inline-flex; align-items:center; gap:7px; height:38px; padding:0 14px; border-radius:7px; font-size:13px; font-weight:500; text-decoration:none; cursor:pointer; border:1px solid var(--border-strong); background:var(--surface); color:var(--ink); }
   .btn:hover{ background:var(--tint); }
@@ -220,142 +224,27 @@
       <span class="ab-name">AI-assisted marker</span>
       <span class="ab-proto" title="Internal coursework demo — not an official University of Sydney service">Prototype</span>
     </a>
-    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><span aria-current="page" id="bcCur">Quiz 3 Short Answers</span></li></ol><a class="bc-up" href="00-home.html"><span aria-hidden="true">‹</span><span class="t">Home</span></a></nav>
+    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><span aria-current="page" id="bcCur">Results</span></li></ol><a class="bc-up" href="00-home.html"><span aria-hidden="true">‹</span><span class="t">Home</span></a></nav>
   </div>
   <div class="ab-right">
-    <div class="ab-actions"><div class="bp" title="Your active batches, in the same order as on Home"><div class="bp-top"><span class="bp-lbl">Batch</span><span class="bp-num"><b id="bpN">3</b><span class="sl">/</span>3</span></div><div class="bp-segs" id="bpSegs"><i class="on"></i><i class="on"></i><i class="on"></i></div><div class="bp-sub"><span class="bp-dot done" id="bpDot"></span><span id="bpStatus">Finalised · released to Canvas</span></div></div></div>
+    <div class="ab-actions"><div class="bp" title="Your active batches, in the same order as on Home"><div class="bp-top"><span class="bp-lbl">Batch</span><span class="bp-num"><b id="bpN">–</b><span class="sl">/</span><span id="bpTotal">–</span></span></div><div class="bp-segs" id="bpSegs"></div><div class="bp-sub"><span class="bp-dot" id="bpDot"></span><span id="bpStatus">Loading…</span></div></div></div>
     <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
   </div>
 </header>
-<div class="ab-steps"><div class="ab-steps-in"><div class="step-track">
-    <span class="ok">✓</span> 1. Set up batch — 2. Processing — 3. Review — <span class="current">4. Released</span>
+<div class="ab-steps"><div class="ab-steps-in"><div class="step-track" id="stepTrack">
+    1. Set up batch — 2. Processing — 3. Review — 4. Finalised
   </div></div></div>
 
-<main>
-  <div class="top">
-    <div>
-      <h1>Quiz 3 — Short Answers <span class="pill final"><span class="dot"></span>Finalised</span></h1>
-      <p class="sub">1,198 submissions · 3 criteria · closed 9 Oct · finalised 12 Oct by J. Alvarez · marks locked</p>
-    </div>
-    <div class="actions">
-      <a class="btn" href="#">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Export grades (CSV)</a>
-      <span class="btn synced">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg>Released to Canvas · 12 Oct</span>
-      <a class="btn" href="#">Reopen for changes</a>
-    </div>
-  </div>
-
-  <div class="summary">
-    <div class="card">
-      <h2>Review complete <small>reviewed 3–12 Oct</small></h2>
-      <div class="done-row"><span>Every submission confirmed by a tutor</span><span class="val">1,198 / 1,198</span></div>
-      <div class="bar"><span></span></div>
-      <div class="kpis">
-        <div class="kpi"><b>71.4</b><span>average mark<br>AI suggested 72.1</span></div>
-        <div class="kpi"><b>64 <small>5.3%</small></b><span>marks adjusted<br>from the AI</span></div>
-        <div class="kpi"><b>1,198</b><span>with tutor<br>comments</span></div>
-        <div class="kpi"><b>2</b><span>tutors · J. Alvarez,<br>M. Okafor</span></div>
-      </div>
-    </div>
-    <div class="card">
-      <h2>Grade distribution <small>final marks</small></h2>
-      <div class="dist" aria-label="Grade distribution">
-        <div class="col"><span class="n">142</span><span class="b" style="height:38%;background:var(--lv1)"></span><span class="g">HD</span></div>
-        <div class="col"><span class="n">318</span><span class="b" style="height:86%;background:var(--lv2)"></span><span class="g">DI</span></div>
-        <div class="col"><span class="n">371</span><span class="b" style="height:100%;background:var(--lv3)"></span><span class="g">CR</span></div>
-        <div class="col"><span class="n">289</span><span class="b" style="height:78%;background:var(--lv4)"></span><span class="g">PS</span></div>
-        <div class="col"><span class="n">78</span><span class="b" style="height:21%;background:var(--lv5);border:1px solid var(--lv4)"></span><span class="g">FL</span></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-bottom:24px">
-    <h2>By criterion <small>where tutors changed the AI most</small></h2>
-    <table class="crit-table">
-      <thead><tr><th>Criterion</th><th class="num">Avg mark</th><th class="num">AI avg</th><th class="num">Adjusted</th></tr></thead>
-      <tbody>
-        <tr><td>Q1 — Concept definitions</td><td class="num">22.6 / 30</td><td class="num">22.8</td><td class="num">9</td></tr>
-        <tr><td>Q2 — Applying the model</td><td class="num">29.1 / 40</td><td class="num">29.0</td><td class="num">14</td></tr>
-        <tr><td>Q3 — Evaluating trade-offs</td><td class="num">19.7 / 30</td><td class="num">20.3</td><td class="num hot">41</td></tr>
-      </tbody>
-    </table>
-    <p class="note"><span class="dot"></span>Q3 accounts for 41 of 64 adjustments, mostly downward — the AI tended to credit description as evaluation. Worth tightening this criterion's wording before the next quiz.</p>
-  </div>
-
-  <div class="filters">
-    <span class="chip active">All (1,198)</span>
-    <span class="chip">Adjusted by tutor (64)</span>
-    <span class="chip">Matches AI (1,134)</span>
-    <span class="chip">Band changed (12)</span>
-  </div>
-
-  <div class="table-wrap">
-    <table class="subs">
-      <thead>
-        <tr>
-          <th>Submission</th>
-          <th>Final mark</th>
-          <th>Tutor changes</th>
-          <th>Tutor</th>
-          <th>Mark report</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="sid">SID-50101</td>
-          <td><span class="mark"><span class="fin">81 / 100</span><span class="band DI">DI</span></span></td>
-          <td><span class="change same">Matches AI</span></td>
-          <td>M. Okafor</td>
-          <td><a class="rep" href="05-mark-report.html">View report →</a></td>
-        </tr>
-        <tr>
-          <td class="sid">SID-50102</td>
-          <td><span class="mark"><span class="ai">72</span><span class="fin">68 / 100</span><span class="band CR">CR</span></span></td>
-          <td><span class="change"><span class="delta down">−4</span><span>on Q3<small>“describes rather than evaluates”</small></span></span></td>
-          <td>J. Alvarez</td>
-          <td><a class="rep" href="05-mark-report.html">View report →</a></td>
-        </tr>
-        <tr>
-          <td class="sid">SID-50103</td>
-          <td><span class="mark"><span class="fin">64 / 100</span><span class="band PS">PS</span></span></td>
-          <td><span class="change same">Matches AI</span></td>
-          <td>J. Alvarez</td>
-          <td><a class="rep" href="05-mark-report.html">View report →</a></td>
-        </tr>
-        <tr>
-          <td class="sid">SID-50104</td>
-          <td><span class="mark"><span class="ai">55</span><span class="fin">59 / 100</span><span class="band PS">PS</span></span></td>
-          <td><span class="change"><span class="delta up">+4</span><span>on Q2<small>AI had low confidence · handwritten diagram</small></span></span></td>
-          <td>M. Okafor</td>
-          <td><a class="rep" href="05-mark-report.html">View report →</a></td>
-        </tr>
-        <tr>
-          <td class="sid">SID-50105</td>
-          <td><span class="mark"><span class="fin">88 / 100</span><span class="band HD">HD</span></span></td>
-          <td><span class="change same">Matches AI</span></td>
-          <td>J. Alvarez</td>
-          <td><a class="rep" href="05-mark-report.html">View report →</a></td>
-        </tr>
-        <tr>
-          <td class="sid">SID-50106</td>
-          <td><span class="mark"><span class="ai">47</span><span class="fin">52 / 100</span><span class="band PS">PS</span></span></td>
-          <td><span class="change"><span class="delta up">+5</span><span>on Q1, Q3<small>band changed FL → PS</small></span></span></td>
-          <td>M. Okafor</td>
-          <td><a class="rep" href="05-mark-report.html">View report →</a></td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="foot"><span>Showing 6 of 1,198</span><span>Marks are locked — reopen the batch to change them</span></div>
-  </div>
+<main id="resultsMain">
+  <div class="top"><div><h1>Loading results…</h1><p class="sub">Reading confirmed marks from the local database.</p></div></div>
 </main>
 
 <footer class="batchbar" aria-label="Batch navigation">
-  <a class="bb-btn prev" id="bbPrev" href="02-batch-status.html#asgn1" title="ASGN1 — Literature Review"><span class="k">← Previous batch</span><span class="n">ASGN1 — Literature Review</span></a>
+  <a class="bb-btn prev" aria-disabled="true" id="bbPrev"><span class="k">← Previous batch</span><span class="n">None</span></a>
   <a class="bb-btn next" aria-disabled="true" id="bbNext"><span class="k">Next batch →</span><span class="n">None</span></a>
 </footer>
 
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
-<script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
+<script src="/js/api.js"></script>
+<script src="account-menu.js"></script><script src="/js/render-results.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

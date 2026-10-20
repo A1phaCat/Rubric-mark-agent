@@ -10,19 +10,10 @@ from app.db.models.core import AppSetting
 from app.deps import get_db, get_settings
 from app.llm import build_llm
 from app.llm.protocol import ProviderError
-from app.security.secrets import protect_secret, unprotect_secret
+from app.security.secrets import protect_secret
+from app.services.settings_service import load_ai_settings
 
 router = APIRouter(prefix="/settings", tags=["settings"])
-
-
-def load_ai_settings(db: Session, settings: Settings) -> None:
-    values = {item.key: item.value_encrypted for item in db.query(AppSetting).all()}
-    settings.llm = values.get("ai.provider", settings.llm)
-    settings.ai_model = values.get("ai.model", settings.ai_model)
-    settings.ai_base_url = values.get("ai.base_url") or settings.ai_base_url
-    protected_key = values.get("ai.api_key")
-    if protected_key:
-        settings.ai_api_key = unprotect_secret(protected_key)
 
 
 def _store(db: Session, key: str, value: str) -> None:
@@ -38,9 +29,9 @@ def _ai(settings: Settings) -> dict[str, Any]:
         "provider": settings.llm,
         "model": settings.ai_model,
         "base_url": settings.ai_base_url,
-        "uses_university_gateway": settings.llm in {"azure", "university", "fake"},
+        "uses_university_gateway": settings.llm in {"azure", "university"},
         "has_api_key": bool(settings.ai_api_key),
-        "available_models": ["fake-marker-v1"] if settings.llm == "fake" else [],
+        "available_models": [],
     }
 
 
@@ -59,6 +50,17 @@ def put_ai(
     db: Session = Depends(get_db),
 ) -> dict:
     provider = str(payload.get("provider", settings.llm))
+    if provider == "fake" and not settings.fake_llm_allowed:
+        raise HTTPException(
+            422,
+            {
+                "error": {
+                    "code": "validation_error",
+                    "message": "The offline FakeLLM is available only in the test environment",
+                    "details": None,
+                }
+            },
+        )
     model = str(payload.get("model", settings.ai_model))
     base_url = payload.get("base_url", settings.ai_base_url) or None
     api_key = str(payload["api_key"]) if payload.get("api_key") else None

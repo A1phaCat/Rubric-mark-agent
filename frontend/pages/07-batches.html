@@ -63,6 +63,7 @@
   .brow[data-href]{ cursor:pointer; }
   .b-name{ font-family:'Source Serif 4',serif; font-weight:600; font-size:16px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .on-home{ font-family:'IBM Plex Mono',monospace; font-weight:400; font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); border:1px solid var(--border-strong); border-radius:4px; padding:1px 6px; }
+  .sample-tag{ color:var(--primary); border-color:var(--primary); margin-left:8px; }
   .b-meta{ font-size:12px; color:var(--ink-soft); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .mono{ font-family:'IBM Plex Mono',monospace; }
   .pill{ display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 10px; border-radius:20px; font-weight:500; white-space:nowrap; }
@@ -157,6 +158,7 @@
   }
   .ab-crumbs .bc-up .t{ overflow:hidden; text-overflow:ellipsis; }
   @media print{ header.app-bar, .ab-steps{ display:none; } }
+  .row-action{ white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -197,21 +199,12 @@
   </div>
 
   <div id="groups"></div>
-  <p class="empty" id="empty" hidden>No batches match your search.</p>
+  <p class="empty" id="empty">Loading batches…</p>
 </main>
 
 <script>
 (function(){
-  var B = [
-    { name:'ASGN2 — Critical Essay', term:'2026 S2', st:'processing', n:'1,247 submissions', crit:4, rubric:['Critical Essay — HD/D/C/P','critical-essay'], date:'due 24 Oct', prog:[67,'836 / 1,247 processed','var(--primary)'], href:'02-batch-status.html', home:true },
-    { name:'ASGN1 — Literature Review', term:'2026 S2', st:'review', n:'340 submissions', crit:5, rubric:['Literature Review','literature-review'], date:'due 18 Oct', prog:[92,'312 / 340 confirmed','var(--info)'], href:'02-batch-status.html#asgn1', home:true },
-    { name:'Quiz 3 — Short Answers', term:'2026 S2', st:'complete', n:'1,198 submissions', crit:3, rubric:['Short Answer (quiz)','short-answer'], date:'closed 9 Oct', prog:[100,'released to Canvas','var(--ink-soft)'], href:'04-batch-complete.html', home:true },
-    { name:'ASGN3 — Final Project Report', term:'2026 S2', st:'draft', n:'no submissions yet', crit:6, rubric:['Final Project Report','final-project-report'], date:'due 14 Nov', prog:[0,'rubric imported · set-up not finished','var(--track)'], href:'01-upload.html' },
-    { name:'Quiz 2 — Short Answers', term:'2026 S2', st:'complete', n:'1,203 submissions', crit:3, rubric:['Short Answer (quiz)','short-answer'], date:'closed 25 Sep', prog:[100,'released to Canvas','var(--ink-soft)'], href:'04-batch-complete.html' },
-    { name:'Group Presentation', term:'2026 S2', st:'complete', n:'86 groups', crit:4, rubric:['Group Presentation','group-presentation'], date:'closed 12 Sep', prog:[100,'released to Canvas','var(--ink-soft)'], href:'04-batch-complete.html' },
-    { name:'Quiz 1 — Short Answers', term:'2026 S2', st:'complete', n:'1,211 submissions', crit:3, rubric:['Short Answer (quiz)','short-answer'], date:'closed 28 Aug', prog:[100,'released to Canvas','var(--ink-soft)'], href:'04-batch-complete.html' },
-    { name:'Reflective Journal', term:'2026 S1', st:'complete', n:'402 submissions', crit:3, rubric:['Reflective Journal','reflective-journal'], date:'closed 6 Jun', prog:[100,'released to Canvas','var(--ink-soft)'], href:'04-batch-complete.html' }
-  ];
+  var B = [], loaded = false;  /* filled from GET /api/v1/batches by app-wire.js */
   var PILL = { processing:['processing','Processing'], review:['reviewing','In review'], draft:['draft','Draft'], complete:['done','Complete'], cancelled:['cancelled','Cancelled'] };
   var filter = 'all';
   function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
@@ -223,9 +216,9 @@
   }
   function row(b){
     var p = PILL[b.st] || PILL.draft;
-    var actions=(b.canCancel?'<button class="row-action" type="button" data-act="cancel" data-id="'+b.id+'" data-version="'+b.version+'">Terminate</button>':'')+(b.canDelete?'<button class="row-action" type="button" data-act="delete" data-id="'+b.id+'" data-version="'+b.version+'">Delete</button>':'');
+    var actions='<button class="row-action" type="button" data-act="pin" data-id="'+b.id+'" data-pinned="'+(b.pinned?1:0)+'" title="'+(b.pinned?'Unpin':'Pin to the top of Home and this list')+'">'+(b.pinned?'📌 Pinned':'Pin')+'</button>'+(b.canCancel?'<button class="row-action" type="button" data-act="cancel" data-id="'+b.id+'" data-version="'+b.version+'">Terminate</button>':'')+(b.canDelete?'<button class="row-action" type="button" data-act="delete" data-id="'+b.id+'" data-version="'+b.version+'">Delete</button>':'');
     return '<div class="brow" data-href="' + b.href + '">' +
-      '<div class="b-main"><div class="b-name">' + esc(b.name) + (b.home ? '<span class="on-home" title="Shown on Home">On Home</span>' : '') + '</div>' +
+      '<div class="b-main"><div class="b-name">' + esc(b.name) + (b.sample ? '<span class="on-home sample-tag" title="Pinned sample batch — reload with: python -m app.sample.seed">Sample</span>' : '') + (b.home && !b.sample ? '<span class="on-home" title="Shown on Home">On Home</span>' : '') + '</div>' +
       '<div class="b-meta mono">' + b.n + ' · ' + b.crit + ' criteria · ' + b.date + '</div></div>' +
       '<div class="b-st"><span class="pill ' + p[0] + '"><span class="dot"></span>' + p[1] + '</span></div>' +
       '<div class="b-prog"><div class="bar"><span style="width:' + b.prog[0] + '%; background:' + b.prog[2] + '"></span></div><div class="b-ptxt">' + b.prog[1] + '</div></div>' +
@@ -245,7 +238,9 @@
         '<div class="list"><div class="lhead"><span>Batch</span><span>Status</span><span>Progress</span><span>Rubric</span><span>Actions</span></div>' + rows.map(row).join('') + '</div></section>';
     });
     document.getElementById('groups').innerHTML = html;
-    document.getElementById('empty').hidden = !!html;
+    var empty = document.getElementById('empty');
+    empty.textContent = !loaded ? 'Loading batches…' : B.length ? 'No batches match your search.' : 'No batches yet. Start one with “New marking batch”.';
+    empty.hidden = !!html;
   }
   document.getElementById('q').addEventListener('input', render);
   document.querySelectorAll('.filters .chip').forEach(function(c){
@@ -262,6 +257,7 @@
     if(action){
       e.preventDefault();e.stopPropagation();
       var id=action.dataset.id,version=Number(action.dataset.version),isCancel=action.dataset.act==='cancel';
+      if(action.dataset.act==='pin'){action.disabled=true;MarkerAPI.pinBatch(id,action.dataset.pinned!=='1').then(function(){location.reload();}).catch(function(error){action.disabled=false;alert(error.message);});return;}
       var message=isCancel?'Terminate this batch? Queued work will stop and partial results will be retained.':'Delete this batch and its uploaded files permanently?';
       if(!confirm(message))return;
       action.disabled=true;action.textContent=isCancel?'Terminating…':'Deleting…';
@@ -272,13 +268,13 @@
     var row=e.target.closest('.brow[data-href]');if(row)location.href=row.dataset.href;
   });
   window.BatchListUI = {
-    setItems: function(items){ B = items.slice(); render(); }
+    setItems: function(items){ B = items.slice(); loaded = true; render(); }
   };
   render();
 })();
 </script>
 
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
+<script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

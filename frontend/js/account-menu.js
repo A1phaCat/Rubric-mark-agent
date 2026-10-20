@@ -1,5 +1,5 @@
 /* Account menu (top-right avatar) — shared by every page.
-   Two connections only: the AI model that suggests marks, and Canvas.
+   One connection in the local MVP: the AI model that suggests marks (Canvas is post-MVP and hidden).
    The working frontend sends settings and connection tests to the backend; secrets never enter localStorage. */
 (function () {
   /* The university service runs on Azure OpenAI. "Own key" options below it. */
@@ -121,13 +121,15 @@
     user.setAttribute('title', 'Account and connections');
 
     var S = load();
+    var WHO = { name: (user.querySelector('.ab-uname') || {}).textContent || 'Tutor', initials: (user.querySelector('.ab-avatar') || {}).textContent || '' };
+    window.addEventListener('marker:user', function (event) { WHO = event.detail; });
     var menu = document.createElement('div'); menu.className = 'am'; menu.hidden = true;
     menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', 'Account and connections');
     document.body.appendChild(menu);
-    if(window.MarkerAPI&&MarkerAPI.mode!=='mock')MarkerAPI.getSettings().then(function(config){var ai=config.ai||{}, provider=ai.provider||'university';S.ai.provider=provider==='university'||!PROVIDERS[provider]?'minimax':provider;S.ai.model=provider==='fake'?'MiniMax-M3.1-Flash-Preview':(ai.model||S.ai.model);S.ai.base=ai.base_url||'';S.ai.useUni=provider==='university';S.ai.hasKey=!!ai.has_api_key;S.ai.ok=S.ai.useUni||S.ai.hasKey;if(!menu.hidden)draw(null);badge();}).catch(function(){});
+    if(window.MarkerAPI)MarkerAPI.getSettings().then(function(config){var ai=config.ai||{}, provider=ai.provider||'university';S.ai.provider=provider==='university'||!PROVIDERS[provider]?'minimax':provider;S.ai.model=provider==='fake'?'MiniMax-M3.1-Flash-Preview':(ai.model||S.ai.model);S.ai.base=ai.base_url||'';S.ai.useUni=provider==='university';S.ai.hasKey=!!ai.has_api_key;S.ai.ok=S.ai.useUni||S.ai.hasKey;if(!menu.hidden)draw(null);badge();}).catch(function(){});
 
     function badge() {
-      var warn = (!S.ai.useUni && (!S.ai.key || !S.ai.ok)) || !S.canvas.ok;
+      var warn = !S.ai.useUni && !S.ai.hasKey && (!S.ai.key || !S.ai.ok);
       var b = user.querySelector('.am-badge');
       if (warn && !b) { b = document.createElement('span'); b.className = 'am-badge'; b.setAttribute('aria-hidden', 'true'); user.appendChild(b); }
       if (!warn && b) b.remove();
@@ -136,7 +138,7 @@
     function draw(openId) {
       var p = PROVIDERS[S.ai.provider], a = aiSummary(S), c = cvSummary(S), mf = modelsFor(S, S.ai.provider, S.ai.base || p.base || '');
       menu.innerHTML =
-        '<div class="am-who"><span class="av">JA</span><span><b>J. Alvarez</b><small>Tutor · signed in with University SSO</small></span></div>' +
+        '<div class="am-who"><span class="av">' + esc(WHO.initials) + '</span><span><b>' + esc(WHO.name) + '</b><small>Tutor · local single-user mode</small></span></div>' +
         '<div class="am-h">Connections</div>' +
         '<div class="am-row' + (openId === 'ai' ? ' open' : '') + '" data-id="ai">' +
           '<button class="am-sum" type="button" aria-expanded="' + (openId === 'ai') + '"><span class="am-ic">' + ICON_AI + '</span><span class="t"><b>AI model</b><small><span class="am-dot ' + a[0] + '"></span>' + esc(a[1]) + '</small></span>' + CHEV + '</button>' +
@@ -151,13 +153,7 @@
             '<div class="am-act"><span class="msg" id="amAiMsg"></span><button class="am-btn" type="button" data-test="ai">Test</button><button class="am-btn pri" type="button" data-save="ai">Save</button></div>' +
           '</div>' +
         '</div>' +
-        '<div class="am-row' + (openId === 'cv' ? ' open' : '') + '" data-id="cv">' +
-          '<button class="am-sum" type="button" aria-expanded="' + (openId === 'cv') + '"><span class="am-ic">' + ICON_CV + '</span><span class="t"><b>Canvas</b><small><span class="am-dot ' + c[0] + '"></span>' + esc(c[1]) + '</small></span>' + CHEV + '</button>' +
-          '<div class="am-body">' +
-            '<p class="am-note">Not available in local MVP</p>' +
-            '<div class="am-act"><span class="msg" id="amCvMsg">Canvas integration is post-MVP.</span><button class="am-btn" type="button" disabled>Test</button><button class="am-btn pri" type="button" disabled>Save</button></div>' +
-          '</div>' +
-        '</div>' +
+        /* Canvas is hidden until the integration exists (post-MVP). */
         '<div class="am-foot"><span>Keys are stored server-side only.</span><a href="#" id="amOut">Sign out</a></div>';
       badge();
     }

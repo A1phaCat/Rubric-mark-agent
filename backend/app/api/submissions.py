@@ -2,27 +2,26 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.common import mock, translate_error
-from app.api.settings import load_ai_settings
-from app.config import PROJECT_ROOT, Settings
+from app.analytics.service import AnalyticsUseCases
+from app.api.common import translate_error
+from app.config import Settings
 from app.db.models.batch import Batch
 from app.db.models.job import Job
 from app.db.models.submission import File, Submission
 from app.deps import get_current_user, get_db, get_settings
 from app.jobs.queue import JobQueue
-from app.services.batch_service import BatchUseCases
-from app.services.fixture_service import FixtureStore
 from app.services.review_service import ReviewUseCases
+from app.services.settings_service import load_ai_settings
+from app.services.submission_service import marker_names, submission_row
 
 router = APIRouter(tags=["submissions"])
 
@@ -45,7 +44,8 @@ def patch_submission(
                 item.excluded_reason = payload.get("excluded_reason") or "Excluded by tutor"
             item.version += 1
             item.updated_at = datetime.now(timezone.utc)
-            return {"submission": _row(item)}
+            stored_file = db.get(File, item.file_id) if item.file_id else None
+            return {"submission": submission_row(item, stored_file, marker_names(db))}
     except Exception as exc:
         raise translate_error(exc) from exc
 
@@ -96,54 +96,26 @@ def retry_submission(
 @router.get("/submissions/{submission_id}/review")
 def get_review(
     submission_id: str,
-    response: Response,
     db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
     user: dict = Depends(get_current_user),
 ) -> dict:
     try:
         with db.begin():
-            payload = ReviewUseCases(db, FixtureStore(settings.fixtures_dir)).open(
-                submission_id, user["id"]
-            )
-        if payload.get("_mock"):
-            response.headers["X-Mock"] = "true"
-        return payload
+            return ReviewUseCases(db).open(submission_id, user["id"])
     except Exception as exc:
         raise translate_error(exc) from exc
 
 
 @router.get("/submissions/{submission_id}/file")
-def get_file(
-    submission_id: str,
-    db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
-) -> FileResponse:
+def get_file(submission_id: str, db: Session = Depends(get_db)) -> FileResponse:
     item = db.get(Submission, submission_id)
-    if item is None:
-        raise translate_error(KeyError(submission_id))
-    stored = db.get(File, item.file_id) if item.file_id else None
-    if stored is not None and Path(stored.path).exists():
-        return FileResponse(
-            stored.path,
-            media_type=stored.mime,
-            filename=stored.original_name,
-            content_disposition_type="inline",
-            headers={"ETag": f'"doc-v{item.document_version}"'},
-        )
-
-    fixture_path = settings.fixtures_dir / "reviews" / f"{submission_id}.json"
-    if not fixture_path.exists():
-        raise translate_error(KeyError(submission_id))
-    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
-    filename = Path(str(fixture.get("submission", {}).get("filename") or "")).name
-    demo_path = PROJECT_ROOT / "output" / "pdf" / filename
-    if not filename or not demo_path.exists():
+    stored = db.get(File, item.file_id) if item and item.file_id else None
+    if item is None or stored is None or not Path(stored.path).exists():
         raise translate_error(KeyError(submission_id))
     return FileResponse(
-        demo_path,
-        media_type="application/pdf",
-        filename=filename,
+        stored.path,
+        media_type=stored.mime,
+        filename=stored.original_name,
         content_disposition_type="inline",
         headers={"ETag": f'"doc-v{item.document_version}"'},
     )
@@ -224,7 +196,7 @@ def save_criterion(
 ) -> dict:
     try:
         with db.begin():
-            return ReviewUseCases(db, FixtureStore(Path("fixtures/demo"))).save_criterion(
+            return ReviewUseCases(db).save_criterion(
                 submission_id, criterion_id, payload
             )
     except Exception as exc:
@@ -236,12 +208,11 @@ def confirm_submission(
     submission_id: str,
     payload: dict[str, Any],
     db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
     user: dict = Depends(get_current_user),
 ) -> dict:
     try:
         with db.begin():
-            return ReviewUseCases(db, FixtureStore(settings.fixtures_dir)).confirm(
+            return ReviewUseCases(db).confirm(
                 submission_id, user["id"], int(payload["version"])
             )
     except Exception as exc:
@@ -281,68 +252,24 @@ def claim_submission(
 
 
 @router.get("/batches/{batch_id}/results")
-def results(
-    batch_id: str,
-    response: Response,
-    settings: Settings = Depends(get_settings),
-    db: Session = Depends(get_db),
-) -> dict:
-    store = FixtureStore(settings.fixtures_dir)
-    path = store.root / "reports" / f"results-{batch_id}.json"
-    if path.exists():
-        return mock(response, json.loads(path.read_text(encoding="utf-8")))
-    batch = db.get(Batch, batch_id)
-    if batch is None:
-        raise translate_error(KeyError(batch_id))
-    rows = list(db.scalars(select(Submission).where(Submission.batch_id == batch_id).limit(50)))
-    finals = [float(item.final_total) for item in rows if item.final_total is not None]
-    ais = [float(item.ai_total) for item in rows if item.ai_total is not None]
-    return {
-        "batch": BatchUseCases(db).serialize(batch),
-        "locked": batch.status == "finalised",
-        "released_at": batch.finalised_at.isoformat() if batch.finalised_at else None,
-        "released_to": None,
-        "summary": {
-            "average_final": sum(finals) / len(finals) if finals else None,
-            "average_ai": sum(ais) / len(ais) if ais else None,
-            "adjusted_count": 0,
-            "adjusted_percent": 0,
-            "comments_count": len(finals),
-            "marker_count": 1,
-        },
-        "distribution": [],
-        "criteria": [],
-        "submissions": {
-            "items": [_row(item) for item in rows],
-            "page": 1,
-            "page_size": 50,
-            "total": batch.total_count,
-        },
-    }
+def results(batch_id: str, db: Session = Depends(get_db)) -> dict:
+    try:
+        return AnalyticsUseCases(db).batch_results(batch_id)
+    except Exception as exc:
+        raise translate_error(exc) from exc
 
 
 @router.get("/batches/{batch_id}/export.csv")
-def export_csv(batch_id: str, settings: Settings = Depends(get_settings)) -> StreamingResponse:
-    rows = [
-        item
-        for item in FixtureStore(settings.fixtures_dir).submissions()
-        if item["batch_id"] == batch_id
-    ]
+def export_csv(batch_id: str, db: Session = Depends(get_db)) -> StreamingResponse:
+    try:
+        rows = AnalyticsUseCases(db).csv_rows(batch_id)
+    except Exception as exc:
+        raise translate_error(exc) from exc
     output = io.StringIO()
-    writer = csv.DictWriter(
-        output, fieldnames=["submission_id", "sid", "ai_total", "final_total", "status"]
-    )
+    fieldnames = list(rows[0]) if rows else ["sid", "status", "ai_total", "final_total", "maximum", "band", "marker"]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
-    for item in rows:
-        writer.writerow(
-            {
-                "submission_id": item["id"],
-                "sid": item["sid"],
-                "ai_total": item["ai_total"],
-                "final_total": item["final_total"],
-                "status": item["status"],
-            }
-        )
+    writer.writerows(rows)
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
@@ -353,74 +280,25 @@ def export_csv(batch_id: str, settings: Settings = Depends(get_settings)) -> Str
 @router.get("/submissions/{submission_id}/report")
 def report(
     submission_id: str,
-    response: Response,
     audience: str = Query("internal", pattern="^(internal|student)$"),
-    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
 ) -> dict:
-    store = FixtureStore(settings.fixtures_dir)
-    path = store.root / "reports" / f"{submission_id}.json"
-    if not path.exists():
-        path = store.root / "reports" / "shared-sample.json"
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    payload["submission"]["id"] = submission_id
-    payload["audience"] = audience
-    if audience == "student":
-        payload.pop("ai_total", None)
-        payload.pop("adjustment", None)
-        for criterion in payload.get("criteria", []):
-            criterion.pop("ai_score", None)
-            criterion.pop("confidence", None)
-            criterion.pop("internal_rationale", None)
-    return mock(response, payload)
+    try:
+        return AnalyticsUseCases(db).submission_report(submission_id, audience)
+    except Exception as exc:
+        raise translate_error(exc) from exc
 
 
 @router.get("/submissions/{submission_id}/report.pdf")
-def report_pdf(submission_id: str, audience: str = "internal") -> Response:
-    text = f"AI-assisted marker report {submission_id} ({audience})"
-    escaped = text.replace("(", "\\(").replace(")", "\\)")
-    stream = f"BT /F1 12 Tf 72 720 Td ({escaped}) Tj ET".encode("ascii")
-    objects = [
-        b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n",
-        b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n",
-        b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n",
-        b"4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n",
-        f"5 0 obj << /Length {len(stream)} >> stream\n".encode() + stream + b"\nendstream endobj\n",
-    ]
-    pdf = bytearray(b"%PDF-1.4\n")
-    offsets = [0]
-    for obj in objects:
-        offsets.append(len(pdf))
-        pdf.extend(obj)
-    xref = len(pdf)
-    pdf.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode())
-    for offset in offsets[1:]:
-        pdf.extend(f"{offset:010d} 00000 n \n".encode())
-    pdf.extend(
-        f"trailer << /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode()
+def report_pdf(submission_id: str) -> None:
+    del submission_id
+    raise HTTPException(
+        501,
+        {
+            "error": {
+                "code": "feature_not_enabled",
+                "message": "Server-rendered report PDFs are post-MVP; print the report page instead",
+                "details": None,
+            }
+        },
     )
-    return Response(
-        bytes(pdf),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{submission_id}.pdf"'},
-    )
-
-
-def _row(item: Submission) -> dict[str, Any]:
-    return {
-        "id": item.id,
-        "batch_id": item.batch_id,
-        "sid": item.sid,
-        "filename": item.sid or item.id,
-        "status": item.status,
-        "ai_total": item.ai_total,
-        "final_total": item.final_total,
-        "confidence": item.min_confidence,
-        "marker": None,
-        "flags": json.loads(item.flags_json),
-        "error": {"code": "processing_failed", "message": item.error_reason}
-        if item.error_reason
-        else None,
-        "updated_at": item.updated_at.isoformat(),
-        "version": item.version,
-        "_mock": item.is_mock,
-    }
