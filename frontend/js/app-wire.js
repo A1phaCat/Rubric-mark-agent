@@ -284,14 +284,33 @@
       var crumbUp = document.querySelector('.ab-crumbs .bc-up');
       if (crumbUp) { crumbUp.href = batchUrl; var crumbUpText = crumbUp.querySelector('.t'); if (crumbUpText) crumbUpText.textContent = batch.name || 'Batch'; }
 
-      var confirmed = Number(counts.confirmed || 0), ready = Number(counts.ready || 0), processing = Number(counts.processing || 0), batchTotal = Number(counts.total || 0), manualCount = Number(counts.needs_manual || 0);
-      var reviewable = confirmed + ready + manualCount, safeTotal = batchTotal || 1;
-      var pgDone = document.getElementById('pgDone'); if (pgDone) pgDone.textContent = confirmed;
-      var pgReady = document.getElementById('pgReady'); if (pgReady) pgReady.textContent = reviewable;
-      var pgFill = document.getElementById('pgFill'); if (pgFill) pgFill.style.width = (confirmed / safeTotal * 100) + '%';
-      var pgReadyFill = document.getElementById('pgReadyFill'); if (pgReadyFill) pgReadyFill.style.width = (reviewable / safeTotal * 100) + '%';
-      var pgSub = document.getElementById('pgSub');
-      if (pgSub) { pgSub.classList.toggle('done', processing === 0); pgSub.innerHTML = processing > 0 ? '<span class="dot"></span><span id="pgProc">' + processing + '</span> still with AI · ' + batchTotal + ' in batch' : (ready + manualCount) > 0 ? '<span class="dot"></span>' + (ready + manualCount) + ' left to review · ' + batchTotal + ' in batch' : '<span class="dot"></span>All ' + batchTotal + ' reviewed'; }
+      var lastReviewable = -1, reviewProgressTimer = null;
+      function renderReviewProgress(nextCounts, animate) {
+        var confirmed = Number(nextCounts.confirmed || 0), ready = Number(nextCounts.ready || 0), processing = Number(nextCounts.processing || 0), notStarted = Number(nextCounts.not_started || 0), batchTotal = Number(nextCounts.total || 0), manualCount = Number(nextCounts.needs_manual || 0);
+        var reviewable = confirmed + ready + manualCount, safeTotal = batchTotal || 1, pgDone = document.getElementById('pgDone'), pgReady = document.getElementById('pgReady'), pgFill = document.getElementById('pgFill'), pgReadyFill = document.getElementById('pgReadyFill'), pgSub = document.getElementById('pgSub');
+        if (pgDone) pgDone.textContent = confirmed;
+        if (pgReady) {
+          pgReady.textContent = reviewable;
+          if (animate && lastReviewable >= 0 && reviewable > lastReviewable) { pgReady.classList.add('bump'); setTimeout(function () { pgReady.classList.remove('bump'); }, 800); }
+        }
+        if (pgFill) pgFill.style.width = (confirmed / safeTotal * 100) + '%';
+        if (pgReadyFill) pgReadyFill.style.width = (reviewable / safeTotal * 100) + '%';
+        if (pgSub) { pgSub.classList.toggle('done', processing + notStarted === 0); pgSub.innerHTML = processing + notStarted > 0 ? '<span class="dot"></span><span id="pgProc">' + (processing + notStarted) + '</span> still with AI · ' + batchTotal + ' in batch' : (ready + manualCount) > 0 ? '<span class="dot"></span>' + (ready + manualCount) + ' left to review · ' + batchTotal + ' in batch' : '<span class="dot"></span>All ' + batchTotal + ' reviewed'; }
+        lastReviewable = reviewable;
+        return processing + notStarted;
+      }
+      function pollReviewProgress() {
+        MarkerAPI.getBatch(batch.id).then(function (latest) {
+          var active = renderReviewProgress((latest.batch && latest.batch.counts) || {}, true);
+          if (active > 0) reviewProgressTimer = setTimeout(pollReviewProgress, 3000);
+        }).catch(function (error) {
+          console.error('Review progress refresh failed', error);
+          reviewProgressTimer = setTimeout(pollReviewProgress, 5000);
+        });
+      }
+      var activeProcessing = renderReviewProgress(counts, false);
+      if (activeProcessing > 0) reviewProgressTimer = setTimeout(pollReviewProgress, 3000);
+      window.addEventListener('beforeunload', function () { clearTimeout(reviewProgressTimer); }, { once:true });
 
       var documentData = data.document || {}, fileName = document.querySelector('.doc-bar .file b'); if (fileName) fileName.textContent = submission.filename || sid;
       var pageCount = Number(documentData.page_count || 0), fileMeta = document.querySelector('.doc-bar .file span');

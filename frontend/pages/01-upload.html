@@ -174,6 +174,20 @@
   .file.ok{ background:var(--conf-high-bg); border-color:transparent; color:var(--conf-high); }
   .upload-summary{ display:flex; gap:12px; flex-wrap:wrap; padding:9px 10px; border-radius:6px; background:var(--tint); font:12px 'IBM Plex Mono',monospace; }
   .upload-summary b{ color:var(--ink); }
+  .file-details{ border:1px solid var(--border); border-radius:6px; background:var(--surface); }
+  .file-details summary{ padding:8px 10px; cursor:pointer; color:var(--primary); font-size:12.5px; font-weight:500; }
+  .file-details summary:hover{ text-decoration:underline; text-underline-offset:2px; }
+  .file-list-scroll{ max-height:280px; overflow:auto; display:flex; flex-direction:column; gap:6px; padding:0 6px 6px; }
+  .file-details .file{ flex:none; }
+  .fix-details{ border-color:var(--primary); background:var(--tint); }
+  .fix-details summary{ color:var(--ink); display:flex; justify-content:space-between; gap:10px; }
+  .fix-details summary::after{ content:attr(data-progress); color:var(--ink-soft); font:11.5px 'IBM Plex Mono',monospace; font-weight:400; }
+  .fix-details .file{ transition:background .2s,border-color .2s,opacity .2s; }
+  .fix-details .file.ok{ background:var(--conf-high-bg); border-color:transparent; color:var(--conf-high); }
+  .sid-field{ display:flex; align-items:center; gap:5px; white-space:nowrap; }
+  .sid-check{ width:18px; height:18px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:var(--conf-high); color:#fff; font-size:12px; opacity:0; transform:scale(.7); transition:opacity .15s,transform .15s; }
+  .file.ok .sid-check{ opacity:1; transform:scale(1); }
+  .file.ok .sid-input{ border-color:var(--conf-high); }
   .note{ font-size:12.5px; color:var(--ink-soft); display:flex; gap:8px; margin:4px 0 0; }
   .note .dot{ width:5px; height:5px; border-radius:50%; background:var(--primary); margin-top:7px; flex:none; }
 
@@ -608,6 +622,26 @@
     pendingBatch=null;
   }
   function fmt(n){ return n.toLocaleString('en-AU'); }
+  function canonicalSid(value){var match=String(value||'').trim().match(/^(?:SID[-_ ]?)?(\d{5,12})$/i);return match?('SID-'+match[1]):null;}
+  function sidField(row,indexAttr){return '<label class="sid-field">SID <input class="sid-input" '+indexAttr+' value="'+esc(row.sid||'')+'" placeholder="Student ID" required><span class="sid-check" aria-hidden="true">✓</span></label>';}
+  function wireSidQueue(details,selector,onChange){
+    if(!details)return;
+    var list=details.querySelector('.file-list-scroll'),inputs=Array.prototype.slice.call(details.querySelectorAll(selector));
+    function progress(){var complete=inputs.filter(function(input){return !!canonicalSid(input.value);}).length,remaining=inputs.length-complete;details.querySelector('summary').textContent=remaining?'Fix '+remaining+' file'+(remaining===1?'':'s'):'All files confirmed';details.querySelector('summary').dataset.progress=complete+' / '+inputs.length+' complete';}
+    inputs.forEach(function(input){
+      var row=input.closest('.file'),initial=canonicalSid(input.value);input.dataset.valid=initial?'true':'false';row.classList.toggle('ok',!!initial);row.classList.toggle('warn',!initial);
+      input.addEventListener('input',function(){
+        clearTimeout(input._sidTimer);var canonical=canonicalSid(input.value),valid=!!canonical;input.dataset.valid=valid?'true':'false';row.classList.toggle('ok',valid);row.classList.toggle('warn',!valid);onChange(input,canonical||input.value.trim());progress();update();
+        input._sidTimer=setTimeout(function(){
+          if(valid){var shouldAdvance=document.activeElement===input;input.value=canonical;onChange(input,canonical);list.appendChild(row);var next=inputs.find(function(candidate){return candidate.dataset.valid!=='true';});if(next&&shouldAdvance){next.focus();next.scrollIntoView({block:'nearest'});}}
+          else {var firstDone=inputs.find(function(candidate){return candidate.dataset.valid==='true';});if(firstDone&&firstDone.closest('.file')!==row)list.insertBefore(row,firstDone.closest('.file'));}
+          progress();update();
+        },550);
+      });
+    });
+    progress();
+    if(inputs.length)setTimeout(function(){if(document.activeElement===document.body||document.activeElement&&document.activeElement.type==='file')inputs[0].focus();},80);
+  }
   function setSubs(s){
     S = s;
     $('boxCanvas').classList.toggle('active', !!s && s.kind === 'canvas');
@@ -628,14 +662,19 @@
   });
   function zipLoaded(files){
     discardPendingBatch();
-    var rows=files.map(function(file,i){var m=file.name.match(/SID[-_ ]?(\d+)/i),sid=m?('SID-'+m[1]):'',archive=/\.zip$/i.test(file.name);return {file:file,sid:sid,index:i,archive:archive};});
-    $('zipFiles').innerHTML = rows.map(function(row){return '<div class="file"><span class="nm">'+esc(row.file.name)+'</span>'+(row.archive?'<span class="mt">Will unpack and match SIDs</span>':'<label>SID <input class="sid-input" data-sid-index="'+row.index+'" value="'+esc(row.sid)+'" placeholder="Student ID" required></label>')+'</div>';}).join('')+
+    var rows=files.map(function(file,i){var m=file.name.match(/SID[-_ ]?(\d+)/i),sid=m?('SID-'+m[1]):'',archive=/\.zip$/i.test(file.name);return {file:file,sid:sid,index:i,archive:archive};}),matched=rows.filter(function(row){return !row.archive&&row.sid;}),unmatched=rows.filter(function(row){return !row.archive&&!row.sid;}),archives=rows.filter(function(row){return row.archive;});
+    function fileRow(row,warning){return '<div class="file'+(warning?' warn':'')+'"><span class="nm">'+esc(row.file.name)+'</span>'+(row.archive?'<span class="mt">Will unpack and match SIDs</span>':sidField(row,'data-sid-index="'+row.index+'"'))+'</div>';}
+    var matchedRows=matched.map(function(row){return fileRow(row,false);}).join('');
+    $('zipFiles').innerHTML = '<div class="upload-summary"><span><b>'+fmt(rows.length)+'</b> file'+(rows.length===1?'':'s')+' selected</span>'+(matched.length?'<span><b>'+fmt(matched.length)+'</b> SIDs found</span>':'')+(unmatched.length?'<span><b>'+fmt(unmatched.length)+'</b> need attention</span>':'')+(archives.length?'<span><b>'+fmt(archives.length)+'</b> ZIP'+(archives.length===1?'':'s')+' to unpack</span>':'')+'</div>'+
+      (unmatched.length?'<details class="file-details fix-details" open><summary></summary><div class="file-list-scroll">'+unmatched.map(function(row){return fileRow(row,true);}).join('')+'</div></details>':'')+archives.map(function(row){return fileRow(row,false);}).join('')+
+      (matched.length>8?'<details class="file-details"><summary>View all '+fmt(matched.length)+' matched files</summary><div class="file-list-scroll">'+matchedRows+'</div></details>':matchedRows)+
       '<div class="row-btns"><button class="linkbtn" type="button" id="clearZip">Remove</button></div>';
     $('assnSel').value = ''; $('assnInfo').classList.remove('show');
     S = { kind:'zip', label:files.length===1?files[0].name:(files.length+' files'), count:files.length, scanned:0, rows:rows };
     $('boxCanvas').classList.remove('active'); $('boxZip').classList.add('active'); update();
     $('clearZip').addEventListener('click', function(){ setSubs(null); });
-    Array.prototype.forEach.call(document.querySelectorAll('[data-sid-index]'),function(input){input.addEventListener('input',function(){S.rows[Number(this.dataset.sidIndex)].sid=this.value.trim();update();});});
+    wireSidQueue($('zipFiles').querySelector('.fix-details'),'[data-sid-index]',function(input,value){S.rows[Number(input.dataset.sidIndex)].sid=value;});
+    Array.prototype.forEach.call(document.querySelectorAll('.file-details:not(.fix-details) [data-sid-index]'),function(input){input.addEventListener('input',function(){S.rows[Number(this.dataset.sidIndex)].sid=this.value.trim();update();});});
   }
   $('drop').addEventListener('click', function(){ $('zipIn').click(); });
   $('drop').addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); $('zipIn').click(); } });
@@ -650,8 +689,8 @@
 
   /* ---------- Bottom bar ---------- */
   function update(){
-    var rOK = rubricOK(), sOK = !!S && S.count > 0 && (!S.rows||S.rows.every(function(row){return row.archive||/^SID[-_ ]?[A-Za-z0-9-]+$/i.test(row.sid);}));
-    if(pendingBatch){var unresolved=(pendingBatch.upload.files||[]).filter(function(item){return item.status==='accepted'&&!item.sid_guess;});sOK=pendingBatch.upload.summary.accepted>0&&unresolved.every(function(item){return /^SID[-_ ]?[A-Za-z0-9-]+$/i.test(item.manual_sid||'');});}
+    var rOK = rubricOK(), sOK = !!S && S.count > 0 && (!S.rows||S.rows.every(function(row){return row.archive||!!canonicalSid(row.sid);}));
+    if(pendingBatch){var unresolved=(pendingBatch.upload.files||[]).filter(function(item){return item.status==='accepted'&&!item.sid_guess;});sOK=pendingBatch.upload.summary.accepted>0&&unresolved.every(function(item){return !!canonicalSid(item.manual_sid||'');});}
     $('dRub').className = 'sb-dot ' + (R ? (rOK ? 'ok' : 'bad') : '');
     $('vRub').textContent = R ? (R.title || 'Untitled rubric') : 'Not chosen';
     $('vRub').classList.toggle('muted', !R);
@@ -667,15 +706,15 @@
   }
   function showUploadManifest(context){
     pendingBatch=context;
-    var upload=context.upload,summary=upload.summary,unresolved=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}),problems=upload.files.filter(function(item){return item.status==='rejected'||item.status==='unsupported';});
+    var upload=context.upload,summary=upload.summary,unresolved=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}),problems=upload.files.filter(function(item){return item.status==='rejected'||item.status==='unsupported';});summary.needs_sid=unresolved.length;
     S.count=summary.accepted;
     $('zipFiles').innerHTML='<div class="upload-summary"><span><b>'+fmt(summary.accepted)+'</b> accepted</span><span><b>'+fmt(summary.accepted-summary.needs_sid)+'</b> matched</span>'+(summary.duplicates?'<span><b>'+fmt(summary.duplicates)+'</b> duplicates skipped</span>':'')+(summary.skipped?'<span><b>'+fmt(summary.skipped)+'</b> skipped</span>':'')+(summary.needs_sid?'<span><b>'+fmt(summary.needs_sid)+'</b> need attention</span>':'')+'</div>'+
-      unresolved.map(function(item,index){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span><label>SID <input class="sid-input" data-fix-index="'+index+'" value="" placeholder="Student ID" required autofocus></label></div>';}).join('')+
+      (unresolved.length?'<details class="file-details fix-details" open><summary></summary><div class="file-list-scroll">'+unresolved.map(function(item,index){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span>'+sidField({sid:''},'data-fix-index="'+index+'"')+'</div>';}).join('')+'</div></details>':'')+
       problems.map(function(item){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span><span class="mt">'+esc(item.message||'Skipped')+'</span></div>';}).join('')+
       (!unresolved.length&&summary.accepted?'<div class="file ok"><span class="nm">✓ All accepted submissions have an SID</span><span class="mt">Ready to process</span></div>':'')+
       '<div class="row-btns"><button class="linkbtn" type="button" id="clearZip">Remove</button></div>';
     $('clearZip').addEventListener('click',function(){discardPendingBatch();setSubs(null);});
-    Array.prototype.forEach.call(document.querySelectorAll('[data-fix-index]'),function(input){input.addEventListener('input',function(){unresolved[Number(this.dataset.fixIndex)].manual_sid=this.value.trim();update();});});
+    wireSidQueue($('zipFiles').querySelector('.fix-details'),'[data-fix-index]',function(input,value){unresolved[Number(input.dataset.fixIndex)].manual_sid=value;});
     $('startBtn').textContent=unresolved.length?'Continue batch →':'Start processing →';
     update();
   }
@@ -701,9 +740,10 @@
     var rubricPayload={title:R.title,source:R.source||'Uploaded / AI parsed',parser:R.parser||null,save_to_library:$('saveLib').checked,criteria:R.criteria.map(function(c){return {name:c.name,weight:Number(c.weight),description:c.description||'',stated_percent:c.stated_percent,grading_mode:c.grading_mode,scoring_mode:c.scoring_mode,score_mapping:c.score_mapping,granularity:c.granularity,aspects:c.aspects||[],prov:c.prov||{},source_text:c.source_text||{},levels:c.levels.map(function(level,j){return {id:level.id||('level-'+(j+1)),label:level.label,points:Number(level.points),min_score:level.min_score==null?Number(level.points):Number(level.min_score),max_score:level.max_score==null?Number(level.points):Number(level.max_score),min_inclusive:level.min_inclusive!==false,max_inclusive:level.max_inclusive!==false,description:level.description,prov:level.prov||{},source_text:level.source_text||{}};})};})};
     var rubricPromise=R.libId?MarkerAPI.getRubric(R.libId):MarkerAPI.createRubric(rubricPayload);
     rubricPromise.then(function(saved){var rubric=saved.rubric;return MarkerAPI.createBatch({name:R.title+' — validation batch',unit:null,rubric_id:rubric.id,rubric_version:rubric.version});}).then(function(created){
-      var batch=created.batch;return MarkerAPI.uploadFiles(batch.id,S.rows.map(function(row){return row.file;})).then(function(upload){var directRows=S.rows.filter(function(row){return !row.archive;}),used={};return Promise.all(upload.files.filter(function(item){return item.status==='accepted'&&!item.source_archive;}).map(function(item){var matchIndex=-1;directRows.some(function(row,index){if(!used[index]&&row.file.name===item.name){matchIndex=index;return true;}return false;});if(matchIndex<0)return Promise.resolve();used[matchIndex]=true;var sid=directRows[matchIndex].sid;if(!sid||item.sid_guess===sid)return Promise.resolve();return MarkerAPI.patchSubmission(batch.id,item.submission_id,{student_id:sid,version:item.version||1}).then(function(saved){item.sid_guess=sid;item.version=saved.submission.version;});})).then(function(){return {batch:batch,upload:upload};});});
+      var batch=created.batch;return MarkerAPI.uploadFiles(batch.id,S.rows.map(function(row){return row.file;})).then(function(upload){var directRows=S.rows.filter(function(row){return !row.archive;}),used={};return Promise.all(upload.files.filter(function(item){return item.status==='accepted'&&!item.source_archive;}).map(function(item){var matchIndex=-1;directRows.some(function(row,index){if(!used[index]&&row.file.name===item.name){matchIndex=index;return true;}return false;});if(matchIndex<0)return Promise.resolve();used[matchIndex]=true;var sid=S.rows[directRows[matchIndex].index].sid;if(!sid||item.sid_guess===sid)return Promise.resolve();return MarkerAPI.patchSubmission(batch.id,item.submission_id,{student_id:sid,version:item.version||1}).then(function(saved){item.sid_guess=sid;item.version=saved.submission.version;});})).then(function(){upload.summary.needs_sid=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}).length;return {batch:batch,upload:upload};});});
     }).then(function(context){
-      if(context.upload.summary.needs_sid||!context.upload.summary.accepted){showUploadManifest(context);button.disabled=!!context.upload.summary.needs_sid;return;}
+      var unresolved=context.upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}).length;
+      if(unresolved||!context.upload.summary.accepted){context.upload.summary.needs_sid=unresolved;showUploadManifest(context);button.disabled=!!unresolved;return;}
       return startProcessing(context,button);
     }).catch(function(error){button.disabled=false;button.textContent='Start batch →';$('why').textContent=error.message;toast(error.message);});
   });

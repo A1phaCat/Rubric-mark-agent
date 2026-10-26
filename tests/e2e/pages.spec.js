@@ -79,6 +79,65 @@ test('completed results can re-enter review while finalised results stay locked'
   await expect(page.getByRole('button', { name: 'Reopen for changes' })).toBeVisible();
 });
 
+test('review header refreshes batch progress while AI processing continues', async ({ page }) => {
+  const listing = await (await page.request.get('/api/v1/batches/bat_sample_asgn2/submissions')).json();
+  const ready = listing.items.find((item) => item.status === 'ai_done' || item.status === 'in_review');
+  await page.route(/\/api\/v1\/submissions\/[^/]+\/review$/, async (route) => {
+    const response = await route.fetch(), body = await response.json();
+    body.batch.counts.processing = 1;
+    await route.fulfill({ response, json:body });
+  });
+  await page.route(/\/api\/v1\/batches\/bat_sample_asgn2$/, async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ batch: { id:'bat_sample_asgn2', counts:{ total:48, confirmed:17, ready:5, needs_manual:0, processing:26, not_started:0 } } }),
+    });
+  });
+
+  await page.goto(`/03b-review-split.html?submission_id=${ready.id}`);
+  await expect(page.locator('#pgDone')).toHaveText('17', { timeout:7000 });
+  await expect(page.locator('#pgReady')).toHaveText('22');
+  await expect(page.locator('#pgProc')).toHaveText('26');
+});
+
+test('large submission selections collapse matched files into a summary', async ({ page }) => {
+  await page.goto('/01-upload.html');
+  const files = Array.from({ length:20 }, (_, index) => ({
+    name:`SID-${10000 + index}.txt`,
+    mimeType:'text/plain',
+    buffer:Buffer.from(`Submission ${index + 1}`),
+  }));
+  await page.locator('#zipIn').setInputFiles(files);
+
+  await expect(page.locator('#zipFiles .upload-summary')).toContainText('20 files selected');
+  await expect(page.locator('#zipFiles .upload-summary')).toContainText('20 SIDs found');
+  await expect(page.locator('#zipFiles .file-details')).not.toHaveAttribute('open', '');
+  await expect(page.locator('#zipFiles .file-details summary')).toHaveText('View all 20 matched files');
+  await expect(page.locator('#zipFiles .file-list-scroll .file')).toHaveCount(20);
+});
+
+test('SID repair queue confirms valid input and advances to the next file', async ({ page }) => {
+  await page.goto('/01-upload.html');
+  const files = Array.from({ length:12 }, (_, index) => ({
+    name:`submission-${index + 1}.txt`,
+    mimeType:'text/plain',
+    buffer:Buffer.from(`Submission ${index + 1}`),
+  }));
+  await page.locator('#zipIn').setInputFiles(files);
+
+  const queue = page.locator('#zipFiles .fix-details');
+  await expect(queue).toHaveAttribute('open', '');
+  await expect(queue.locator('summary')).toContainText('Fix 12 files');
+  const firstName = await queue.locator('.file').first().locator('.nm').textContent();
+  const firstRow = queue.locator('.file', { hasText:firstName });
+  await firstRow.locator('.sid-input').fill('123456');
+  await expect(firstRow).toHaveClass(/ok/);
+  await expect(firstRow.locator('.sid-input')).toHaveValue('SID-123456');
+  await expect(queue.locator('.file').last().locator('.nm')).toHaveText(firstName);
+  await expect(queue.locator('summary')).toContainText('Fix 11 files');
+  await expect(queue.locator('.sid-input').first()).toBeFocused();
+});
+
 test('local-fake API completes a new single-file batch', async ({ request, page }) => {
   let createdBatchId = null;
   try {
