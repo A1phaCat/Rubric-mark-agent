@@ -52,6 +52,26 @@
   .btn:hover{ background:var(--tint); }
   .btn.synced{ border-color:transparent; background:var(--info-bg); color:var(--info); cursor:default; }
 
+  /* Audit reason dialog — follows the same visual language as the review end card. */
+  .audit-modal{ position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(40,36,33,.42); }
+  .audit-modal[hidden]{ display:none; }
+  .audit-box{ width:min(520px,100%); padding:28px; border:1px solid var(--border); border-radius:18px; background:var(--surface); box-shadow:0 22px 60px rgba(40,36,33,.24); }
+  .audit-icon{ display:flex; align-items:center; justify-content:center; width:68px; height:68px; margin:0 auto 14px; border-radius:50%; background:#FFF3CC; color:#D88D00; }
+  .audit-kicker{ margin-bottom:8px; color:var(--ink-soft); font:500 11px 'IBM Plex Mono',monospace; letter-spacing:.08em; text-align:center; text-transform:uppercase; }
+  .audit-box h2{ margin:0 0 8px; font:600 27px 'Source Serif 4',serif; text-align:center; }
+  .audit-copy{ margin:0 auto 20px; max-width:420px; color:var(--ink-soft); font-size:14px; line-height:1.55; text-align:center; }
+  .audit-label{ display:block; margin-bottom:7px; font-size:12.5px; font-weight:600; }
+  .audit-label span{ color:var(--risk); }
+  .audit-reason{ display:block; width:100%; min-height:104px; resize:vertical; padding:11px 12px; border:1px solid var(--border-strong); border-radius:8px; background:var(--surface); color:var(--ink); font:14px/1.5 'Inter',sans-serif; outline:none; }
+  .audit-reason:focus{ border-color:var(--primary); box-shadow:0 0 0 3px rgba(230,70,38,.12); }
+  .audit-help{ margin:7px 0 0; color:var(--ink-soft); font-size:11.5px; }
+  .audit-note{ margin:0; padding:12px 14px; border:1px solid var(--border); border-radius:9px; background:var(--tint); color:var(--ink-soft); font-size:12.5px; line-height:1.45; text-align:center; }
+  .audit-actions{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:20px; }
+  .audit-actions .btn{ justify-content:center; height:48px; font-size:14px; }
+  .audit-actions .modal-primary{ border-color:var(--primary); background:var(--primary); color:#fff; }
+  .audit-actions .modal-primary:hover{ background:#CF3B20; }
+  .audit-actions .modal-primary[disabled]{ cursor:not-allowed; }
+
   /* Summary */
   .summary{ display:grid; grid-template-columns:1.25fr 1fr; gap:16px; margin-bottom:24px; }
   .card{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:22px 24px; }
@@ -244,6 +264,32 @@
   <a class="bb-btn prev" aria-disabled="true" id="bbPrev"><span class="k">← Previous batch</span><span class="n">None</span></a>
   <a class="bb-btn next" aria-disabled="true" id="bbNext"><span class="k">Next batch →</span><span class="n">None</span></a>
 </footer>
+
+<div class="audit-modal" id="reopenModal" hidden role="dialog" aria-modal="true" aria-labelledby="reopenTitle" aria-describedby="reopenCopy">
+  <div class="audit-box">
+    <div class="audit-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7v5h5"/><path d="M5.5 16a8 8 0 1 0 .5-9l-2 2"/><path d="M12 8v4l3 2"/></svg></div>
+    <div class="audit-kicker">Audit trail</div>
+    <h2 id="reopenTitle">Reopen this batch?</h2>
+    <p class="audit-copy" id="reopenCopy">Marks will become editable again. Add a short reason so this change is clear in the audit log.</p>
+    <form id="reopenForm">
+      <label class="audit-label" for="reopenReason">Reason for reopening <span aria-hidden="true">*</span></label>
+      <textarea class="audit-reason" id="reopenReason" maxlength="500" required placeholder="e.g. Correcting a marking issue raised during moderation"></textarea>
+      <p class="audit-help">Required · saved with the batch history</p>
+      <div class="audit-actions"><button class="btn modal-primary" type="submit" id="reopenConfirm" disabled>Reopen for changes →</button><button class="btn" type="button" id="reopenCancel">Keep finalised</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="audit-modal" id="finaliseModal" hidden role="dialog" aria-modal="true" aria-labelledby="finaliseTitle" aria-describedby="finaliseCopy">
+  <div class="audit-box">
+    <div class="audit-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></svg></div>
+    <div class="audit-kicker">Batch status</div>
+    <h2 id="finaliseTitle">Finalise and lock marks?</h2>
+    <p class="audit-copy" id="finaliseCopy">All confirmed marks in this batch will become read-only.</p>
+    <p class="audit-note">You can reopen the batch later, but you will need to provide a reason for the audit history.</p>
+    <div class="audit-actions"><button class="btn modal-primary" type="button" id="finaliseConfirm">Finalise &amp; lock →</button><button class="btn" type="button" id="finaliseCancel">Keep editable</button></div>
+  </div>
+</div>
 
 <script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/render-results.js"></script><script src="/js/app-wire.js"></script>

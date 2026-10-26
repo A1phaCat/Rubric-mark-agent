@@ -313,8 +313,11 @@
       window.addEventListener('beforeunload', function () { clearTimeout(reviewProgressTimer); }, { once:true });
 
       var documentData = data.document || {}, fileName = document.querySelector('.doc-bar .file b'); if (fileName) fileName.textContent = submission.filename || sid;
+      var mimeType = String(documentData.mime_type || '').toLowerCase(), isPdf = !!documentData.content_url && (mimeType.indexOf('pdf') >= 0 || /\.pdf$/i.test(submission.filename || ''));
+      var extension = ((submission.filename || '').match(/\.([^.]+)$/) || [,'file'])[1].toUpperCase();
+      var previewMode = isPdf ? 'Original PDF' : extension + ' text preview';
       var pageCount = Number(documentData.page_count || 0), fileMeta = document.querySelector('.doc-bar .file span');
-      if (fileMeta) fileMeta.textContent = manual ? pageCount + ' page' + (pageCount === 1 ? '' : 's') + ' · no text layer · mark manually' : (pageCount + ' page' + (pageCount === 1 ? '' : 's') + ' · ' + Number(documentData.word_count || 0).toLocaleString('en-AU') + ' words · ' + allEvidence.length + ' evidence span' + (allEvidence.length === 1 ? '' : 's'));
+      if (fileMeta) fileMeta.textContent = (manual ? pageCount + ' page' + (pageCount === 1 ? '' : 's') + ' · no text layer · mark manually' : (pageCount + ' page' + (pageCount === 1 ? '' : 's') + ' · ' + Number(documentData.word_count || 0).toLocaleString('en-AU') + ' words · ' + allEvidence.length + ' evidence span' + (allEvidence.length === 1 ? '' : 's'))) + ' · ' + previewMode;
       var documentRoot = document.getElementById('doc'), evidenceHTML = '';
       if ((documentData.paragraphs || []).length) {
         var pageMap = {}; (documentData.paragraphs || []).forEach(function (block) { var page = Number(block.page || 1); if (!pageMap[page]) pageMap[page] = []; pageMap[page].push(block); });
@@ -327,7 +330,6 @@
       }
       documentRoot.innerHTML = evidenceHTML;
       var evidenceToggle = document.querySelector('.doc-tools .switch'), evidenceInput = document.getElementById('showAll');
-      var mimeType = String(documentData.mime_type || '').toLowerCase(), isPdf = !!documentData.content_url && (mimeType.indexOf('pdf') >= 0 || /\.pdf$/i.test(submission.filename || ''));
       var evidenceById = {}; allEvidence.forEach(function (item) { evidenceById[item.id] = item; });
       var originalPage = 1, originalPdfController = null;
       function renderOriginal(page) {

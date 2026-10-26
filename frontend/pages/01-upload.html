@@ -182,6 +182,8 @@
   .fix-details{ border-color:var(--primary); background:var(--tint); }
   .fix-details summary{ color:var(--ink); display:flex; justify-content:space-between; gap:10px; }
   .fix-details summary::after{ content:attr(data-progress); color:var(--ink-soft); font:11.5px 'IBM Plex Mono',monospace; font-weight:400; }
+  .sid-format{ margin:-2px 10px 7px; color:var(--ink-soft); font-size:11.5px; }
+  .sid-format code{ color:var(--ai); font:11px 'IBM Plex Mono',monospace; }
   .fix-details .file{ transition:background .2s,border-color .2s,opacity .2s; }
   .fix-details .file.ok{ background:var(--conf-high-bg); border-color:transparent; color:var(--conf-high); }
   .sid-field{ display:flex; align-items:center; gap:5px; white-space:nowrap; }
@@ -193,7 +195,7 @@
 
   /* Bottom bar */
   footer.setupbar{ position:fixed; left:0; right:0; bottom:0; z-index:30; background:var(--surface); border-top:1px solid var(--border); box-shadow:0 -6px 18px rgba(66,66,66,.06); }
-  .sb-in{ max-width:1180px; margin:0 auto; height:72px; padding:0 40px; display:flex; align-items:center; gap:28px; }
+  .sb-in{ max-width:1180px; margin:0 auto; height:72px; padding:0 40px; display:flex; align-items:center; gap:20px; }
   .sb-item{ display:flex; flex-direction:column; min-width:0; }
   .sb-item .k{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); display:flex; align-items:center; gap:6px; }
   .sb-item .v{ font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -201,12 +203,29 @@
   .sb-item .v.muted{ color:var(--ink-soft); font-weight:400; }
   .sb-dot{ width:7px; height:7px; border-radius:50%; background:var(--border-strong); }
   .sb-dot.ok{ background:var(--conf-high); } .sb-dot.bad{ background:var(--risk); }
-  .sb-rub{ flex:1 1 auto; max-width:330px; }
+  .sb-rub{ flex:0 1 260px; max-width:260px; }
+  .sb-criteria{ flex:0 1 105px; }
+  .sb-submissions{ flex:0 0 90px; }
+  .sb-time{ flex:0 0 108px; }
+  .sb-time .v{ overflow:visible; text-overflow:clip; }
   .sb-sp{ flex:1; }
-  .sb-why{ font-size:12.5px; color:var(--risk); text-align:right; max-width:220px; }
+  .sb-why{ font-size:12.5px; color:var(--risk); text-align:right; max-width:180px; }
   .sb-start{ height:44px; padding:0 22px; font-size:14px; }
   .toast{ position:fixed; left:50%; bottom:90px; transform:translate(-50%,8px); background:var(--chrome); color:#fff; font-size:13px; padding:9px 16px; border-radius:999px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60; }
   .toast.show{ opacity:1; transform:translate(-50%,0); }
+
+  /* External AI consent — same modal language as the review queue end card. */
+  .consent-modal{ position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(40,36,33,.42); }
+  .consent-modal[hidden]{ display:none; }
+  .consent-box{ width:min(460px,100%); padding:30px 30px 22px; border-radius:14px; background:var(--surface); box-shadow:0 24px 60px rgba(40,36,33,.3); text-align:center; }
+  .consent-icon{ width:56px; height:56px; margin:0 auto 14px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--conf-med-bg); color:var(--conf-med); }
+  .consent-kicker{ font:11px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:var(--conf-med); }
+  .consent-box h2{ margin:4px 0 8px; font-family:'Source Serif 4',serif; font-size:24px; font-weight:600; }
+  .consent-copy{ max-width:370px; margin:0 auto 16px; color:var(--ink-soft); font-size:14px; }
+  .consent-copy b{ color:var(--ink); font-weight:600; }
+  .consent-note{ margin-bottom:18px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--tint); color:var(--ink-soft); font-size:12px; }
+  .consent-actions{ display:flex; flex-direction:column; gap:8px; }
+  .consent-actions .btn{ width:100%; height:48px; justify-content:center; }
 
   @media (max-width:1000px){ .sb-why{ display:none; } .sb-time{ display:none; } }
   @media (max-width:900px){
@@ -391,14 +410,24 @@
 <footer class="setupbar" aria-label="Batch summary">
   <div class="sb-in">
     <div class="sb-item sb-rub"><span class="k"><span class="sb-dot" id="dRub"></span>Rubric</span><span class="v" id="vRub">Not chosen</span></div>
-    <div class="sb-item"><span class="k">Criteria</span><span class="v" id="vCrit">—</span></div>
-    <div class="sb-item"><span class="k"><span class="sb-dot" id="dSub"></span>Submissions</span><span class="v" id="vSub">—</span></div>
-    <div class="sb-item sb-time"><span class="k">Est. time</span><span class="v" id="vTime">—</span></div>
+    <div class="sb-item sb-criteria"><span class="k">Criteria</span><span class="v" id="vCrit">—</span></div>
+    <div class="sb-item sb-submissions"><span class="k"><span class="sb-dot" id="dSub"></span>Submissions</span><span class="v" id="vSub">—</span></div>
+    <div class="sb-item sb-time" id="aiPrepEstimate"><span class="k">AI prep</span><span class="v" id="vTime">—</span></div>
     <span class="sb-sp"></span>
     <span class="sb-why" id="why"></span>
     <button class="btn btn-primary sb-start" id="startBtn" type="button" disabled>Start batch →</button>
   </div>
 </footer>
+<div class="consent-modal" id="externalConsent" hidden role="dialog" aria-modal="true" aria-labelledby="consentTitle" aria-describedby="consentCopy">
+  <div class="consent-box">
+    <div class="consent-icon" aria-hidden="true"><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><rect x="4" y="15" width="16" height="6" rx="2"/></svg></div>
+    <div class="consent-kicker">External AI processing</div>
+    <h2 id="consentTitle">Send submissions?</h2>
+    <p class="consent-copy" id="consentCopy">Uploaded submission text will be sent to an external AI provider.</p>
+    <div class="consent-note">Submission text · evidence retrieval · AI-assisted marking</div>
+    <div class="consent-actions"><button class="btn btn-primary" type="button" id="consentContinue">Continue →</button><button class="btn btn-ghost" type="button" id="consentCancel">Cancel</button></div>
+  </div>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="rubric-library.js"></script>
@@ -666,7 +695,7 @@
     function fileRow(row,warning){return '<div class="file'+(warning?' warn':'')+'"><span class="nm">'+esc(row.file.name)+'</span>'+(row.archive?'<span class="mt">Will unpack and match SIDs</span>':sidField(row,'data-sid-index="'+row.index+'"'))+'</div>';}
     var matchedRows=matched.map(function(row){return fileRow(row,false);}).join('');
     $('zipFiles').innerHTML = '<div class="upload-summary"><span><b>'+fmt(rows.length)+'</b> file'+(rows.length===1?'':'s')+' selected</span>'+(matched.length?'<span><b>'+fmt(matched.length)+'</b> SIDs found</span>':'')+(unmatched.length?'<span><b>'+fmt(unmatched.length)+'</b> need attention</span>':'')+(archives.length?'<span><b>'+fmt(archives.length)+'</b> ZIP'+(archives.length===1?'':'s')+' to unpack</span>':'')+'</div>'+
-      (unmatched.length?'<details class="file-details fix-details" open><summary></summary><div class="file-list-scroll">'+unmatched.map(function(row){return fileRow(row,true);}).join('')+'</div></details>':'')+archives.map(function(row){return fileRow(row,false);}).join('')+
+      (unmatched.length?'<details class="file-details fix-details" open><summary></summary><div class="sid-format">Enter 5–12 digits or <code>SID-123456</code></div><div class="file-list-scroll">'+unmatched.map(function(row){return fileRow(row,true);}).join('')+'</div></details>':'')+archives.map(function(row){return fileRow(row,false);}).join('')+
       (matched.length>8?'<details class="file-details"><summary>View all '+fmt(matched.length)+' matched files</summary><div class="file-list-scroll">'+matchedRows+'</div></details>':matchedRows)+
       '<div class="row-btns"><button class="linkbtn" type="button" id="clearZip">Remove</button></div>';
     $('assnSel').value = ''; $('assnInfo').classList.remove('show');
@@ -688,18 +717,43 @@
   $('sampleZip').addEventListener('click', function(){ toast('Choose a real submission file for this validation run.'); $('zipIn').click(); });
 
   /* ---------- Bottom bar ---------- */
+  function formatMinutes(value){
+    if(value<60)return value+' min';
+    var hours=Math.floor(value/60),minutes=value%60;
+    return hours+' h'+(minutes?' '+minutes+' min':'');
+  }
+  function formatEstimateRange(low,high){
+    if(high<60)return '~'+low+(high>low?'–'+high:'')+' min';
+    return '~'+formatMinutes(low)+(high>low?'–'+formatMinutes(high):'');
+  }
+  function estimateAiPrep(r,submissions){
+    if(!r||!submissions||!submissions.count)return null;
+    var criteria=Math.max(1,r.criteria.length),count=submissions.count;
+    // Rubric setup is reused once per batch. Document analysis and grading are
+    // still paid for per submission; the current processing request uses one worker.
+    var setupSeconds=12,perSubmissionSeconds=4+(criteria*1.5),ocrSeconds=(Number(submissions.scanned)||0)*10;
+    var seconds=setupSeconds+(count*perSubmissionSeconds)+ocrSeconds;
+    var low=Math.max(1,Math.floor(seconds*.8/60)),high=Math.max(low,Math.ceil(seconds*1.25/60));
+    return {text:seconds*1.25<60?'<1 min':formatEstimateRange(low,high),criteria:criteria,count:count};
+  }
+  function compactRubricTitle(title){
+    var value=String(title||'Untitled rubric').replace(/\s*[—–-]\s*(?:Canvas\s+)?marking rubric\s*$/i,'').replace(/\s+rubric\s*$/i,'').trim();
+    return value||String(title||'Untitled rubric');
+  }
   function update(){
     var rOK = rubricOK(), sOK = !!S && S.count > 0 && (!S.rows||S.rows.every(function(row){return row.archive||!!canonicalSid(row.sid);}));
     if(pendingBatch){var unresolved=(pendingBatch.upload.files||[]).filter(function(item){return item.status==='accepted'&&!item.sid_guess;});sOK=pendingBatch.upload.summary.accepted>0&&unresolved.every(function(item){return !!canonicalSid(item.manual_sid||'');});}
     $('dRub').className = 'sb-dot ' + (R ? (rOK ? 'ok' : 'bad') : '');
-    $('vRub').textContent = R ? (R.title || 'Untitled rubric') : 'Not chosen';
+    $('vRub').textContent = R ? compactRubricTitle(R.title) : 'Not chosen';
+    $('vRub').title = R ? (R.title || 'Untitled rubric') : '';
     $('vRub').classList.toggle('muted', !R);
     $('vCrit').innerHTML = R ? '<span class="mono">' + R.criteria.length + '</span> · ' + L.total(R) + ' marks' : '—';
     $('dSub').className = 'sb-dot ' + (S ? (sOK ? 'ok' : 'bad') : '');
     $('vSub').innerHTML = S ? '<span class="mono">' + fmt(S.count) + '</span>' + (S.scanned ? ' · ' + S.scanned + ' need OCR' : '') : '—';
     $('vSub').classList.toggle('muted', !S);
-    var mins = R && S && S.count ? Math.max(1, Math.round(S.count * R.criteria.length * 0.0104)) : 0;
-    $('vTime').textContent = mins ? '~' + (mins >= 60 ? Math.floor(mins / 60) + ' h ' + (mins % 60) + ' min' : mins + ' min') : '—';
+    var estimate=estimateAiPrep(R,S),estimateBox=$('aiPrepEstimate');
+    $('vTime').textContent=estimate?estimate.text:'—';
+    estimateBox.title=estimate?'Rough estimate: rubric setup is reused once, then '+estimate.count+' submission'+(estimate.count===1?' is':'s are')+' analysed independently across '+estimate.criteria+' '+(estimate.criteria===1?'criterion':'criteria')+'. Assumes one processing worker; document length and provider speed can vary.':'Select a rubric and submissions to estimate AI preparation time.';
     var why = !R ? 'Choose or paste a rubric' : !rOK ? 'Fix the rubric checks' : !S ? 'Add submissions' : !sOK ? 'Fix the highlighted files before continuing' : '';
     $('why').textContent = why; $('startBtn').disabled = !!why;
     $('n1').classList.toggle('ok', rOK); $('n2').classList.toggle('ok', sOK);
@@ -709,7 +763,7 @@
     var upload=context.upload,summary=upload.summary,unresolved=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}),problems=upload.files.filter(function(item){return item.status==='rejected'||item.status==='unsupported';});summary.needs_sid=unresolved.length;
     S.count=summary.accepted;
     $('zipFiles').innerHTML='<div class="upload-summary"><span><b>'+fmt(summary.accepted)+'</b> accepted</span><span><b>'+fmt(summary.accepted-summary.needs_sid)+'</b> matched</span>'+(summary.duplicates?'<span><b>'+fmt(summary.duplicates)+'</b> duplicates skipped</span>':'')+(summary.skipped?'<span><b>'+fmt(summary.skipped)+'</b> skipped</span>':'')+(summary.needs_sid?'<span><b>'+fmt(summary.needs_sid)+'</b> need attention</span>':'')+'</div>'+
-      (unresolved.length?'<details class="file-details fix-details" open><summary></summary><div class="file-list-scroll">'+unresolved.map(function(item,index){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span>'+sidField({sid:''},'data-fix-index="'+index+'"')+'</div>';}).join('')+'</div></details>':'')+
+      (unresolved.length?'<details class="file-details fix-details" open><summary></summary><div class="sid-format">Enter 5–12 digits or <code>SID-123456</code></div><div class="file-list-scroll">'+unresolved.map(function(item,index){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span>'+sidField({sid:''},'data-fix-index="'+index+'"')+'</div>';}).join('')+'</div></details>':'')+
       problems.map(function(item){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span><span class="mt">'+esc(item.message||'Skipped')+'</span></div>';}).join('')+
       (!unresolved.length&&summary.accepted?'<div class="file ok"><span class="nm">✓ All accepted submissions have an SID</span><span class="mt">Ready to process</span></div>':'')+
       '<div class="row-btns"><button class="linkbtn" type="button" id="clearZip">Remove</button></div>';
@@ -718,14 +772,53 @@
     $('startBtn').textContent=unresolved.length?'Continue batch →':'Start processing →';
     update();
   }
+  var consentResolve=null,consentPreviousFocus=null;
+  function closeExternalConsent(confirmed){
+    var modal=$('externalConsent'); if(modal.hidden)return;
+    modal.hidden=true; document.removeEventListener('keydown',consentKeydown);
+    var resolve=consentResolve; consentResolve=null;
+    if(consentPreviousFocus&&consentPreviousFocus.focus)consentPreviousFocus.focus();
+    if(resolve)resolve(confirmed);
+  }
+  function consentKeydown(event){
+    if(event.key==='Escape'){event.preventDefault();closeExternalConsent(false);return;}
+    if(event.key!=='Tab')return;
+    var buttons=[$('consentContinue'),$('consentCancel')],first=buttons[0],last=buttons[buttons.length-1];
+    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+  }
+  function confirmExternalProcessing(provider){
+    var label=String(provider||'external AI'),display=label.charAt(0).toUpperCase()+label.slice(1);
+    consentPreviousFocus=document.activeElement;
+    $('consentTitle').textContent='Send submissions to '+display+'?';
+    $('consentCopy').innerHTML='Uploaded submission text will be sent to <b>'+esc(display)+'</b> for evidence retrieval and AI-assisted marking.';
+    $('consentContinue').textContent='Continue with '+display+' →';
+    $('externalConsent').hidden=false; document.addEventListener('keydown',consentKeydown);
+    setTimeout(function(){$('consentContinue').focus();},0);
+    return new Promise(function(resolve){consentResolve=resolve;});
+  }
+  $('consentContinue').addEventListener('click',function(){closeExternalConsent(true);});
+  $('consentCancel').addEventListener('click',function(){closeExternalConsent(false);});
+  $('externalConsent').addEventListener('click',function(event){if(event.target===this)closeExternalConsent(false);});
+  window.MarkerConfirmExternalProcessing=confirmExternalProcessing;
   function startProcessing(context,button){
     return MarkerAPI.getSettings().then(function(config){
       var ai=config.ai||{}, provider=ai.provider||'university', external=['fake','university'].indexOf(provider)<0;
-      var acknowledged=!external||window.confirm('This batch will send the uploaded submission text to '+provider+' for evidence retrieval and AI-assisted marking. Continue?');
-      if(!acknowledged)throw new Error('External AI processing was not acknowledged.');
-      button.textContent='Retrieving evidence…';$('why').textContent='AI is grading '+R.criteria.length+' criteria — this can take 1–3 minutes';
-      return MarkerAPI.startBatch(context.batch.id,{provider:provider,model:ai.model,concurrency:1,external_processing_acknowledged:external,estimated_cost_acknowledged:true}).then(function(){location.href='02-batch-status.html?batch_id='+encodeURIComponent(context.batch.id);});
+      return (external?confirmExternalProcessing(provider):Promise.resolve(true)).then(function(acknowledged){
+        if(!acknowledged){var cancelled=new Error('Processing cancelled');cancelled.cancelled=true;throw cancelled;}
+        button.textContent='Retrieving evidence…';$('why').textContent='AI is grading '+R.criteria.length+' criteria — this can take 1–3 minutes';
+        return MarkerAPI.startBatch(context.batch.id,{provider:provider,model:ai.model,concurrency:1,external_processing_acknowledged:external,estimated_cost_acknowledged:true}).then(function(){location.href='02-batch-status.html?batch_id='+encodeURIComponent(context.batch.id);});
+      });
     });
+  }
+  function handleStartError(error,button,fallbackLabel){
+    button.disabled=false;
+    if(error&&error.cancelled){
+      if(pendingBatch)showUploadManifest(pendingBatch);
+      else {button.textContent=fallbackLabel;update();}
+      return;
+    }
+    button.textContent=fallbackLabel;$('why').textContent=error.message;toast(error.message);
   }
   $('startBtn').addEventListener('click', function(){
     if (this.disabled) return;
@@ -734,7 +827,7 @@
     if(pendingBatch){
       var fixes=pendingBatch.upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;});
       button.textContent='Saving student IDs…';
-      Promise.all(fixes.map(function(item){return MarkerAPI.patchSubmission(pendingBatch.batch.id,item.submission_id,{student_id:item.manual_sid,version:item.version||1}).then(function(saved){item.sid_guess=item.manual_sid;item.version=saved.submission.version;});})).then(function(){return startProcessing(pendingBatch,button);}).catch(function(error){button.disabled=false;button.textContent='Continue batch →';$('why').textContent=error.message;toast(error.message);});
+      Promise.all(fixes.map(function(item){return MarkerAPI.patchSubmission(pendingBatch.batch.id,item.submission_id,{student_id:item.manual_sid,version:item.version||1}).then(function(saved){item.sid_guess=item.manual_sid;item.version=saved.submission.version;});})).then(function(){return startProcessing(pendingBatch,button);}).catch(function(error){handleStartError(error,button,'Continue batch →');});
       return;
     }
     var rubricPayload={title:R.title,source:R.source||'Uploaded / AI parsed',parser:R.parser||null,save_to_library:$('saveLib').checked,criteria:R.criteria.map(function(c){return {name:c.name,weight:Number(c.weight),description:c.description||'',stated_percent:c.stated_percent,grading_mode:c.grading_mode,scoring_mode:c.scoring_mode,score_mapping:c.score_mapping,granularity:c.granularity,aspects:c.aspects||[],prov:c.prov||{},source_text:c.source_text||{},levels:c.levels.map(function(level,j){return {id:level.id||('level-'+(j+1)),label:level.label,points:Number(level.points),min_score:level.min_score==null?Number(level.points):Number(level.min_score),max_score:level.max_score==null?Number(level.points):Number(level.max_score),min_inclusive:level.min_inclusive!==false,max_inclusive:level.max_inclusive!==false,description:level.description,prov:level.prov||{},source_text:level.source_text||{}};})};})};
@@ -744,8 +837,8 @@
     }).then(function(context){
       var unresolved=context.upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}).length;
       if(unresolved||!context.upload.summary.accepted){context.upload.summary.needs_sid=unresolved;showUploadManifest(context);button.disabled=!!unresolved;return;}
-      return startProcessing(context,button);
-    }).catch(function(error){button.disabled=false;button.textContent='Start batch →';$('why').textContent=error.message;toast(error.message);});
+      pendingBatch=context;return startProcessing(context,button);
+    }).catch(function(error){handleStartError(error,button,'Start batch →');});
   });
 
   /* ---------- Arriving with a rubric (library "Use for new batch", import page save) ---------- */

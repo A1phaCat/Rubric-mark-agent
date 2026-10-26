@@ -49,6 +49,11 @@ test('home lists pinned sample batches and the database counts', async ({ page }
   await expect(page.locator('#homeBatches')).toContainText('ASGN2 — Critical Essay');
   await expect(page.locator('#homeStats .stat').nth(2)).toContainText('1');
   await expect(page.locator('#homeQueue .q-item').first()).toContainText('SID-');
+  const rubricCount = page.locator('#recentRubrics .r-count').first();
+  await expect(rubricCount).toHaveText(/\d+ criteria/);
+  expect(await rubricCount.evaluate(el => getComputedStyle(el).whiteSpace)).toBe('nowrap');
+  const longRubricName = page.locator('#recentRubrics .r-main').nth(1);
+  expect(await longRubricName.evaluate(el => el.clientWidth <= el.scrollWidth)).toBeTruthy();
 });
 
 test('results and report pages render stored marks, feedback and evidence', async ({ page }) => {
@@ -66,8 +71,26 @@ test('results and report pages render stored marks, feedback and evidence', asyn
 });
 
 test('completed results can re-enter review while finalised results stay locked', async ({ page }) => {
+  await page.route(/\/api\/v1\/batches\/bat_sample_asgn1\/results$/, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.batch.status = 'completed';
+    body.batch.finalised_at = null;
+    body.locked = false;
+    await route.fulfill({ response, json:body });
+  });
   await page.goto('/04-batch-complete.html?batch_id=bat_sample_asgn1');
   await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
+  const finalise = page.getByRole('button', { name: 'Finalise & lock marks' });
+  await finalise.click();
+  const finaliseDialog = page.locator('#finaliseModal');
+  await expect(finaliseDialog).toBeVisible();
+  await expect(finaliseDialog.locator('#finaliseTitle')).toHaveText('Finalise and lock marks?');
+  await expect(finaliseDialog).toContainText('provide a reason for the audit history');
+  await expect(page.locator('#finaliseCancel')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(finaliseDialog).toBeHidden();
+  await expect(finalise).toBeFocused();
   const edit = page.getByRole('link', { name: 'Edit marks' }).first();
   await expect(edit).toBeVisible();
   await edit.click();
@@ -76,7 +99,20 @@ test('completed results can re-enter review while finalised results stay locked'
   await page.goto('/04-batch-complete.html?batch_id=bat_sample_quiz3');
   await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
   await expect(page.getByRole('link', { name: 'Edit marks' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Reopen for changes' })).toBeVisible();
+  const reopen = page.getByRole('button', { name: 'Reopen for changes' });
+  await expect(reopen).toBeVisible();
+  await reopen.click();
+  const dialog = page.locator('#reopenModal');
+  const reason = page.locator('#reopenReason');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('saved with the batch history');
+  await expect(reason).toBeFocused();
+  await expect(page.locator('#reopenConfirm')).toBeDisabled();
+  await reason.fill('Correcting a moderation issue');
+  await expect(page.locator('#reopenConfirm')).toBeEnabled();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(reopen).toBeFocused();
 });
 
 test('review header refreshes batch progress while AI processing continues', async ({ page }) => {
@@ -128,6 +164,7 @@ test('SID repair queue confirms valid input and advances to the next file', asyn
   const queue = page.locator('#zipFiles .fix-details');
   await expect(queue).toHaveAttribute('open', '');
   await expect(queue.locator('summary')).toContainText('Fix 12 files');
+  await expect(queue.locator('.sid-format')).toContainText('Enter 5–12 digits or SID-123456');
   const firstName = await queue.locator('.file').first().locator('.nm').textContent();
   const firstRow = queue.locator('.file', { hasText:firstName });
   await firstRow.locator('.sid-input').fill('123456');
@@ -220,6 +257,38 @@ test('local-fake API completes a new single-file batch', async ({ request, page 
   } finally {
     await cleanupBatch(request, createdBatchId);
   }
+});
+
+test('external AI consent uses the in-app modal and supports keyboard cancellation', async ({ page }) => {
+  await page.goto('/01-upload.html');
+
+  await page.evaluate(() => {
+    window.__externalConsentResult = undefined;
+    window.MarkerConfirmExternalProcessing('minimax').then((result) => {
+      window.__externalConsentResult = result;
+    });
+  });
+
+  const dialog = page.locator('#externalConsent');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('External AI processing');
+  await expect(dialog.locator('#consentTitle')).toHaveText('Send submissions to Minimax?');
+  await expect(dialog.locator('#consentCopy')).toContainText('Uploaded submission text will be sent to Minimax');
+  await expect(page.locator('#consentContinue')).toBeFocused();
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__externalConsentResult)).toBe(false);
+
+  await page.evaluate(() => {
+    window.__externalConsentResult = undefined;
+    window.MarkerConfirmExternalProcessing('minimax').then((result) => {
+      window.__externalConsentResult = result;
+    });
+  });
+  await page.locator('#consentContinue').click();
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__externalConsentResult)).toBe(true);
 });
 
 test('setup UI parses variable levels and opens the newly created batch', async ({ page }) => {
@@ -328,5 +397,15 @@ test('setup UI locates and repairs a criterion with only one scoring level', asy
   await expect(page.locator('[data-check="short-levels"]')).toHaveCount(0);
   await expect(page.locator('[data-check="level-fields"]')).toHaveCount(0);
   await expect(page.locator('.crit').first()).not.toHaveClass(/flagged/);
+
+  const estimateFiles = Array.from({ length:10 }, (_, index) => ({
+    name:`SID-${70000 + index}.txt`, mimeType:'text/plain', buffer:Buffer.from(`Submission ${index + 1}`),
+  }));
+  await page.locator('#zipIn').setInputFiles(estimateFiles);
+  await expect(page.locator('#vRub')).toHaveText('Draft');
+  await expect(page.locator('#vRub')).toHaveAttribute('title', 'Draft rubric');
+  await expect(page.locator('#aiPrepEstimate .k')).toHaveText('AI prep');
+  await expect(page.locator('#vTime')).toHaveText('~1–2 min');
+  await expect(page.locator('#aiPrepEstimate')).toHaveAttribute('title', /rubric setup is reused once.*10 submissions are analysed independently.*one processing worker/i);
 });
 

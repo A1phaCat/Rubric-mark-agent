@@ -8,6 +8,74 @@
     return pct >= 85 ? 'HD' : pct >= 75 ? 'DI' : pct >= 65 ? 'CR' : pct >= 50 ? 'PS' : 'FL';
   }
 
+  function requestReopenReason() {
+    var modal = document.getElementById('reopenModal'), form = document.getElementById('reopenForm');
+    var reason = document.getElementById('reopenReason'), confirm = document.getElementById('reopenConfirm');
+    var cancel = document.getElementById('reopenCancel'), previousFocus = document.activeElement;
+    reason.value = ''; confirm.disabled = true; modal.hidden = false;
+    return new Promise(function (resolve) {
+      function finish(value) {
+        modal.hidden = true;
+        reason.removeEventListener('input', update);
+        form.removeEventListener('submit', submit);
+        cancel.removeEventListener('click', cancelDialog);
+        modal.removeEventListener('click', backdrop);
+        document.removeEventListener('keydown', keydown);
+        if (previousFocus && previousFocus.focus) previousFocus.focus();
+        resolve(value);
+      }
+      function update() { confirm.disabled = !reason.value.trim(); }
+      function submit(event) { event.preventDefault(); var value = reason.value.trim(); if (value) finish(value); }
+      function cancelDialog() { finish(null); }
+      function backdrop(event) { if (event.target === modal) finish(null); }
+      function keydown(event) {
+        if (event.key === 'Escape') { event.preventDefault(); finish(null); return; }
+        if (event.key !== 'Tab') return;
+        var focusable = [reason, confirm, cancel].filter(function (node) { return !node.disabled; });
+        var first = focusable[0], last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+      reason.addEventListener('input', update);
+      form.addEventListener('submit', submit);
+      cancel.addEventListener('click', cancelDialog);
+      modal.addEventListener('click', backdrop);
+      document.addEventListener('keydown', keydown);
+      setTimeout(function () { reason.focus(); }, 0);
+    });
+  }
+
+  function requestFinaliseConfirmation() {
+    var modal = document.getElementById('finaliseModal'), confirm = document.getElementById('finaliseConfirm');
+    var cancel = document.getElementById('finaliseCancel'), previousFocus = document.activeElement;
+    modal.hidden = false;
+    return new Promise(function (resolve) {
+      function finish(value) {
+        modal.hidden = true;
+        confirm.removeEventListener('click', confirmDialog);
+        cancel.removeEventListener('click', cancelDialog);
+        modal.removeEventListener('click', backdrop);
+        document.removeEventListener('keydown', keydown);
+        if (previousFocus && previousFocus.focus) previousFocus.focus();
+        resolve(value);
+      }
+      function confirmDialog() { finish(true); }
+      function cancelDialog() { finish(false); }
+      function backdrop(event) { if (event.target === modal) finish(false); }
+      function keydown(event) {
+        if (event.key === 'Escape') { event.preventDefault(); finish(false); return; }
+        if (event.key !== 'Tab') return;
+        if (event.shiftKey && document.activeElement === confirm) { event.preventDefault(); cancel.focus(); }
+        else if (!event.shiftKey && document.activeElement === cancel) { event.preventDefault(); confirm.focus(); }
+      }
+      confirm.addEventListener('click', confirmDialog);
+      cancel.addEventListener('click', cancelDialog);
+      modal.addEventListener('click', backdrop);
+      document.addEventListener('keydown', keydown);
+      setTimeout(function () { cancel.focus(); }, 0);
+    });
+  }
+
   function rowHTML(ui, item, maximum, locked) {
     var confirmed = item.status === 'confirmed', fin = item.final_total, ai = item.ai_total;
     var mark = confirmed
@@ -21,8 +89,8 @@
       change = Math.abs(delta) < 0.001 && item.flags.indexOf('adjusted') < 0 ? '<span class="change same">Matches AI</span>'
         : '<span class="change"><span class="delta ' + (delta < 0 ? 'down' : 'up') + '">' + (delta > 0 ? '+' : delta < 0 ? '−' : '±') + ui.num(Math.abs(delta)) + '</span><span>adjusted by tutor' + (bandChanged ? '<small>band changed ' + bandOf(ai, maximum) + ' → ' + bandOf(fin, maximum) + '</small>' : '') + '</span></span>';
     }
-    var link = confirmed ? '<span class="row-actions"><a class="rep" href="05-mark-report.html?submission_id=' + encodeURIComponent(item.id) + '">View report</a>' + (locked ? '' : '<a class="rep" href="03b-review-split.html?submission_id=' + encodeURIComponent(item.id) + '">Edit marks →</a>') + '</span>'
-      : (locked ? '—' : '<a class="rep" href="03b-review-split.html?submission_id=' + encodeURIComponent(item.id) + '">Review →</a>');
+    var link = confirmed ? '<span class="row-actions"><a class="rep" href="05-mark-report.html?submission_id=' + encodeURIComponent(item.id) + '">View report</a>' + (locked ? '' : '<a class="rep" href="03b-review-split.html?submission_id=' + encodeURIComponent(item.id) + '">Edit marks</a>') + '</span>'
+      : (locked ? '—' : '<a class="rep" href="03b-review-split.html?submission_id=' + encodeURIComponent(item.id) + '">Review</a>');
     return '<tr data-adjusted="' + (confirmed && item.flags.indexOf('adjusted') >= 0 ? 1 : 0) + '" data-confirmed="' + (confirmed ? 1 : 0) + '" data-band-changed="' + (confirmed && ai != null && bandOf(fin, maximum) !== bandOf(ai, maximum) ? 1 : 0) + '">' +
       '<td class="sid">' + ui.esc(item.sid || item.filename) + '</td><td>' + mark + '</td><td>' + change + '</td><td>' + ui.esc(item.marker ? item.marker.name : '—') + '</td><td>' + link + '</td></tr>';
   }
@@ -96,16 +164,19 @@
       apply();
       var finalise = document.getElementById('finaliseBtn');
       if (finalise) finalise.addEventListener('click', function () {
-        if (!confirm('Finalise this batch? Marks will be locked until the batch is reopened.')) return;
-        finalise.disabled = true;
-        MarkerAPI.finaliseBatch(batch.id, batch.version).then(function () { location.reload(); }).catch(function (error) { finalise.disabled = false; alert(error.message); });
+        requestFinaliseConfirmation().then(function (confirmed) {
+          if (!confirmed) return;
+          finalise.disabled = true;
+          MarkerAPI.finaliseBatch(batch.id, batch.version).then(function () { location.reload(); }).catch(function (error) { finalise.disabled = false; alert(error.message); });
+        });
       });
       var reopen = document.getElementById('reopenBtn');
       if (reopen) reopen.addEventListener('click', function () {
-        var reason = prompt('Why are you reopening this batch? The reason is kept in the audit log.');
-        if (!reason) return;
-        reopen.disabled = true;
-        MarkerAPI.reopenBatch(batch.id, batch.version, reason).then(function () { location.reload(); }).catch(function (error) { reopen.disabled = false; alert(error.message); });
+        requestReopenReason().then(function (reason) {
+          if (!reason) return;
+          reopen.disabled = true;
+          MarkerAPI.reopenBatch(batch.id, batch.version, reason).then(function () { location.reload(); }).catch(function (error) { reopen.disabled = false; alert(error.message); });
+        });
       });
       ui.setCrumb(batch.name);
       ui.stepTrack(batch.status);

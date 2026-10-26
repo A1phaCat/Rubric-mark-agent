@@ -97,7 +97,7 @@
       /* The three most recently created or edited rubrics. */
       var recent = rubrics.items.slice().sort(function (a, b) { return Date.parse(b.updated_at) - Date.parse(a.updated_at); }).slice(0, 3);
       document.getElementById('recentRubrics').innerHTML = recent.map(function (r) {
-        return '<a class="r" href="06-rubrics.html#open=' + encodeURIComponent(r.id) + '"><span>' + ui.esc(r.title) + '<small>Updated ' + ui.ago(r.updated_at) + (r.is_sample ? ' · sample' : '') + '</small></span><span>' + r.criteria_count + ' criteria</span></a>';
+        return '<a class="r" href="06-rubrics.html#open=' + encodeURIComponent(r.id) + '"><span class="r-main" title="' + ui.esc(r.title) + '">' + ui.esc(r.title) + '<small>Updated ' + ui.ago(r.updated_at) + (r.is_sample ? ' · sample' : '') + '</small></span><span class="r-count">' + r.criteria_count + ' criteria</span></a>';
       }).join('') + '<a class="r-add" href="01a-rubric-import.html">+ Import a rubric</a>';
     });
   };
