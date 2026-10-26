@@ -122,6 +122,8 @@
 
   .checks{ display:flex; flex-wrap:wrap; gap:8px; padding:12px 24px; border-bottom:1px solid var(--border); background:var(--tint); }
   .chip{ display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; font-size:12px; font-weight:500; }
+  button.chip{ border:0; cursor:pointer; }
+  button.chip:hover{ box-shadow:0 0 0 2px rgba(66,66,66,.12); }
   .chip.good{ background:var(--conf-high-bg); color:var(--conf-high); }
   .chip.warn{ background:var(--conf-med-bg); color:var(--conf-med); }
 
@@ -181,7 +183,8 @@
   .checks .hint{ margin-left:auto; font-size:12px; color:var(--ink-soft); align-self:center; }
   .chip.bad{ background:var(--risk-bg); color:var(--risk); }
   .c-col{ display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:0; }
-  .c-name-ed{ font-family:'Source Serif 4',serif; font-weight:600; font-size:15px; line-height:1.35; border:1px solid transparent; border-radius:6px; padding:2px 6px; margin-left:-7px; outline:none; cursor:text; }
+  .c-name-ed{ display:block; width:100%; min-width:150px; min-height:28px; font-family:'Source Serif 4',serif; font-weight:600; font-size:15px; line-height:1.35; border:1px solid transparent; border-radius:6px; padding:3px 6px; margin-left:-7px; outline:none; cursor:text; }
+  .c-name-ed:empty::before{ content:attr(data-placeholder); color:var(--ink-soft); font-family:'Inter',sans-serif; font-size:13px; font-weight:400; font-style:italic; }
   .c-name-ed:hover{ border-color:var(--border); background:var(--surface); }
   .c-name-ed:focus{ border-color:var(--primary); background:var(--surface); }
   .c-pts{ display:inline-flex; align-items:center; gap:3px; }
@@ -193,6 +196,12 @@
   button.c-toggle{ border:0; background:none; padding:0; cursor:pointer; font:inherit; font-size:12px; }
   button.c-toggle:hover{ color:var(--primary); }
   .cell .top{ flex-wrap:wrap; row-gap:2px; }
+  .cell-tools{ display:flex; align-items:center; gap:4px; margin-left:auto; }
+  .cell .label-in{ min-width:0; width:100%; border:0; border-bottom:1px solid transparent; background:transparent; font-size:11px; font-weight:600; color:var(--ink-soft); padding:1px 2px; }
+  .cell .label-in:hover{ border-bottom-color:var(--border-strong); }
+  .cell .label-in:focus{ outline:2px solid var(--primary); background:#fff; }
+  .mini-remove{ width:22px; height:22px; flex:none; border:0; border-radius:5px; background:transparent; color:var(--ink-soft); cursor:pointer; }
+  .mini-remove:hover{ background:var(--risk-bg); color:var(--risk); }
   .cell .pts-in{ flex:none; width:64px; border:1px solid transparent; background:transparent; font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:500; padding:1px 4px; margin-left:-5px; border-radius:4px; }
   .cell .pts-in:hover{ border-color:var(--border-strong); background:rgba(255,255,255,.7); }
   .cell .pts-in:focus{ outline:2px solid var(--primary); outline-offset:0; background:#fff; }
@@ -219,6 +228,12 @@
   .save-wrap{ display:contents; }
   .save-note{ font-size:12px; color:var(--risk); max-width:320px; text-align:right; }
   .save-note.ok{ color:var(--conf-high); }
+  .criterion-tools{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .criterion-tools .add-level{ border:0; background:none; color:var(--primary); padding:0; font-size:11.5px; font-weight:600; cursor:pointer; }
+  .criterion-tools .remove-criterion{ border:0; background:none; color:var(--ink-soft); padding:0; font-size:11.5px; cursor:pointer; }
+  .criterion-tools .remove-criterion:hover{ color:var(--risk); }
+  .matrix-actions{ display:flex; padding:14px 24px; border-top:1px solid var(--border); background:var(--tint); }
+  .matrix-actions .btn{ min-height:38px; }
 
   /* Back link in the top bar (every page except Home) */
   .nav-left{ display:flex; align-items:center; gap:18px; min-width:0; }
@@ -319,7 +334,7 @@
       <ol class="steps" aria-label="Steps">
         <li class="current"><span class="n">1</span>Source</li>
         <li class="next"><span class="n">2</span>Review structure</li>
-        <li><span class="n">3</span>Save to library</li>
+        <li><span class="n">3</span><span id="step3">Save to library</span></li>
       </ol>
       <button class="xbtn" type="button" id="closeX" aria-label="Close and return to the rubric library" title="Close — back to the rubric library">×</button>
     </div>
@@ -398,6 +413,7 @@
         <div class="matrix">
           <div class="grid m-head" id="mHead"></div>
           <div id="criteria"></div>
+          <div class="matrix-actions" id="matrixActions" hidden><button class="btn btn-ghost" type="button" id="addCriterion">+ Add criterion</button></div>
         </div>
       </div>
     </section>
@@ -417,10 +433,11 @@
   /* The rubric shown here always comes from the parser API (upload or paste) and is
      saved to the library through POST /rubrics — nothing is preloaded in the page. */
   var state = { tab:'upload', open:0, dirty:false, busy:false };
-  var R = null;            // { title, source, criteria:[{ name, pts, labels:[], levels:[points], text:[], asks:[] }] }
+  var R = null;            // matrix editor plus the parser's canonical metadata
   var FLAGS = {}, EDITED = {}, WARNINGS = [], PARSER = '';
 
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+  function clone(value){ return JSON.parse(JSON.stringify(value == null ? {} : value)); }
   var tick = '<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg>';
 
   function fromParsed(result, source){
@@ -431,14 +448,22 @@
     R = {
       title: rubric.title || 'Untitled rubric',
       source: source,
+      parser: result.parser || null,
+      total_score: rubric.total_score,
+      total_score_source: rubric.total_score_source,
+      assumptions: clone(result.assumptions || []),
+      questions: clone(result.questions || []),
       criteria: (rubric.criteria || []).map(function(c, i){
         var levels = c.levels || [];
         levels.forEach(function(level, j){ if (level.prov && (level.prov.points === 'inferred' || level.prov.description === 'inferred' || level.prov.points === 'missing')) FLAGS[i + '-' + j] = { why: 'Inferred by the parser — check it' }; });
         return {
-          name: c.name || '', pts: c.weight == null ? '' : Number(c.weight), desc: c.description || '', mapping: c.score_mapping || 'explicit',
-          labels: levels.map(function(level, j){ return level.label || ('Level ' + (j + 1)); }),
+          id:c.id, name: c.name || '', pts: c.weight == null ? '' : Number(c.weight), desc: c.description || '', mapping: c.score_mapping || 'explicit',
+          stated_percent:c.stated_percent == null ? null : c.stated_percent, grading_mode:c.grading_mode || '', scoring_mode:c.scoring_mode || 'fixed_levels', granularity:c.granularity == null ? null : c.granularity,
+          aspects:clone(c.aspects || []), prov:clone(c.prov || {}), source_text:clone(c.source_text || {}),
+          labels: levels.map(function(level){ return level.label || ''; }),
           levels: levels.map(function(level){ return level.points == null ? '' : Number(level.points); }),
           text: levels.map(function(level){ return level.description || ''; }),
+          levelMeta:levels.map(function(level){ return {id:level.id,min_score:level.min_score,max_score:level.max_score,min_inclusive:level.min_inclusive!==false,max_inclusive:level.max_inclusive!==false,prov:clone(level.prov||{}),source_text:clone(level.source_text||{})}; }),
           asks: (c.aspects || []).map(function(a){ return a.label || a; })
         };
       })
@@ -458,10 +483,11 @@
   function analyse(){
     if (!R) return { total:0, errCells:0, review:0, issues:['nothing parsed yet'] };
     var total = Math.round(R.criteria.reduce(function(s, c){ return s + (Number(c.pts) || 0); }, 0) * 100) / 100;
-    var errCells = 0, nameErr = 0, levelErr = 0;
+    var errCells = 0, nameErr = 0, levelErr = 0, labelErr = 0;
     R.criteria.forEach(function(c){
       if (!String(c.name).trim()) nameErr++;
       if (c.levels.length < 2) levelErr++;
+      c.labels.forEach(function(label){ if (!String(label || '').trim()) labelErr++; });
       c.levels.forEach(function(_, j){ if (cellError(c, j)) errCells++; });
     });
     var review = Object.keys(FLAGS).length, issues = [];
@@ -469,9 +495,10 @@
     if (!(total > 0)) issues.push('total points missing');
     if (errCells) issues.push(errCells + ' cell' + (errCells > 1 ? 's' : '') + ' inconsistent');
     if (levelErr) issues.push(levelErr + ' criteria need at least two levels');
+    if (labelErr) issues.push(labelErr + ' level' + (labelErr > 1 ? 's need' : ' needs') + ' a label');
     if (review) issues.push(review + ' cell' + (review > 1 ? 's' : '') + ' to review');
     if (nameErr) issues.push('a criterion has no name');
-    return { total:total, errCells:errCells, review:review, issues:issues };
+    return { total:total, errCells:errCells, review:review, labelErr:labelErr, levelErr:levelErr, nameErr:nameErr, issues:issues };
   }
 
   /* ---------- Render ---------- */
@@ -483,8 +510,10 @@
       head.innerHTML = '';
       box.innerHTML = '<div class="empty-state">' + (state.busy ? 'Reading rubric structure…' : 'Upload a rubric file or paste the rubric text to see its structure here.') + '</div>';
       document.getElementById('pTitle').textContent = 'No rubric yet';
+      document.getElementById('matrixActions').hidden = true;
       refresh(); return;
     }
+    document.getElementById('matrixActions').hidden = false;
     var width = Math.max.apply(null, R.criteria.map(function(c){ return c.levels.length; }).concat([1]));
     document.querySelector('.matrix').style.setProperty('--levels', width);
     var first = (R.criteria[0] || { labels:[] }).labels, same = R.criteria.every(function(c){ return c.labels.join('|') === first.join('|'); });
@@ -497,7 +526,7 @@
       var cells = c.levels.map(function(p, j){
         var fl = FLAGS[i + '-' + j];
         return '<div class="cell l' + Math.min(j + 1, 5) + '" data-i="' + i + '" data-j="' + j + '">' +
-          '<span class="lvn">' + esc(c.labels[j]) + '</span><div class="top"><input class="pts-in" data-k="lv" data-i="' + i + '" data-j="' + j + '" value="' + esc(p) + '" inputmode="decimal" aria-label="' + esc(c.name) + ' ' + esc(c.labels[j]) + ' points"><span class="lbl"></span></div>' +
+          '<input class="label-in" data-k="ll" data-i="' + i + '" data-j="' + j + '" value="' + esc(c.labels[j]) + '" aria-label="Performance level label"><div class="top"><input class="pts-in" data-k="lv" data-i="' + i + '" data-j="' + j + '" value="' + esc(p) + '" inputmode="decimal" aria-label="' + esc(c.name) + ' ' + esc(c.labels[j]) + ' points"><span class="cell-tools"><span class="lbl"></span><button type="button" class="mini-remove" data-remove-level="' + j + '" data-i="' + i + '" aria-label="Remove ' + esc(c.labels[j]) + ' level" title="Remove performance level">×</button></span></div>' +
           '<span class="txt" contenteditable="true" data-k="tx" data-i="' + i + '" data-j="' + j + '" role="textbox" aria-multiline="true" data-ph="No descriptor" aria-label="' + esc(c.name) + ' ' + esc(c.labels[j]) + ' description">' + esc(c.text[j]) + '</span>' +
           '<span class="why">' + (fl ? esc(fl.why) : '') + '</span>' +
           '<button type="button" class="ok-btn" data-ok="' + i + '-' + j + '">✓ Looks right</button>' +
@@ -505,11 +534,12 @@
       }).join('');
       return '<div class="crit' + (open ? ' open' : '') + '">' +
         '<div class="grid"><div class="c-col">' +
-          '<span class="c-name-ed" contenteditable="true" data-k="nm" data-i="' + i + '" role="textbox" aria-label="Criterion name">' + esc(c.name) + '</span>' +
+          '<span class="c-name-ed" contenteditable="true" data-k="nm" data-i="' + i + '" data-placeholder="Criterion name" role="textbox" aria-label="Criterion name">' + esc(c.name) + '</span>' +
           (c.desc ? '<span class="c-desc" title="' + esc(c.desc) + '">' + esc(c.desc) + '</span>' : '') +
           (c.text.every(function(t){ return !String(t || '').trim(); }) ? '<span class="c-note">Labels only — AI judges against the criterion description</span>' : '') +
           '<span class="c-meta"><span class="c-pts" data-cp="' + i + '"><input data-k="cp" data-i="' + i + '" value="' + esc(c.pts) + '" inputmode="decimal" aria-label="Criterion points">pts</span>' +
           ((c.asks.length || c.desc) ? '<button type="button" class="c-toggle" data-open="' + i + '" aria-expanded="' + open + '">' + (open ? 'Hide details' : 'Show details') + '</button>' : '') + '</span>' +
+          '<span class="criterion-tools"><button type="button" class="add-level" data-add-level="' + i + '">+ Add level</button><button type="button" class="remove-criterion" data-remove-criterion="' + i + '">Remove criterion</button></span>' +
         '</div>' + cells + '</div>' +
         (c.asks.length ? '<div class="asks"><div class="h">What this criterion asks for</div><ul>' + c.asks.map(function(q){ return '<li>' + esc(q) + '</li>'; }).join('') + '</ul></div>' : '') +
       '</div>';
@@ -543,15 +573,20 @@
       ['good', R.criteria.length + ' criteria'],
       ['good', 'Levels as in the source'],
       ['good', 'Total ' + a.total + ' pts'],
-      a.errCells ? ['bad', a.errCells + ' inconsistent cell' + (a.errCells > 1 ? 's' : '')] : ['good', 'Points descend across levels']
-    ].concat(WARNINGS.slice(0, 3).map(function(w){ return ['warn', w]; }));
+      a.errCells ? ['bad', a.errCells + ' inconsistent cell' + (a.errCells > 1 ? 's' : ''), 'cell'] : ['good', 'Points descend across levels'],
+      a.labelErr ? ['bad', a.labelErr + ' level' + (a.labelErr > 1 ? 's need' : ' needs') + ' a label', 'cell'] : ['good', 'Every level has a label'],
+      a.nameErr ? ['bad', 'A criterion needs a name', 'name'] : null
+    ].filter(Boolean).concat([
+      a.levelErr ? ['bad', a.levelErr + ' criterion' + (a.levelErr > 1 ? ' need' : ' needs') + ' at least two levels', 'levels'] : null
+    ].filter(Boolean), WARNINGS.slice(0, 3).map(function(w){ return ['warn', w]; }));
     document.getElementById('checks').innerHTML = chips.map(function(c){
-      return '<span class="chip ' + c[0] + '">' + (c[0] === 'good' ? tick : '! ') + esc(c[1]) + '</span>';
+      var tag = c[2] ? 'button type="button" data-fix="' + c[2] + '"' : 'span';
+      return '<' + tag + ' class="chip ' + c[0] + '">' + (c[0] === 'good' ? tick : '! ') + esc(c[1]) + '</' + (c[2] ? 'button' : 'span') + '>';
     }).join('') + (R ? '<span class="hint">Click any name, points or description to edit</span>' : '');
     var btn = document.getElementById('saveRubric'), note = document.getElementById('saveNote');
     btn.disabled = !R || a.issues.length > 0 || state.busy;
     note.className = 'save-note' + (R && !a.issues.length ? ' ok' : '');
-    note.textContent = !R ? '' : a.issues.length ? 'Fix to save: ' + a.issues.join(', ') : 'Ready — saves to your rubric library (pinned to the top)';
+    note.textContent = !R ? '' : a.issues.length ? 'Fix to save: ' + a.issues.join(', ') : FROM_SETUP ? 'Ready — saves to your library and returns to this batch' : 'Ready — saves to your rubric library (pinned to the top)';
   }
 
   /* ---------- Parse: upload or paste, both through the API ---------- */
@@ -586,10 +621,11 @@
   crit.addEventListener('input', function(e){
     var el = e.target, k = el.dataset.k; if (!k || !R) return;
     var c = R.criteria[Number(el.dataset.i)], j = Number(el.dataset.j);
-    if (k === 'lv'){ c.levels[j] = el.value.trim() === '' ? '' : Number(el.value); touch(el.dataset.i + '-' + j); }
-    else if (k === 'tx'){ c.text[j] = el.innerText.replace(/\n+$/,''); touch(el.dataset.i + '-' + j); }
-    else if (k === 'nm'){ c.name = el.innerText.trim(); touch(); }
-    else if (k === 'cp'){ c.pts = el.value.trim() === '' ? '' : Number(el.value); touch(); }
+    if (k === 'lv'){ c.levels[j] = el.value.trim() === '' ? '' : Number(el.value); c.levelMeta[j].min_score=c.levels[j]; c.levelMeta[j].max_score=c.levels[j]; c.levelMeta[j].prov.points='edited'; touch(el.dataset.i + '-' + j); }
+    else if (k === 'll'){ c.labels[j] = el.value; c.levelMeta[j].prov.label='edited'; touch(el.dataset.i + '-' + j); }
+    else if (k === 'tx'){ c.text[j] = el.innerText.replace(/\n+$/,''); c.levelMeta[j].prov.description='edited'; touch(el.dataset.i + '-' + j); }
+    else if (k === 'nm'){ c.name = el.innerText.trim(); c.prov.name='edited'; touch(); }
+    else if (k === 'cp'){ c.pts = el.value.trim() === '' ? '' : Number(el.value); c.prov.weight='edited'; touch(); }
     refresh();
   });
   crit.addEventListener('keydown', function(e){
@@ -604,24 +640,59 @@
     var ok = e.target.closest('[data-ok]');
     if (ok){ touch(ok.dataset.ok); refresh(); return; }
     var t = e.target.closest('button[data-open]');
-    if (t){ var i = Number(t.dataset.open); state.open = state.open === i ? -1 : i; render(); }
+    if (t){ var i = Number(t.dataset.open); state.open = state.open === i ? -1 : i; render(); return; }
+    var add = e.target.closest('[data-add-level]');
+    if (add){
+      var ai=Number(add.dataset.addLevel), c=R.criteria[ai], j=c.levels.length;
+      c.labels.push(''); c.levels.push(''); c.text.push(''); c.levelMeta.push({id:'level-'+(j+1),min_score:null,max_score:null,min_inclusive:true,max_inclusive:true,prov:{label:'edited',points:'edited',description:'missing'},source_text:{}});
+      state.open=ai; touch(); render(); setTimeout(function(){ var target=document.querySelector('[data-k="ll"][data-i="'+ai+'"][data-j="'+j+'"]'); if(target)target.focus(); },0); return;
+    }
+    var removeLevel=e.target.closest('[data-remove-level]');
+    if(removeLevel){
+      var ri=Number(removeLevel.dataset.i), rj=Number(removeLevel.dataset.removeLevel), rc=R.criteria[ri];
+      rc.labels.splice(rj,1); rc.levels.splice(rj,1); rc.text.splice(rj,1); rc.levelMeta.splice(rj,1); FLAGS={}; EDITED={}; touch(); render(); return;
+    }
+    var removeCriterion=e.target.closest('[data-remove-criterion]');
+    if(removeCriterion){ var ci=Number(removeCriterion.dataset.removeCriterion); if(!confirm('Remove “'+(R.criteria[ci].name||'this criterion')+'”?'))return; R.criteria.splice(ci,1); FLAGS={}; EDITED={}; state.open=Math.min(state.open,R.criteria.length-1); touch(); render(); }
+  });
+  document.getElementById('addCriterion').addEventListener('click',function(){
+    var i=R.criteria.length, points=[3,2,1,0];
+    R.criteria.push({id:null,name:'',pts:3,desc:'',mapping:'explicit',stated_percent:null,grading_mode:'',scoring_mode:'fixed_levels',granularity:null,aspects:[],prov:{name:'edited',weight:'edited'},source_text:{},labels:['Excellent','Good','Basic','Missing'],levels:points.slice(),text:['','','',''],levelMeta:points.map(function(point,j){return {id:'level-'+(j+1),min_score:point,max_score:point,min_inclusive:true,max_inclusive:true,prov:{label:'edited',points:'edited',description:'missing'},source_text:{}};}),asks:[]});
+    state.open=i; touch(); render(); setTimeout(function(){var target=document.querySelector('[data-k="nm"][data-i="'+i+'"]');if(target)target.focus();},0);
+  });
+  document.getElementById('checks').addEventListener('click',function(e){
+    var fix=e.target.closest('[data-fix]'); if(!fix||!R)return;
+    if(fix.dataset.fix==='name'){
+      var nameIndex=R.criteria.findIndex(function(c){return !String(c.name||'').trim();});
+      if(nameIndex<0)return; state.open=nameIndex; render(); var nameTarget=document.querySelector('[data-k="nm"][data-i="'+nameIndex+'"]'); if(nameTarget){nameTarget.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(function(){nameTarget.focus();},250);} return;
+    }
+    if(fix.dataset.fix==='levels'){
+      var levelIndex=R.criteria.findIndex(function(c){return c.levels.length<2;});
+      if(levelIndex<0)return; state.open=levelIndex; render(); var addTarget=document.querySelector('[data-add-level="'+levelIndex+'"]'); if(addTarget){addTarget.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(function(){addTarget.focus();},250);} return;
+    }
+    var found=null; R.criteria.some(function(c,i){return c.levels.some(function(_,j){if(cellError(c,j)||!String(c.labels[j]||'').trim()){found={i:i,j:j};return true;}return false;});});
+    if(!found)return; state.open=found.i; render(); var target=document.querySelector('[data-i="'+found.i+'"][data-j="'+found.j+'"]'); if(target){target.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(function(){var input=target.querySelector(cellError(R.criteria[found.i],found.j)?'.pts-in':'.label-in');if(input)input.focus();},250);}
   });
   document.querySelector('.tabs').addEventListener('click', function(e){
     var b = e.target.closest('button[data-tab]'); if (!b || b.disabled) return; state.tab = b.dataset.tab; render();
   });
 
-  /* ---------- Save to the library (database), then open it there ---------- */
+  function rubricPayload(){
+    return {title:R.title||'Untitled rubric',source:R.source+(state.dirty?' · edited':''),parser:R.parser||PARSER||null,total_score:R.total_score,total_score_source:R.total_score_source,criteria:R.criteria.map(function(c){
+      return {id:c.id,name:c.name,weight:Number(c.pts),description:c.desc||'',stated_percent:c.stated_percent,grading_mode:c.grading_mode,scoring_mode:c.scoring_mode,score_mapping:c.mapping,granularity:c.granularity,aspects:clone(c.aspects||[]),prov:clone(c.prov||{}),source_text:clone(c.source_text||{}),levels:c.levels.map(function(points,j){var meta=c.levelMeta[j]||{};return {id:meta.id||('level-'+(j+1)),label:c.labels[j],points:Number(points),min_score:meta.min_score==null?Number(points):Number(meta.min_score),max_score:meta.max_score==null?Number(points):Number(meta.max_score),min_inclusive:meta.min_inclusive!==false,max_inclusive:meta.max_inclusive!==false,description:c.text[j],prov:clone(meta.prov||{}),source_text:clone(meta.source_text||{})};})};
+    })};
+  }
+
+  /* ---------- Save to the library, then return to the caller ---------- */
   document.getElementById('saveRubric').addEventListener('click', function(){
     if (!R || analyse().issues.length) return;
     var btn = this; btn.disabled = true; document.getElementById('saveNote').textContent = 'Saving…';
-    MarkerAPI.createRubric({
-      title: R.title || 'Untitled rubric',
-      source: R.source + (state.dirty ? ' · edited' : ''),
-      criteria: R.criteria.map(function(c){
-        return { name: c.name, weight: Number(c.pts), description: c.desc || '', score_mapping: c.mapping, levels: c.levels.map(function(points, j){ return { id: String(c.labels[j] || j).toLowerCase().replace(/[^a-z0-9]+/g, '-'), label: c.labels[j], points: Number(points), description: c.text[j] }; }) };
-      })
-    }).then(function(saved){
+    MarkerAPI.createRubric(rubricPayload()).then(function(saved){
       state.dirty = false;
+      if(FROM_SETUP){
+        var rubric=saved.rubric, batchRubric={libId:rubric.id,title:rubric.title,source:'Rubric library · '+rubric.source,criteria:rubric.criteria};
+        location.href='01-upload.html#saved=1&rubric='+encodeURIComponent(JSON.stringify(batchRubric)); return;
+      }
       location.href = LIB + '#open=' + encodeURIComponent(saved.rubric.id);
     }).catch(function(error){ btn.disabled = false; document.getElementById('saveNote').textContent = 'Save failed: ' + error.message; });
   });
@@ -670,6 +741,8 @@
   });
 
   render();
+
+  if(FROM_SETUP){ document.getElementById('saveRubric').textContent='Save & use in batch'; document.getElementById('step3').textContent='Save & use in batch'; }
 
 </script>
 <script src="/js/api.js"></script>

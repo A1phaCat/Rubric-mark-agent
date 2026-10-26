@@ -340,6 +340,9 @@
     if (c.levels && c.levels.length) return c.levels;
     return (c.bands || []).map(function(description, index){ return { id:'level-'+(index+1), label:LV[index] || ('Level '+(index+1)), points:'', description:description }; });
   }
+  function criterionPayload(c){
+    return {name:c.name,weight:Number(c.weight),description:c.description||'',stated_percent:c.stated_percent,grading_mode:c.grading_mode,scoring_mode:c.scoring_mode,score_mapping:c.score_mapping,granularity:c.granularity,aspects:c.aspects||[],prov:c.prov||{},source_text:c.source_text||{},levels:levelsFor(c)};
+  }
   function checks(r){
     var t = L.total(r), list = [];
     list.push(t > 0 ? ['ok', 'Maximum total: ' + t + ' marks'] : ['bad', 'Maximum total is missing']);
@@ -420,7 +423,7 @@
   $('dSave').addEventListener('click', function(){
     if (!draft.title) draft.title = 'Untitled rubric';
     var btn = $('dSave'); btn.disabled = true;
-    var payload = { version: draft.version, title: draft.title, source: draft.source, criteria: draft.criteria.map(function(c){ return { name:c.name, weight:Number(c.weight), description:c.description || '', score_mapping:c.score_mapping, grading_mode:c.grading_mode, levels:levelsFor(c) }; }) };
+    var payload = { version: draft.version, title: draft.title, source: draft.source, criteria: draft.criteria.map(criterionPayload) };
     MarkerAPI.updateRubric(draft.id, payload).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){
       editing = false; draft = null; drawBody(); render(); toast('Rubric saved as a new version');
     }).catch(function(err){ btn.disabled = false; alert(err.message); });

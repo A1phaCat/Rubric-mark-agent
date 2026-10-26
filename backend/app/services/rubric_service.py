@@ -132,6 +132,15 @@ class RubricUseCases:
     def _add_criteria(self, rubric_id: str, version: int, criteria: list[dict[str, Any]]) -> None:
         for position, item in enumerate(criteria):
             levels = self._normalise_levels(item.get("levels", []), float(item["weight"]))
+            metadata = {
+                "flags": item.get("flags", []),
+                "stated_percent": item.get("stated_percent"),
+                "scoring_mode": item.get("scoring_mode", "fixed_levels"),
+                "score_mapping": item.get("score_mapping", "explicit"),
+                "granularity": item.get("granularity"),
+                "prov": item.get("prov", {}),
+                "source_text": item.get("source_text", {}),
+            }
             descriptions = [level["description"] for level in levels]
             descriptions += [""] * (5 - len(descriptions))
             points = [float(level["points"]) for level in levels]
@@ -156,12 +165,14 @@ class RubricUseCases:
                     pts_ps=points[3],
                     pts_fl=points[4],
                     levels_json=json.dumps(levels, ensure_ascii=False),
-                    # Evidence requirements are submission-specific runtime
-                    # data.  They are derived by the grading pipeline, not
-                    # during rubric parsing or library persistence.
+                    # Keep parser/editor metadata with each library version so
+                    # importing, editing and reusing a rubric is lossless.
                     grading_mode=str(item.get("grading_mode") or ""),
-                    aspects_json="[]",
-                    flags_json=json.dumps(item.get("flags", [])),
+                    aspects_json=json.dumps(item.get("aspects", []), ensure_ascii=False),
+                    # This column originally held only a list of flags. Keep
+                    # accepting that legacy shape while using it as the
+                    # criterion metadata envelope for lossless import/save.
+                    flags_json=json.dumps(metadata, ensure_ascii=False),
                 )
             )
 
@@ -259,6 +270,8 @@ class RubricUseCases:
                 }
                 for label, desc, point in zip(labels, descriptions, points)
             ]
+        stored_metadata = json.loads(item.flags_json or "[]")
+        metadata = stored_metadata if isinstance(stored_metadata, dict) else {"flags": stored_metadata}
         return {
             "id": item.id,
             "name": item.name,
@@ -267,4 +280,11 @@ class RubricUseCases:
             "levels": levels,
             "grading_mode": item.grading_mode,
             "aspects": json.loads(item.aspects_json or "[]"),
+            "flags": metadata.get("flags", []),
+            "stated_percent": metadata.get("stated_percent"),
+            "scoring_mode": metadata.get("scoring_mode", "fixed_levels"),
+            "score_mapping": metadata.get("score_mapping", "explicit"),
+            "granularity": metadata.get("granularity"),
+            "prov": metadata.get("prov", {}),
+            "source_text": metadata.get("source_text", {}),
         }

@@ -138,6 +138,60 @@ test('SID repair queue confirms valid input and advances to the next file', asyn
   await expect(queue.locator('.sid-input').first()).toBeFocused();
 });
 
+test('rubric import keeps matrix review and returns a saved rubric to batch setup', async ({ page }) => {
+  let savedPayload;
+  const parsedRubric = {
+    title:'Imported architecture rubric', total_score:10, total_score_source:'stated',
+    criteria:[{
+      name:'Architecture', weight:10, description:'Assess design trade-offs.', stated_percent:25,
+      grading_mode:'analytic', scoring_mode:'score_range', score_mapping:'range', granularity:0.5,
+      aspects:[{ label:'Trade-offs', required:true }], prov:{ name:'extracted' }, source_text:{ name:'Architecture (25%)' },
+      levels:[
+        { id:'excellent', label:'Excellent', points:10, min_score:8, max_score:10, description:'Well justified.', prov:{ description:'inferred' }, source_text:{ description:'Well justified.' } },
+        { id:'developing', label:'Developing', points:7, min_score:0, max_score:7.5, description:'Partly justified.', prov:{ description:'extracted' }, source_text:{} },
+      ],
+    }],
+  };
+  await page.route('**/api/v1/rubrics/parse', async route => route.fulfill({
+    contentType:'application/json',
+    body:JSON.stringify({ rubric:parsedRubric, parser:'ai-recovery:test', warnings:[], assumptions:[], questions:[] }),
+  }));
+  await page.route('**/api/v1/rubrics', async route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    savedPayload = route.request().postDataJSON();
+    await route.fulfill({
+      status:201, contentType:'application/json',
+      body:JSON.stringify({ rubric:{ id:'rub_e2e_import', version:1, title:savedPayload.title, source:savedPayload.source, criteria:savedPayload.criteria } }),
+    });
+  });
+
+  await page.goto('/01a-rubric-import.html?from=setup');
+  await expect(page.locator('#saveRubric')).toHaveText('Save & use in batch');
+  await page.getByRole('tab', { name:'Paste / Image' }).click();
+  await page.locator('#paste').fill('Rubric text');
+  await page.locator('#pasteBtn').click();
+  await expect(page.locator('#criteria .crit')).toHaveCount(1);
+  await expect(page.getByRole('button', { name:'✓ Looks right' })).toBeVisible();
+  await page.getByRole('button', { name:'+ Add level' }).click();
+  const addedLevel = page.locator('#criteria .cell').last();
+  await addedLevel.locator('.label-in').fill('Missing');
+  await addedLevel.locator('.pts-in').fill('0');
+  await page.locator('#addCriterion').click();
+  const addedCriterion = page.locator('#criteria .crit').last();
+  await expect(addedCriterion.locator('.c-name-ed')).toHaveAttribute('data-placeholder', 'Criterion name');
+  await addedCriterion.locator('.c-name-ed').fill('Professional communication');
+  await page.getByRole('button', { name:'✓ Looks right' }).click();
+  await page.locator('#saveRubric').click();
+  await page.waitForURL(/01-upload\.html#saved=1&rubric=/);
+  await expect(page.locator('#rTitle')).toHaveValue('Imported architecture rubric');
+  expect(savedPayload.criteria[0].scoring_mode).toBe('score_range');
+  expect(savedPayload.criteria[0].aspects).toEqual([{ label:'Trade-offs', required:true }]);
+  expect(savedPayload.criteria[0].levels[0].min_score).toBe(8);
+  expect(savedPayload.criteria[0].levels[0].prov).toEqual({ description:'inferred' });
+  expect(savedPayload.criteria[0].levels).toHaveLength(3);
+  expect(savedPayload.criteria[1].name).toBe('Professional communication');
+});
+
 test('local-fake API completes a new single-file batch', async ({ request, page }) => {
   let createdBatchId = null;
   try {

@@ -35,14 +35,14 @@
       return this.upsert({
         id: id, title: title, source: b.source || 'Imported',
         usedBy: existing ? existing.usedBy : (usedBy ? [usedBy] : []),
-        criteria: (b.criteria || []).map(function (c) { var levels=(c.levels||[]).map(function(level){return clone(level);});var bands=levels.length?levels.map(function(level){return level.description;}):(c.bands||[]).slice();return { name:c.name,weight:Number(c.weight),description:c.description||'',score_mapping:c.score_mapping,grading_mode:c.grading_mode,aspects:clone(c.aspects||[]),levels:levels,bands:bands }; })
+        criteria: (b.criteria || []).map(function (c) { var levels=(c.levels||[]).map(function(level){return clone(level);});var bands=levels.length?levels.map(function(level){return level.description;}):(c.bands||[]).slice();return { id:c.id,name:c.name,weight:Number(c.weight),description:c.description||'',stated_percent:c.stated_percent,scoring_mode:c.scoring_mode,score_mapping:c.score_mapping,granularity:c.granularity,grading_mode:c.grading_mode,aspects:clone(c.aspects||[]),prov:clone(c.prov||{}),source_text:clone(c.source_text||{}),levels:levels,bands:bands }; })
       });
     },
     /* Shape the set-up page expects */
     toBatchRubric: function (r) {
       var d = new Date();
       return { libId: r.id, title: r.title, source: 'Rubric library · ' + r.source, savedAt: d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'),
-        criteria: r.criteria.map(function (c) { var levels=(c.levels||[]).map(function(level){return clone(level);});return { name:c.name,weight:Number(c.weight),grading_mode:c.grading_mode,aspects:clone(c.aspects||[]),conf:['high','From your library'],note:'Saved in your rubric library.',levels:levels,bands:levels.length?levels.map(function(level){return level.description;}):(c.bands||[]).slice() }; }) };
+        criteria: r.criteria.map(function (c) { var levels=(c.levels||[]).map(function(level){return clone(level);});return { id:c.id,name:c.name,weight:Number(c.weight),description:c.description||'',stated_percent:c.stated_percent,scoring_mode:c.scoring_mode,score_mapping:c.score_mapping,granularity:c.granularity,grading_mode:c.grading_mode,aspects:clone(c.aspects||[]),prov:clone(c.prov||{}),source_text:clone(c.source_text||{}),conf:['high','From your library'],note:'Saved in your rubric library.',levels:levels,bands:levels.length?levels.map(function(level){return level.description;}):(c.bands||[]).slice() }; }) };
     },
     ago: function (t) {
       var m = Math.round((Date.now() - t) / 6e4);

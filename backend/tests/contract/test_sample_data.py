@@ -149,3 +149,58 @@ def test_canvas_export_uploads_and_keeps_criterion_descriptions(client: TestClie
     assert stored["description"].startswith("A functional and coherent MVP")
     assert [level["label"] for level in stored["levels"]] == ["Exceeds", "Mastery", "Near", "Below", "No Evidence"]
     assert all(level["description"] == "" for level in stored["levels"])
+
+
+def test_rubric_library_round_trips_import_metadata(client: TestClient) -> None:
+    criterion = {
+        "name": "Architecture",
+        "weight": 10,
+        "description": "Assess the design trade-offs.",
+        "stated_percent": 25,
+        "grading_mode": "analytic",
+        "scoring_mode": "score_range",
+        "score_mapping": "range",
+        "granularity": 0.5,
+        "aspects": [{"label": "Trade-offs", "required": True}],
+        "prov": {"name": "extracted", "weight": "inferred"},
+        "source_text": {"name": "Architecture (25%)"},
+        "levels": [
+            {
+                "id": "excellent",
+                "label": "Excellent",
+                "points": 10,
+                "min_score": 8,
+                "max_score": 10,
+                "description": "Well justified.",
+                "prov": {"description": "extracted"},
+                "source_text": {"description": "Well justified."},
+            },
+            {
+                "id": "developing",
+                "label": "Developing",
+                "points": 7,
+                "min_score": 0,
+                "max_score": 7.5,
+                "description": "Partly justified.",
+            },
+        ],
+    }
+    response = client.post(
+        "/api/v1/rubrics",
+        json={"title": "Metadata round trip", "source": "import test", "criteria": [criterion]},
+    )
+    assert response.status_code == 201
+    stored = response.json()["rubric"]["criteria"][0]
+    for key in (
+        "stated_percent",
+        "grading_mode",
+        "scoring_mode",
+        "score_mapping",
+        "granularity",
+        "aspects",
+        "prov",
+        "source_text",
+    ):
+        assert stored[key] == criterion[key]
+    assert stored["levels"][0]["min_score"] == 8
+    assert stored["levels"][0]["prov"] == {"description": "extracted"}
