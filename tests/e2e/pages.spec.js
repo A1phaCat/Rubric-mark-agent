@@ -176,3 +176,30 @@ test('setup UI parses variable levels and opens the newly created batch', async 
   }
 });
 
+test('setup UI locates and repairs a criterion with only one scoring level', async ({ page }) => {
+  await page.goto('/01-upload.html');
+  await page.locator('#pasteText').fill([
+    'Draft rubric',
+    'CRITERION: Analysis',
+    'MAX: 3',
+    'Excellent (3): Complete and well supported.',
+  ].join('\n'));
+  await page.locator('#parseBtn').click();
+
+  const shortLevels = page.locator('[data-check="short-levels"]');
+  await expect(shortLevels).toContainText('1 criterion needs at least 2 scoring levels');
+  await shortLevels.click();
+  await expect(page.locator('.crit').first()).toHaveClass(/open/);
+  await expect(page.locator('.crit').first().locator('[data-add-level]')).toBeFocused();
+
+  await page.locator('.crit').first().locator('[data-add-level]').click();
+  await expect(page.locator('.crit').first().locator('.band')).toHaveCount(2);
+  const added = page.locator('.crit').first().locator('.band').last();
+  await added.locator('[data-f="level-label"]').fill('Missing');
+  await added.locator('[data-f="level-points"]').fill('0');
+
+  await expect(page.locator('[data-check="short-levels"]')).toHaveCount(0);
+  await expect(page.locator('[data-check="level-fields"]')).toHaveCount(0);
+  await expect(page.locator('.crit').first()).not.toHaveClass(/flagged/);
+});
+

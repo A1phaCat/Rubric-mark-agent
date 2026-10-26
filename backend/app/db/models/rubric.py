@@ -32,6 +32,7 @@ class RubricCriterion(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     weight: Mapped[float] = mapped_column(Float, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     level_hd: Mapped[str] = mapped_column(Text, nullable=False)
     level_di: Mapped[str] = mapped_column(Text, nullable=False)
     level_cr: Mapped[str] = mapped_column(Text, nullable=False)

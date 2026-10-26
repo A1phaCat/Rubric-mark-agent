@@ -36,6 +36,7 @@ from app.db.models.review import Review
 from app.db.models.rubric import Rubric, RubricCriterion
 from app.db.models.submission import AIResult, Evidence, File, Submission
 from app.db.session import SessionLocal, engine
+from app.domain import levels
 from app.domain.bands import level_for_score
 from app.domain.ids import new_id
 from app.domain.states import BatchStatus, SubmissionStatus
@@ -141,9 +142,10 @@ def load_rubric_files(folder: Path = RUBRIC_FILES) -> list[dict[str, Any]]:
     """Parse every rubric file in ``app/sample/rubrics`` with the local (non-AI) parser.
 
     The rubric id is ``rub_<file name>`` (``shortanswer.json`` → ``rub_shortanswer``). JSON
-    files may also set ``source``, ``pinned`` and ``age_days``. A file that the parser cannot
-    read exactly (missing points, empty descriptions, totals that disagree) stops the seed
-    with the parser's warnings, so a preloaded rubric is never silently wrong.
+    files may also set ``source``, ``pinned`` and ``age_days``; Canvas exports are loaded as-is
+    (unpinned). A file the parser cannot read exactly (missing points or labels, some levels
+    described and others not, totals that disagree) stops the seed with the parser's
+    warnings. Levels with labels and points only are accepted.
     """
 
     specs = []
@@ -159,22 +161,29 @@ def load_rubric_files(folder: Path = RUBRIC_FILES) -> list[dict[str, Any]]:
             parsed = parse_rubric_text(text, path.name)
         except ValueError as exc:
             raise SampleDataError(f"rubrics/{path.name}: {exc}") from exc
-        problems = [item.get("message", str(item)) if isinstance(item, dict) else str(item) for item in parsed.get("warnings", [])]
+        # Label-only levels are valid ("info"); anything that could make a mark wrong stops the seed.
+        problems = [
+            item.get("message", str(item)) if isinstance(item, dict) else str(item)
+            for item in parsed.get("warnings", [])
+            if not (isinstance(item, dict) and item.get("severity") == "info")
+        ]
         if problems:
             raise SampleDataError(f"rubrics/{path.name}: " + "; ".join(problems))
         extra = json.loads(text) if path.suffix.lower() == ".json" else {}
+        canvas = isinstance(extra, dict) and isinstance(extra.get("rubric"), list)
         specs.append(
             {
                 "id": "rub_" + re.sub(r"[^a-z0-9]+", "", path.stem.lower()),
                 "title": parsed["title"],
-                "source": extra.get("source") or f"Preloaded · {path.name}",
-                "pinned": bool(extra.get("pinned", True)),
-                "age_days": float(extra.get("age_days", 0)),
+                "source": (None if canvas else extra.get("source")) or parsed.get("source") or f"Preloaded · {path.name}",
+                "pinned": bool(extra.get("pinned", not canvas)) if not canvas else False,
+                "age_days": float(extra.get("age_days", 2 if canvas else 0)),
                 "criteria": [
                     {
                         "name": criterion["name"],
                         "weight": criterion["weight"],
                         "description": criterion.get("description", ""),
+                        "score_mapping": criterion.get("score_mapping", "explicit"),
                         "levels": criterion["levels"],
                     }
                     for criterion in parsed["criteria"]
@@ -332,7 +341,7 @@ def _record_ai_results(
         score = float(result["score"])
         if not 0 <= score <= criterion.weight:
             raise SampleDataError(f"{item['file']}: score {score} outside 0–{criterion.weight}")
-        level = level_for_score(score, float(criterion.weight)).value
+        level = str((levels.level_for(json.loads(criterion.levels_json or "[]"), score) or {}).get("label") or "")
         ai_result = AIResult(
             id=new_id("air"),
             submission_id=submission.id,

@@ -93,6 +93,7 @@
   .ck{ font-size:12px; padding:3px 10px; border-radius:20px; }
   .ck.ok{ background:var(--conf-high-bg); color:var(--conf-high); }
   .ck.bad{ background:var(--risk-bg); color:var(--risk); }
+  .ck.warn{ background:var(--conf-med-bg, #FBF1DC); color:var(--conf-med, #8A5A00); }
   .d-body{ flex:1; overflow:auto; padding:18px 26px 26px; }
   .crit{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:14px; }
   .crit-h{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
@@ -109,6 +110,10 @@
   .band p{ margin:5px 0 0; font-size:12.5px; line-height:1.45; color:var(--ink); overflow-wrap:anywhere; }
   .band.missing{ border-color:var(--risk); background:var(--risk-bg); }
   .band.missing p{ color:var(--risk); font-style:italic; }
+  .band.plain p{ color:var(--ink-soft); font-style:italic; }
+  .c-desc{ margin:-4px 0 12px; font-size:13px; line-height:1.5; color:var(--ink-soft); white-space:pre-line; }
+  .editing .c-desc{ border:1px dashed var(--border); border-radius:6px; padding:6px 8px; min-height:1.5em; }
+  .editing .c-desc:empty::before{ content:attr(data-ph); color:var(--ink-soft); opacity:.7; }
   .drawer.editing [contenteditable="true"]{ outline:1px dashed var(--border-strong); outline-offset:2px; border-radius:3px; min-height:1.2em; cursor:text; }
   .drawer.editing [contenteditable="true"]:hover, .drawer.editing [contenteditable="true"]:focus{ outline:1.5px solid var(--primary); background:#fff; }
   .d-foot{ padding:14px 26px; background:var(--surface); border-top:1px solid var(--border); }
@@ -339,8 +344,10 @@
     var t = L.total(r), list = [];
     list.push(t > 0 ? ['ok', 'Maximum total: ' + t + ' marks'] : ['bad', 'Maximum total is missing']);
     var miss = 0, tooFew = 0;
-    r.criteria.forEach(function(c){ var levels=levelsFor(c);if(levels.length<2)tooFew++;levels.forEach(function(level){if(!String(level.label||'').trim()||!String(level.description||'').trim())miss++;}); });
-    list.push(tooFew ? ['bad', tooFew + ' criteria need at least two levels'] : miss ? ['bad', miss + ' level field' + (miss > 1 ? 's' : '') + ' empty'] : ['ok', 'Source level counts and labels preserved']);
+    var labelOnly = 0;
+    r.criteria.forEach(function(c){ var levels=levelsFor(c);if(levels.length<2)tooFew++;levels.forEach(function(level){if(!String(level.label||'').trim()||level.points===''||level.points==null||isNaN(Number(level.points)))miss++;});if(!levels.some(function(level){return String(level.description||'').trim();}))labelOnly++; });
+    list.push(tooFew ? ['bad', tooFew + ' criteria need at least two levels'] : miss ? ['bad', miss + ' level' + (miss > 1 ? 's need' : ' needs') + ' a label and points'] : ['ok', 'Source level counts and labels preserved']);
+    if (labelOnly) list.push(['warn', labelOnly + ' criteri' + (labelOnly > 1 ? 'a use' : 'on uses') + ' level labels only — judged against the criterion description']);
     if (r.criteria.some(function(c){ return !String(c.name || '').trim(); })) list.push(['bad', 'A criterion has no name']);
     return list;
   }
@@ -361,9 +368,10 @@
         '<div class="crit-h"><h3 data-f="name"' + ce + '>' + esc(c.name) + '</h3>' +
         '<span class="w">' + (editing ? '<input type="number" min="0" data-f="weight" value="' + c.weight + '" aria-label="Maximum marks">' : c.weight) + '<small>pts</small></span>' +
         (editing ? '<button class="rm" type="button" data-rm="' + i + '" aria-label="Remove criterion">×</button>' : '') + '</div>' +
+        (c.description || editing ? '<p class="c-desc" data-f="description"' + ce + (editing ? ' data-ph="What this criterion assesses (optional)"' : '') + '>' + esc(c.description || '') + '</p>' : '') +
         '<div class="bands" style="--levels:' + Math.max(1, levelsFor(c).length) + '">' + levelsFor(c).map(function(level, j){
           var txt = level.description || '', label=level.label || ('Level '+(j+1)), points=level.points;
-          return '<div class="band lv' + ((j % 5) + 1) + (txt.trim() ? '' : ' missing') + '"><span class="lv">' + esc(label) + (points === '' || points == null ? '' : ' · ' + esc(points) + ' pts') + '</span><p data-f="level-description" data-j="' + j + '"' + ce + '>' + (txt.trim() ? esc(txt) : (editing ? '' : 'Not written yet')) + '</p></div>';
+          return '<div class="band lv' + ((j % 5) + 1) + (String(label).trim() ? '' : ' missing') + (txt.trim() ? '' : ' plain') + '"><span class="lv">' + esc(label) + (points === '' || points == null ? '' : ' · ' + esc(points) + ' pts') + '</span><p data-f="level-description" data-j="' + j + '"' + ce + '>' + (txt.trim() ? esc(txt) : (editing ? '' : 'No descriptor')) + '</p></div>';
         }).join('') + '</div></section>';
     }).join('');
     drawChecks(r);
@@ -395,8 +403,9 @@
     var sec = el.closest('.crit'); if (!sec) return;
     var c = draft.criteria[Number(sec.dataset.i)];
     if (el.dataset.f === 'name') c.name = el.textContent.trim();
+    if (el.dataset.f === 'description') c.description = el.innerText.trim();
     if (el.dataset.f === 'weight') c.weight = Number(el.value) || 0;
-    if (el.dataset.f === 'level-description'){ var levels=levelsFor(c);levels[Number(el.dataset.j)].description=el.textContent.trim();c.levels=levels;c.bands=levels.map(function(level){return level.description;});el.parentNode.classList.toggle('missing', !el.textContent.trim()); }
+    if (el.dataset.f === 'level-description'){ var levels=levelsFor(c);levels[Number(el.dataset.j)].description=el.textContent.trim();c.levels=levels;c.bands=levels.map(function(level){return level.description;});el.parentNode.classList.toggle('plain', !el.textContent.trim()); }
     drawChecks(draft);
     $('dMeta').firstChild && ($('dMeta').innerHTML = draft.criteria.length + ' criteria · ' + L.total(draft) + ' pts · ' + esc(draft.source) + ' · editing');
   });
@@ -411,7 +420,7 @@
   $('dSave').addEventListener('click', function(){
     if (!draft.title) draft.title = 'Untitled rubric';
     var btn = $('dSave'); btn.disabled = true;
-    var payload = { version: draft.version, title: draft.title, source: draft.source, criteria: draft.criteria.map(function(c){ return { name:c.name, weight:Number(c.weight), grading_mode:c.grading_mode, levels:levelsFor(c) }; }) };
+    var payload = { version: draft.version, title: draft.title, source: draft.source, criteria: draft.criteria.map(function(c){ return { name:c.name, weight:Number(c.weight), description:c.description || '', score_mapping:c.score_mapping, grading_mode:c.grading_mode, levels:levelsFor(c) }; }) };
     MarkerAPI.updateRubric(draft.id, payload).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){
       editing = false; draft = null; drawBody(); render(); toast('Rubric saved as a new version');
     }).catch(function(err){ btn.disabled = false; alert(err.message); });

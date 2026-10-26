@@ -17,6 +17,7 @@ from app.db.models.batch import Batch
 from app.db.models.review import Review
 from app.db.models.rubric import RubricCriterion
 from app.db.models.submission import AIResult, Evidence, File, Submission
+from app.domain import levels
 from app.domain.bands import BAND_NAMES, band_ranges, level_for_score, percent
 from app.domain.states import BatchStatus, Level, SubmissionStatus
 from app.domain.timefmt import iso_utc
@@ -317,22 +318,20 @@ class AnalyticsUseCases:
             review = reviews.get(criterion.id)
             result = results.get(criterion.id)
             score = float(review.score) if review and review.score is not None else 0.0
-            level = level_for_score(score, float(criterion.weight))
-            descriptor = next(
-                (
-                    item.get("description", "")
-                    for item in json.loads(criterion.levels_json or "[]")
-                    if str(item.get("label")) == level.value
-                ),
-                "",
-            )
+            # The criterion's own levels (HD…FL, Full/Partial/No credit, …), not the grade bands.
+            own_levels = json.loads(criterion.levels_json or "[]")
+            level = levels.level_for(own_levels, score) or {}
+            position, count = levels.rank(own_levels, level or None)
+            descriptor = str(level.get("description") or "")
             criteria.append(
                 {
                     "criterion_id": criterion.id,
                     "name": criterion.name,
                     "score": score,
                     "max_score": criterion.weight,
-                    "band": level.value,
+                    "band": str(level.get("label") or ""),
+                    "band_rank": position,
+                    "band_count": count,
                     "descriptor": descriptor,
                     "comment": review.comment if review else "",
                     "ai_score": result.score if result else None,

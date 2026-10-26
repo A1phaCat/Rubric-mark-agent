@@ -35,7 +35,7 @@
       return this.upsert({
         id: id, title: title, source: b.source || 'Imported',
         usedBy: existing ? existing.usedBy : (usedBy ? [usedBy] : []),
-        criteria: (b.criteria || []).map(function (c) { var levels=(c.levels||[]).map(function(level){return clone(level);});var bands=levels.length?levels.map(function(level){return level.description;}):(c.bands||[]).slice();return { name:c.name,weight:Number(c.weight),grading_mode:c.grading_mode,aspects:clone(c.aspects||[]),levels:levels,bands:bands }; })
+        criteria: (b.criteria || []).map(function (c) { var levels=(c.levels||[]).map(function(level){return clone(level);});var bands=levels.length?levels.map(function(level){return level.description;}):(c.bands||[]).slice();return { name:c.name,weight:Number(c.weight),description:c.description||'',score_mapping:c.score_mapping,grading_mode:c.grading_mode,aspects:clone(c.aspects||[]),levels:levels,bands:bands }; })
       });
     },
     /* Shape the set-up page expects */

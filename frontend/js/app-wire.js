@@ -83,6 +83,19 @@
       setBtn('bbNext', index >= 0 && index < list.length - 1 ? list[index + 1] : null);
     });
   }
+  /* A criterion's own scale (any labels, 2–6 levels). Canvas-style bands show their range;
+     levels without descriptors show label and points only. */
+  function levelsHtml(def, aiLevel) {
+    var levels = def.levels || [];
+    var plain = !levels.some(function (level) { return String(level.description || '').trim(); });
+    var about = def.description ? '<p class="crit-about">' + esc(def.description) + '</p>' : '';
+    return about + '<details' + (plain ? ' open' : '') + '><summary>Rubric levels · ' + levels.length + (plain ? ' · labels and points only' : '') + '</summary><div class="level-list' + (plain ? ' plain' : '') + '">' + levels.map(function (level) {
+      var top = level.points == null ? level.max_score : level.points, low = level.min_score;
+      var pts = low != null && top != null && Number(low) < Number(top) ? num(low) + '–' + num(top) : num(top);
+      var text = String(level.description || '').trim();
+      return '<div' + (aiLevel && aiLevel === level.label ? ' class="is-ai" title="AI suggestion falls in this level"' : '') + '><strong>' + esc(level.label) + ' (' + esc(pts) + ')</strong>' + (text ? ': ' + esc(text) : '') + '</div>';
+    }).join('') + '</div></details>';
+  }
   function wireUser() {
     return MarkerAPI.me().then(applyUser).catch(function (error) { console.warn('Could not load the current user', error); });
   }
@@ -107,7 +120,7 @@
       id: rubric.id, version: rubric.version, title: rubric.title, source: rubric.source, updated: Date.parse(rubric.updated_at),
       pinned: !!rubric.pinned, isSample: !!rubric.is_sample,
       usedBy: used.length ? used.map(function (batch) { return batch.batch_name; }) : (rubric.used_by_count ? ['In use by ' + rubric.used_by_count + ' batch' + (rubric.used_by_count === 1 ? '' : 'es')] : []),
-      criteria: (rubric.criteria || []).map(function (c) { var levels = (c.levels || []).map(function (level) { return { id: level.id, label: level.label, points: level.points, min_score: level.min_score, max_score: level.max_score, description: level.description }; }); return { id: c.id, name: c.name, weight: c.weight, grading_mode: c.grading_mode, aspects: c.aspects || [], levels: levels, bands: levels.map(function (level) { return level.description; }) }; })
+      criteria: (rubric.criteria || []).map(function (c) { var levels = (c.levels || []).map(function (level) { return { id: level.id, label: level.label, points: level.points, min_score: level.min_score, max_score: level.max_score, min_inclusive: level.min_inclusive, max_inclusive: level.max_inclusive, description: level.description }; }); return { id: c.id, name: c.name, weight: c.weight, description: c.description || '', score_mapping: c.score_mapping, grading_mode: c.grading_mode, aspects: c.aspects || [], levels: levels, bands: levels.map(function (level) { return level.description; }) }; })
     };
   }
   function loadRubricLibrary() {
@@ -332,7 +345,7 @@
         card.dataset.criterionId = def.id || ''; card.dataset.reviewVersion = String(item.version || 0); card.dataset.evs = (item.evidence_ids || []).join(',');
         card.classList.toggle('flagged', confidence === 'low');
         var title = card.querySelector('.crit-title'); if (title) title.textContent = 'C' + (index + 1) + ' · ' + def.name;
-        var desc = card.querySelector('.crit-desc'); if (desc) desc.innerHTML = '<details><summary>Rubric levels · ' + levels.length + '</summary><div class="level-list">' + levels.map(function (level) { var points = level.points == null ? level.max_score : level.points; return '<div><strong>' + esc(level.label) + ' (' + esc(num(points)) + ')</strong>: ' + esc(level.description) + '</div>'; }).join('') + '</div></details>';
+        var desc = card.querySelector('.crit-desc'); if (desc) desc.innerHTML = levelsHtml(def, item.ai_level);
         var badge = card.querySelector('.crit-weight-badge'); if (badge) badge.textContent = num(def.weight) + ' pts';
         var confidenceTag = card.querySelector('.conf-tag'); if (confidenceTag) { confidenceTag.className = 'conf-tag ' + (noAI ? 'none' : confidence); confidenceTag.innerHTML = '<span class="dot"></span>' + (noAI ? 'No AI suggestion' : confidence.charAt(0).toUpperCase() + confidence.slice(1) + ' confidence'); }
         var ai = card.querySelector('.ai-box .badge'); if (ai) ai.textContent = noAI ? 'Manual marking' : 'AI · ' + num(item.ai_score) + '/' + num(def.weight) + (item.ai_level ? ' · ' + item.ai_level : '');

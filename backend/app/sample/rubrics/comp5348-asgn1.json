@@ -1,0 +1,295 @@
+{
+  "course": {
+    "id": 73762,
+    "name": "COMP4348 COMP5348 Enterprise Scale Software Architecture",
+    "course_code": "COMP4348 COMP5348 (NE)",
+    "url": "https://canvas.sydney.edu.au/courses/73762"
+  },
+  "assignment": {
+    "id": 693964,
+    "name": "Assignment 1 main file submission",
+    "url": "https://canvas.sydney.edu.au/courses/73762/assignments/693964",
+    "points_possible": 10.0,
+    "use_rubric_for_grading": true,
+    "rubric_settings": {
+      "id": 125689,
+      "title": "COMP4348/COMP5348 2026 Assessment 1",
+      "points_possible": 10.0,
+      "free_form_criterion_comments": false,
+      "hide_score_total": false,
+      "hide_points": false
+    }
+  },
+  "rubric": [
+    {
+      "id": "_1311",
+      "points": 1.0,
+      "description": "Q1(a) State classification",
+      "long_description": "Classifies the state the system keeps as resource, session, local computation or derived, or another appropriate category if justified, with plausible examples for each and a rationale distinguishing them.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_5603",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "All four categories identified, or an appropriate alternative categorisation justified, with plausible examples and a rationale; derived values (overdue flags, counts, roll-up status) not treated as authoritative resource state."
+        },
+        {
+          "id": "_288",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Two or three categories handled correctly, or examples given but mis-categorised in places."
+        },
+        {
+          "id": "_5251",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Only resource state discussed, or categories named with no meaningful examples."
+        }
+      ]
+    },
+    {
+      "id": "_3385",
+      "points": 1.0,
+      "description": "Q1(b) Resource-state entities and relationships",
+      "long_description": "Main persistent entities (project; task with self-referencing parent for sub-tasks; user; team; team membership; task assignment), their key attributes and relationships.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_8600",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Entity set supports nesting and team/developer assignment; key attributes and relationships stated; assignment not duplicated across Task, User and Team without a stated consistency mechanism."
+        },
+        {
+          "id": "_4193",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Main entities present but the sub-task self-reference or the assignment relationship is missing, vague, or redundantly duplicated without justification."
+        },
+        {
+          "id": "_7051",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "No usable data model, or the model cannot represent nested tasks or assignment."
+        }
+      ]
+    },
+    {
+      "id": "_607",
+      "points": 1.0,
+      "description": "Q1(c) Developer task view, derived state and constraints",
+      "long_description": "Retrieval of a developer&#39;s own tasks; overdue = due_date &lt; today AND status not in {resolved, done}; due soon = today &lt;= due_date &lt;= today + 7 days. At least one item of derived state and two integrity constraints.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_4281",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Retrieval path stated (developer id from session, query on assignment), both date predicates correct including the status exclusion, one derived item and two valid constraints given."
+        },
+        {
+          "id": "_2738",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Retrieval or predicates broadly right but the status exclusion is missing, the seven-day boundary is wrong, or fewer than two valid constraints are given."
+        },
+        {
+          "id": "_2643",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "No workable retrieval mechanism, or overdue and due-soon logic absent or incorrect."
+        }
+      ]
+    },
+    {
+      "id": "_9656",
+      "points": 1.0,
+      "description": "Q1(d) On-demand versus materialised aggregates",
+      "long_description": "Trade-off between recomputing aggregates on demand and materialising them; one consistency risk created by materialisation; one mechanism for keeping materialised values correct.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_9888",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Trade-off argued in both directions; a specific risk named (stale ancestor roll-ups / write amplification, or time-dependent flags going stale with no write at all); a workable maintenance mechanism described."
+        },
+        {
+          "id": "_3219",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "A position is taken and one side of the trade-off argued, but the consistency risk is generic or no maintenance mechanism is given."
+        },
+        {
+          "id": "_8676",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "No trade-off discussion, or materialisation recommended with no acknowledgement of any consistency obligation."
+        }
+      ]
+    },
+    {
+      "id": "_4073",
+      "points": 1.0,
+      "description": "Q2(1a) Packing and instance counts",
+      "long_description": "Memory is the binding constraint: 8/4 = 2 Type A per D2 v3, so 24 instances; floor(64/12) = 5 Type B per D16 v3, so 15 instances.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_6801",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Both packing factors and both instance counts correct, with memory shown as the binding constraint."
+        },
+        {
+          "id": "_8824",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "One of the two packings or counts correct, or the right method with an arithmetic slip (e.g. not flooring 64/12)."
+        },
+        {
+          "id": "_6535",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Neither packing correct, or capacity derived from something other than memory without justification."
+        }
+      ]
+    },
+    {
+      "id": "_8794",
+      "points": 1.0,
+      "description": "Q2(1b) Runtimes, cost and elapsed time",
+      "long_description": "Runtime = max(CPU, I/O) with capacity shared equally: Type A 1,200 s, Type B 84.375 s. Cost_A $1.5040, Cost_B $0.52875, total about $2.033. Elapsed time 1,200 s. Wrong steps deduct 0.5; correct final values worth 0.5.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_8603",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Both runtimes correct via max(CPU, I/O) with equal sharing, both costs pro-rated to exact runtime, total and elapsed time correct."
+        },
+        {
+          "id": "_8339",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Correct method (max of CPU and I/O, equal sharing, pro-rated billing) but one runtime, cost, total or the elapsed time wrong."
+        },
+        {
+          "id": "_1489",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Runtimes not derived from max(CPU, I/O), sharing ignored, or hourly rates applied without pro-rating."
+        }
+      ]
+    },
+    {
+      "id": "_1675",
+      "points": 1.0,
+      "description": "Q2(2a) Conclusion and proportional-cost reasoning",
+      "long_description": "Answers no, and justifies it from the constant per-vCPU ratios in the table: 4 GB RAM, 100 IOPS, $0.094 per vCPU-hour and 2x10^9 instructions per second for every instance size.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_383",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "States no and derives it from the per-vCPU ratios, showing that a fully packed instance gives each task the same share regardless of instance size."
+        },
+        {
+          "id": "_1343",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Correct conclusion but the justification is asserted rather than derived from the resource and price ratios."
+        },
+        {
+          "id": "_2026",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Wrong conclusion, or a bare no with no reference to the ratios in the table."
+        }
+      ]
+    },
+    {
+      "id": "_242",
+      "points": 1.0,
+      "description": "Q2(2b) Both task types and a changed assumption",
+      "long_description": "Addresses Type A and Type B separately, including that D2 v3 is infeasible for Type B on memory, and changes one assumption the conclusion depends on, with brief reasoning. Any such assumption is acceptable, including those stated in the question body; it need not be one of the two bulleted assumptions.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_9463",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Both task types addressed with the D2 v3 memory infeasibility noted, and one change to any assumption the conclusion depends on, with a brief explanation of why it would make a different instance size cheaper (for example a fixed per-instance startup charge, volume discounts, non-proportional pricing, heterogeneous processors, contention, or imperfect scaling)."
+        },
+        {
+          "id": "_7958",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Only one task type addressed, or a change named without explaining why it would make a different instance size cheaper."
+        },
+        {
+          "id": "_6580",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Neither task type justified, and no changed assumption identified."
+        }
+      ]
+    },
+    {
+      "id": "_6952",
+      "points": 1.0,
+      "description": "Q3(a) Interleaving and why one writer suffices",
+      "long_description": "A concrete interleaving in the issue-tracking setting: initial values, numbered interleaved steps, and the incorrect result the read-only activity observes. Explains that interference needs only shared data and one writer.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_195",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Initial values stated, steps interleaved so the reader straddles the writer's update, the wrong result shown, and the one-writer point made explicitly."
+        },
+        {
+          "id": "_7417",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "An interleaving is given but initial values or the incorrect observed result are missing, the steps are not genuinely interleaved, or the one-writer conclusion is not drawn."
+        },
+        {
+          "id": "_4655",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "No interleaving, or a scenario requiring two writers, which does not answer the question."
+        }
+      ]
+    },
+    {
+      "id": "_6062",
+      "points": 1.0,
+      "description": "Q3(b) Anomaly named and prevention mechanism",
+      "long_description": "Names the anomaly (inconsistent read / inconsistent analysis) and states one concurrency-control mechanism with a brief explanation of how it prevents it.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_1476",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Anomaly correctly named and a valid mechanism (serializable isolation, snapshot isolation, or two-phase locking with shared locks held to end of transaction) explained in terms of this interleaving."
+        },
+        {
+          "id": "_865",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Anomaly named but the mechanism only named without explanation, or a valid mechanism explained under a wrong or vague anomaly name."
+        },
+        {
+          "id": "_1448",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Anomaly not identified or misidentified (e.g. as lost update or deadlock), and no valid mechanism given."
+        }
+      ]
+    }
+  ]
+}

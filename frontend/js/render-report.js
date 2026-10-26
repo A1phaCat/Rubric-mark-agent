@@ -19,7 +19,7 @@
     var criteria = data.criteria.map(function (c) {
       var delta = internal && c.ai_score != null ? Math.round((c.score - c.ai_score) * 100) / 100 : 0;
       var sources = c.evidence.length ? '<div class="src evidence-used">Evidence used ' + c.evidence.map(function (e) { return '<span title="' + ui.esc(e.quote) + '">p.' + ui.esc(e.page) + ' ' + ui.esc(e.paragraph || '') + '</span>'; }).join('') + '</div>' : '';
-      return '<article class="crit"><div class="crit-top"><div><h3>' + ui.esc(c.name) + '</h3><p class="desc">' + ui.esc(c.descriptor) + '</p></div><div class="pts"><b>' + ui.num(c.score) + '<small> / ' + ui.num(c.max_score) + '</small></b><span class="band ' + c.band + '">' + c.band + '</span></div></div>' +
+      return '<article class="crit"><div class="crit-top"><div><h3>' + ui.esc(c.name) + '</h3><p class="desc">' + ui.esc(c.descriptor) + '</p></div><div class="pts"><b>' + ui.num(c.score) + '<small> / ' + ui.num(c.max_score) + '</small></b>' + (c.band ? '<span class="band ' + tier(c) + '" title="Level ' + (c.band_rank + 1) + ' of ' + c.band_count + ' on this criterion">' + ui.esc(c.band) + '</span>' : '') + '</div></div>' +
         (Math.abs(delta) > 0.001 ? '<span class="adj"><span class="delta">' + (delta > 0 ? '+' : '−') + ui.num(Math.abs(delta)) + '</span>AI suggested ' + ui.num(c.ai_score) + ' · adjusted by tutor</span>' : '') +
         (c.comment ? '<div class="comment"><span class="avatar">' + initials(marker) + '</span><div><div class="who"><b>' + ui.esc(marker) + '</b> · tutor comment</div><p>' + ui.esc(c.comment) + '</p></div></div>' : '') +
         (internal && c.internal_rationale ? '<div class="src rationale">AI rationale (internal) · ' + ui.esc(c.internal_rationale) + '</div>' : '') + sources + '</article>';
@@ -42,6 +42,12 @@
         MarkerAPI.getReport(data.submission.id, button.dataset.a).then(function (next) { window.__MARKER_PAGE_DATA = next; render(ui, next); });
       });
     });
+  }
+
+  /* Map a level's position on its own scale (any number of levels) to five colour steps. */
+  function tier(c) {
+    var n = Math.max(1, (c.band_count || 1) - 1);
+    return 't' + (Math.round((c.band_rank || 0) / n * 4) + 1);
   }
 
   window.MarkerPages = window.MarkerPages || {};

@@ -6,11 +6,14 @@ not project every rubric onto a university grade-band template.
 
 from __future__ import annotations
 
+import html
 import json
 import re
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+
+from app.domain.levels import has_descriptors, with_ranges
 
 _POINTS = r"(?:pts?|points?|marks?)"
 _CRITERION = re.compile(
@@ -118,6 +121,25 @@ _DESCRIPTION_COLUMNS = {
 }
 
 
+def _clean_html(value: Any) -> str:
+    """Canvas text fields: HTML line breaks, tags and (often repeatedly) escaped entities."""
+
+    text = str(value or "")
+    for _ in range(32):
+        unescaped = html.unescape(text)
+        if unescaped == text:
+            break
+        text = unescaped
+    text = re.sub(r"<\s*br\s*/?\s*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"</\s*(?:p|div|li)\s*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = text.replace("\r", "").replace("\u00a0", " ")
+    text = re.sub(r"[ \t]*•[ \t]*", "• ", text)
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
+    text = "\n".join(lines)
+    return re.sub(r"\n{2,}", "\n", text).strip()
+
+
 def _number(value: str) -> float:
     number = float(value)
     return int(number) if number.is_integer() else number
@@ -160,8 +182,26 @@ def _level(
     }
 
 
+# How much each parser finding matters:
+#   error   — the rubric cannot be used until it is fixed (no name, no maximum, a level without points)
+#   warning — probably a mistake worth checking (a total that disagrees, some levels described, others not)
+#   info    — valid but worth knowing (levels that have labels and points only)
+_SEVERITY = {
+    "criterion_missing_name": "error",
+    "criterion_missing_weight": "error",
+    "criterion_needs_levels": "error",
+    "level_missing_points": "error",
+    "level_missing_label": "error",
+    "level_points_above_maximum": "error",
+    "total_mismatch": "warning",
+    "invalid_total": "warning",
+    "level_missing_descriptor": "warning",
+    "levels_without_descriptors": "info",
+}
+
+
 def _warning(code: str, message: str, **location: int) -> dict[str, Any]:
-    return {"code": code, **location, "message": message}
+    return {"code": code, "severity": _SEVERITY.get(code, "warning"), **location, "message": message}
 
 
 def _criterion(
@@ -590,8 +630,30 @@ def _parse_json_rubric(text: str, source_name: str | None) -> dict[str, Any]:
         raw = json.loads(text)
     except json.JSONDecodeError as exc:
         raise ValueError(f"Rubric JSON is invalid at line {exc.lineno}, column {exc.colno}") from exc
-    if isinstance(raw, dict) and isinstance(raw.get("rubric"), dict):
+    canvas_meta: dict[str, Any] = {}
+    if isinstance(raw, list):
+        raw = {"criteria": raw}
+    elif isinstance(raw, dict) and isinstance(raw.get("rubric"), dict):
         raw = raw["rubric"]
+    elif isinstance(raw, dict) and isinstance(raw.get("rubric"), list):
+        # Canvas course export: {"course", "assignment": {"rubric_settings"}, "rubric": [...]}
+        assignment = raw.get("assignment") if isinstance(raw.get("assignment"), dict) else {}
+        settings = assignment.get("rubric_settings") if isinstance(assignment.get("rubric_settings"), dict) else {}
+        course = raw.get("course") if isinstance(raw.get("course"), dict) else {}
+        canvas_meta = {
+            "title": settings.get("title") or assignment.get("name"),
+            "total": settings.get("points_possible", assignment.get("points_possible")),
+            "source": " · ".join(
+                part
+                for part in (
+                    "Canvas",
+                    _clean_html(course.get("name") or course.get("course_code")),
+                    _clean_html(assignment.get("name")),
+                )
+                if part
+            ),
+        }
+        raw = {"criteria": raw["rubric"]}
     if not isinstance(raw, dict):
         raise ValueError("Rubric JSON must be an object")
     source_criteria = raw.get("criteria")
@@ -603,8 +665,8 @@ def _parse_json_rubric(text: str, source_name: str | None) -> dict[str, Any]:
         if not isinstance(item, dict):
             continue
         if canvas:
-            name = str(item.get("description") or item.get("name") or "").strip()
-            description = str(item.get("long_description") or "").strip()
+            name = _clean_html(item.get("description") or item.get("name"))
+            description = _clean_html(item.get("long_description"))
             weight_value = item.get("points")
             levels_source = item.get("ratings") or []
         else:
@@ -621,8 +683,8 @@ def _parse_json_rubric(text: str, source_name: str | None) -> dict[str, Any]:
             if not isinstance(level, dict):
                 continue
             if canvas:
-                label = str(level.get("description") or level.get("label") or "").strip()
-                level_description = str(level.get("long_description") or "").strip()
+                label = _clean_html(level.get("description") or level.get("label"))
+                level_description = _clean_html(level.get("long_description"))
             else:
                 label = str(level.get("label") or level.get("description") or "").strip()
                 level_description = str(level.get("description") or "").strip()
@@ -657,21 +719,27 @@ def _parse_json_rubric(text: str, source_name: str | None) -> dict[str, Any]:
             source_name=name,
             source_weight=str(weight_value or ""),
         )
+        if canvas:
+            # Canvas ratings are bands: 5 / 3.99 / 3 / 1.99 … — each covers the scores up to
+            # its points and above the next rating.
+            criterion["levels"] = with_ranges(levels)
         criterion["stated_percent"] = item.get("stated_percent")
         criterion["scoring_mode"] = str(item.get("scoring_mode") or "fixed_levels")
-        criterion["score_mapping"] = str(item.get("score_mapping") or "explicit")
+        criterion["score_mapping"] = str(item.get("score_mapping") or ("range" if canvas else "explicit"))
         criterion["granularity"] = item.get("granularity")
         criteria.append(criterion)
     if not criteria:
         raise ValueError("Rubric JSON contains no usable criteria")
-    title = str(
-        raw.get("title")
+    title = _clean_html(
+        canvas_meta.get("title")
+        or raw.get("title")
         or raw.get("name")
         or (Path(source_name).stem if source_name else "Imported rubric")
-    ).strip()
-    stated_total = raw.get("total_score", raw.get("points_possible"))
+    )
+    stated_total = canvas_meta.get("total", raw.get("total_score", raw.get("points_possible")))
     return {
         "title": title or "Imported rubric",
+        "source": canvas_meta.get("source") or raw.get("source"),
         "total_score": stated_total,
         "total_score_source": "stated" if stated_total is not None else "computed",
         "criteria": criteria,
@@ -729,7 +797,37 @@ def _finalise_parsed(parsed: dict[str, Any]) -> dict[str, Any]:
                     criterion_index=criterion_index,
                 )
             )
+        described = has_descriptors(levels)
+        name = criterion.get("name") or criterion_index + 1
+        if levels and not described:
+            warnings.append(
+                _warning(
+                    "levels_without_descriptors",
+                    f"'{name}' has level labels and points only; the AI judges against the criterion"
+                    + (" description." if str(criterion.get("description") or "").strip() else " name."),
+                    criterion_index=criterion_index,
+                )
+            )
+        maximum = float(criterion.get("weight") or 0)
         for level_index, level in enumerate(levels):
+            if not str(level.get("label") or "").strip():
+                warnings.append(
+                    _warning(
+                        "level_missing_label",
+                        f"Level {level_index + 1} of '{name}' has no label.",
+                        criterion_index=criterion_index,
+                        level_index=level_index,
+                    )
+                )
+            if maximum > 0 and level.get("points") is not None and float(level["points"]) > maximum + 1e-9:
+                warnings.append(
+                    _warning(
+                        "level_points_above_maximum",
+                        f"Level '{level.get('label')}' of '{name}' is worth more than the criterion maximum ({maximum:g}).",
+                        criterion_index=criterion_index,
+                        level_index=level_index,
+                    )
+                )
             if level.get("points") is None:
                 warnings.append(
                     _warning(
@@ -739,7 +837,7 @@ def _finalise_parsed(parsed: dict[str, Any]) -> dict[str, Any]:
                         level_index=level_index,
                     )
                 )
-            if not str(level.get("description") or "").strip():
+            if described and not str(level.get("description") or "").strip():
                 warnings.append(
                     _warning(
                         "level_missing_descriptor",

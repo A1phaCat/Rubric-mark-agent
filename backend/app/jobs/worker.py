@@ -57,6 +57,7 @@ async def handle_grade(payload: dict[str, object]) -> None:
                 "id": criterion.id,
                 "name": criterion.name,
                 "weight": criterion.weight,
+                "description": criterion.description or "",
                 "levels": json.loads(criterion.levels_json or "[]"),
                 "grading_mode": criterion.grading_mode,
                 "aspects": json.loads(criterion.aspects_json or "[]"),

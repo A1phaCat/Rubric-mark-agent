@@ -25,7 +25,7 @@ def test_three_pinned_sample_batches_in_distinct_states(client: TestClient) -> N
     assert {item["status"] for item in samples.values()} == {"in_review", "completed", "finalised"}
     assert all(item["pinned"] for item in samples.values())
     rubrics = client.get("/api/v1/rubrics").json()["items"]
-    assert len([item for item in rubrics if item["is_sample"]]) == 6
+    assert len([item for item in rubrics if item["is_sample"]]) == 14
 
 
 def test_every_evidence_quote_is_in_the_extracted_text() -> None:
@@ -131,3 +131,21 @@ def test_local_account_name_is_stored_and_editable(client: TestClient) -> None:
     assert renamed["user"]["name"] == "Dr Lee"
     assert client.get("/api/v1/me").json()["user"]["name"] == "Dr Lee"
     client.put("/api/v1/me", json={"name": original})
+
+
+def test_canvas_export_uploads_and_keeps_criterion_descriptions(client: TestClient) -> None:
+    from app.sample.seed import RUBRIC_FILES
+
+    content = (RUBRIC_FILES / "elec5623-final-report.json").read_bytes()
+    parsed = client.post(
+        "/api/v1/rubrics/parse-file", files={"file": ("ELEC5623.json", content, "application/json")}
+    ).json()
+    assert parsed["parser"] == "canvas_json"
+    assert {w["severity"] for w in parsed["warnings"]} == {"info"}
+    rubric = parsed["rubric"]
+    saved = client.post("/api/v1/rubrics", json={"title": rubric["title"], "source": "test", "criteria": rubric["criteria"]})
+    assert saved.status_code == 201
+    stored = client.get(f"/api/v1/rubrics/{saved.json()['rubric']['id']}").json()["rubric"]["criteria"][0]
+    assert stored["description"].startswith("A functional and coherent MVP")
+    assert [level["label"] for level in stored["levels"]] == ["Exceeds", "Mastery", "Near", "Below", "No Evidence"]
+    assert all(level["description"] == "" for level in stored["levels"])

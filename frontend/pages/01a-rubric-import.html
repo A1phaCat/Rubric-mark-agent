@@ -151,6 +151,12 @@
   .cell .top{ display:flex; justify-content:space-between; align-items:baseline; gap:6px; }
   .cell .pts{ font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:500; white-space:nowrap; }
   .cell .rev{ font-size:11px; font-weight:600; color:var(--conf-med); }
+  .cell .lvn{ display:none; font:600 10.5px 'IBM Plex Mono',monospace; color:var(--ink-soft); }
+  .matrix.mixed .cell .lvn{ display:block; }
+  .cell .txt:empty::before{ content:attr(data-ph); color:var(--ink-soft); font-style:italic; opacity:.75; }
+  .c-desc{ font-size:11.5px; line-height:1.4; color:var(--ink-soft); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; white-space:pre-line; }
+  .crit.open .c-desc{ -webkit-line-clamp:unset; display:block; }
+  .c-note{ font-size:11px; color:var(--conf-med, #7A5A00); }
   .cell .txt{ font-size:12px; line-height:1.45; color:var(--ink); display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
   .crit.open .cell .txt{ -webkit-line-clamp:unset; display:block; }
   .asks{ display:none; margin:0 24px 16px; padding:14px 16px; border-radius:10px; background:var(--tint); border:1px solid var(--border); }
@@ -419,15 +425,17 @@
 
   function fromParsed(result, source){
     var rubric = result.rubric || {};
-    FLAGS = {}; EDITED = {}; WARNINGS = (result.warnings || []).map(function(w){ return w.message || String(w); }); PARSER = result.parser || '';
+    FLAGS = {}; EDITED = {}; var labelOnly = (result.warnings || []).filter(function(w){ return w.severity === 'info'; }).length;
+    WARNINGS = (result.warnings || []).filter(function(w){ return w.severity !== 'info'; }).map(function(w){ return w.message || String(w); });
+    if (labelOnly) WARNINGS.push(labelOnly + ' criteri' + (labelOnly > 1 ? 'a have' : 'on has') + ' level labels and points only — the AI judges against each criterion description'); PARSER = result.parser || '';
     R = {
       title: rubric.title || 'Untitled rubric',
       source: source,
       criteria: (rubric.criteria || []).map(function(c, i){
         var levels = c.levels || [];
-        levels.forEach(function(level, j){ if (level.prov && (level.prov.points === 'inferred' || level.prov.description === 'inferred' || level.prov.points === 'missing' || level.prov.description === 'missing')) FLAGS[i + '-' + j] = { why: 'Inferred by the parser — check it' }; });
+        levels.forEach(function(level, j){ if (level.prov && (level.prov.points === 'inferred' || level.prov.description === 'inferred' || level.prov.points === 'missing')) FLAGS[i + '-' + j] = { why: 'Inferred by the parser — check it' }; });
         return {
-          name: c.name || '', pts: c.weight == null ? '' : Number(c.weight),
+          name: c.name || '', pts: c.weight == null ? '' : Number(c.weight), desc: c.description || '', mapping: c.score_mapping || 'explicit',
           labels: levels.map(function(level, j){ return level.label || ('Level ' + (j + 1)); }),
           levels: levels.map(function(level){ return level.points == null ? '' : Number(level.points); }),
           text: levels.map(function(level){ return level.description || ''; }),
@@ -444,7 +452,7 @@
     if (c.levels[j] === '' || isNaN(v)) return 'Not a number';
     if (j === 0 && c.pts !== '' && v > Number(c.pts)) return '> criterion pts';
     if (j > 0 && !(v < Number(c.levels[j - 1]))) return 'Out of order';
-    if (!String(c.text[j] || '').trim()) return 'Empty';
+    /* An empty descriptor is allowed: labels + points alone are a valid scale. */
     return null;
   }
   function analyse(){
@@ -479,16 +487,18 @@
     }
     var width = Math.max.apply(null, R.criteria.map(function(c){ return c.levels.length; }).concat([1]));
     document.querySelector('.matrix').style.setProperty('--levels', width);
-    var labels = (R.criteria[0] || { labels:[] }).labels;
-    head.innerHTML = '<span>Criterion</span>' + Array.apply(null, Array(width)).map(function(_, j){ return '<span><i class="sw" style="background:var(--lv' + Math.min(j + 1, 5) + ')"></i>' + esc(labels[j] || ('Level ' + (j + 1))) + '</span>'; }).join('');
+    var first = (R.criteria[0] || { labels:[] }).labels, same = R.criteria.every(function(c){ return c.labels.join('|') === first.join('|'); });
+    var labels = same ? first : [];
+    document.querySelector('.matrix').classList.toggle('mixed', !same);
+    head.innerHTML = '<span>Criterion</span>' + Array.apply(null, Array(width)).map(function(_, j){ return '<span><i class="sw" style="background:var(--lv' + Math.min(j + 1, 5) + ')"></i>' + esc(labels[j] || (j === 0 ? 'Best level' : 'Level ' + (j + 1))) + '</span>'; }).join('');
     if (document.activeElement !== document.getElementById('pTitle')) document.getElementById('pTitle').textContent = R.title;
     box.innerHTML = R.criteria.map(function(c, i){
       var open = state.open === i;
       var cells = c.levels.map(function(p, j){
         var fl = FLAGS[i + '-' + j];
         return '<div class="cell l' + Math.min(j + 1, 5) + '" data-i="' + i + '" data-j="' + j + '">' +
-          '<div class="top"><input class="pts-in" data-k="lv" data-i="' + i + '" data-j="' + j + '" value="' + esc(p) + '" inputmode="decimal" aria-label="' + esc(c.name) + ' ' + esc(c.labels[j]) + ' points"><span class="lbl"></span></div>' +
-          '<span class="txt" contenteditable="true" data-k="tx" data-i="' + i + '" data-j="' + j + '" role="textbox" aria-multiline="true" aria-label="' + esc(c.name) + ' ' + esc(c.labels[j]) + ' description">' + esc(c.text[j]) + '</span>' +
+          '<span class="lvn">' + esc(c.labels[j]) + '</span><div class="top"><input class="pts-in" data-k="lv" data-i="' + i + '" data-j="' + j + '" value="' + esc(p) + '" inputmode="decimal" aria-label="' + esc(c.name) + ' ' + esc(c.labels[j]) + ' points"><span class="lbl"></span></div>' +
+          '<span class="txt" contenteditable="true" data-k="tx" data-i="' + i + '" data-j="' + j + '" role="textbox" aria-multiline="true" data-ph="No descriptor" aria-label="' + esc(c.name) + ' ' + esc(c.labels[j]) + ' description">' + esc(c.text[j]) + '</span>' +
           '<span class="why">' + (fl ? esc(fl.why) : '') + '</span>' +
           '<button type="button" class="ok-btn" data-ok="' + i + '-' + j + '">✓ Looks right</button>' +
         '</div>';
@@ -496,8 +506,10 @@
       return '<div class="crit' + (open ? ' open' : '') + '">' +
         '<div class="grid"><div class="c-col">' +
           '<span class="c-name-ed" contenteditable="true" data-k="nm" data-i="' + i + '" role="textbox" aria-label="Criterion name">' + esc(c.name) + '</span>' +
+          (c.desc ? '<span class="c-desc" title="' + esc(c.desc) + '">' + esc(c.desc) + '</span>' : '') +
+          (c.text.every(function(t){ return !String(t || '').trim(); }) ? '<span class="c-note">Labels only — AI judges against the criterion description</span>' : '') +
           '<span class="c-meta"><span class="c-pts" data-cp="' + i + '"><input data-k="cp" data-i="' + i + '" value="' + esc(c.pts) + '" inputmode="decimal" aria-label="Criterion points">pts</span>' +
-          (c.asks.length ? '<button type="button" class="c-toggle" data-open="' + i + '" aria-expanded="' + open + '">' + (open ? 'Hide details' : 'Show details') + '</button>' : '') + '</span>' +
+          ((c.asks.length || c.desc) ? '<button type="button" class="c-toggle" data-open="' + i + '" aria-expanded="' + open + '">' + (open ? 'Hide details' : 'Show details') + '</button>' : '') + '</span>' +
         '</div>' + cells + '</div>' +
         (c.asks.length ? '<div class="asks"><div class="h">What this criterion asks for</div><ul>' + c.asks.map(function(q){ return '<li>' + esc(q) + '</li>'; }).join('') + '</ul></div>' : '') +
       '</div>';
@@ -606,7 +618,7 @@
       title: R.title || 'Untitled rubric',
       source: R.source + (state.dirty ? ' · edited' : ''),
       criteria: R.criteria.map(function(c){
-        return { name: c.name, weight: Number(c.pts), levels: c.levels.map(function(points, j){ return { id: String(c.labels[j] || j).toLowerCase().replace(/[^a-z0-9]+/g, '-'), label: c.labels[j], points: Number(points), description: c.text[j] }; }) };
+        return { name: c.name, weight: Number(c.pts), description: c.desc || '', score_mapping: c.mapping, levels: c.levels.map(function(points, j){ return { id: String(c.labels[j] || j).toLowerCase().replace(/[^a-z0-9]+/g, '-'), label: c.labels[j], points: Number(points), description: c.text[j] }; }) };
       })
     }).then(function(saved){
       state.dirty = false;

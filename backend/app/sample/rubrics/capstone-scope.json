@@ -1,0 +1,259 @@
+{
+  "course": {
+    "id": 73598,
+    "name": "CS Capstone Projects",
+    "course_code": "COMP3888 COMP3988 ISYS3888 CSEC3888 SOFT3888 COMP5615 (ND)",
+    "url": "https://canvas.sydney.edu.au/courses/73598"
+  },
+  "assignment": {
+    "id": 687008,
+    "name": "Project Scope & Proposal Report (due by Week 3)",
+    "url": "https://canvas.sydney.edu.au/courses/73598/assignments/687008",
+    "points_possible": 100.0,
+    "use_rubric_for_grading": true,
+    "rubric_settings": {
+      "id": 115072,
+      "title": "Project Proposal and Scope Statement",
+      "points_possible": 100.0,
+      "free_form_criterion_comments": false,
+      "hide_score_total": false,
+      "hide_points": false
+    }
+  },
+  "rubric": [
+    {
+      "id": "_6579",
+      "points": 5.0,
+      "description": "Executive Summary, Context & Problem Definition",
+      "long_description": "Evaluates the Abstract, Background, Introduction, and Project Questions sections. Includes the ability to target an audience without discipline-specific background.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "blank",
+          "points": 5.0,
+          "description": "HD",
+          "long_description": "The Abstract is tightly within the word limits, clearly specifying project requirements and motivation, goals. Background and context are clear to a non-technical reader. Project questions are clearly articulated based on the profound analysis and understanding of the underlying questions and requirements raised or defined by the client. Concisely highlight the proposal computational solutions / methods / techniques."
+        },
+        {
+          "id": "_4985",
+          "points": 3.99,
+          "description": "DI",
+          "long_description": "Abstract fits the word limit and mostly covers the scope but with minor omissions. Background and context are clear, but introduces a minor amount of technical jargon and imposes difficulty to non-technical reader. Client project questions are well-stated. Properly highlight the proposal computational solutions / methods / techniques."
+        },
+        {
+          "id": "_4276",
+          "points": 3.0,
+          "description": "CR",
+          "long_description": "Abstract is present within the word limits but with some vague descriptions. Overall project requirements and motivation, goals are clear, however, the problem definition relies heavily on describing symptoms rather than deeply analysing the specific root questions raised by the client. The proposal computational solutions / methods / techniques are overall reasonably presented but missing highlights."
+        },
+        {
+          "id": "_7608",
+          "points": 1.99,
+          "description": "PS",
+          "long_description": "Abstract is present within the word limits but lacks clear motivation. The project requirements and motivation, goals may not clearly articulated, and, the problem definition relies heavily on describing symptoms rather than deeply analysing the specific root questions raised by the client. The text is too technical for a general reader to follow, or completely muddles the core project questions. The proposal computational solutions / methods / techniques are not really clear."
+        },
+        {
+          "id": "_9111",
+          "points": 0.99,
+          "description": "FL",
+          "long_description": "Little to no basic project information is provided or completely missing or lacks any coherent structure for the introduction and project definition."
+        }
+      ]
+    },
+    {
+      "id": "_2243",
+      "points": 10.0,
+      "description": "SMART Objectives, Scoping & Expected Outcomes",
+      "long_description": "Evaluates Aims, Objectives, Project Scope, Out-of-Scope boundaries, Success Criteria, and Expected Implications.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_1241",
+          "points": 10.0,
+          "description": "HD",
+          "long_description": "Aims and Objectives strictly fulfill all SMART rules (Specific, Measurable, Achievable, Relevant, Time-Bound). Scope and Out-of-Scope areas are explicitly bounded to prevent creep, outlining clear assumptions/limitations. Success criteria and metrics are clearly defined for how the final project delivery will be measured. Project implications are clearly specified and elucidated for the client, or general readers in plain language."
+        },
+        {
+          "id": "_3457",
+          "points": 7.99,
+          "description": "DI",
+          "long_description": "Aims and Objectives are realistic and mostly SMART, though one dimension (e.g., measurement method) could be more specifically and clearly defined, or is ignored. Scope boundaries are well-defined, and expected outcomes match the basic client briefs."
+        },
+        {
+          "id": "_2038",
+          "points": 6.0,
+          "description": "CR",
+          "long_description": "Aims are sound, but the objectives mainly list standard tasks instead of measurable goals. Scope is established, but boundaries between In-Scope and Out-of-Scope are slightly fuzzy. Implications are generic and should be specifically tied to the project."
+        },
+        {
+          "id": "_724",
+          "points": 3.99,
+          "description": "PS",
+          "long_description": "Provides some basic aims and objectives but misses out a major portion OR/AND there are flaws in the expression. Objectives fail the SMART criteria. Scoping boundaries are dangerously broad, presenting high risks of project failure. Deliverables are not well defined."
+        },
+        {
+          "id": "_784",
+          "points": 1.99,
+          "description": "FL",
+          "long_description": "Little to no basic background information is provided; fails to establish clear aims, scope limits, or success metrics."
+        }
+      ]
+    },
+    {
+      "id": "78610_4897",
+      "points": 30.0,
+      "description": "Technical Architecture & Computational Solutions",
+      "long_description": "Evaluates Data Collection, Computational Methodologies, High-Level Technical Architecture, and Feasibility Analysis.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "78610_4232",
+          "points": 30.0,
+          "description": "HD",
+          "long_description": "Explains data collection clearly, factoring in sample size to ensure statistical rigorousness. Methodologies, models, or platforms are thoroughly detailed. Includes a professional High-Level Technical Architecture or conceptual block diagram. The Feasibility Analysis offers a clear justification of why specific techniques and procedures are selected to ensure successful project deployment and method reproducibility."
+        },
+        {
+          "id": "78610_3520",
+          "points": 24.0,
+          "description": "DI",
+          "long_description": "High-level architecture diagram is present, clear, and accurately mapped. Computational methods are described well with logical technical justifications, though sample size or replication details have minor omissions."
+        },
+        {
+          "id": "78610_6252",
+          "points": 18.0,
+          "description": "CR",
+          "long_description": "Architecture diagram is provided but lacks intermediate data flow or sub-component steps. Methods are stated, but the choice lacks a detailed feasibility analysis justifying why these systems meet the client's explicit requirements."
+        },
+        {
+          "id": "78610_9025",
+          "points": 12.0,
+          "description": "PS",
+          "long_description": "The architecture section is superficial, using standard IT buzzwords without an actual system diagram. Data collection pathways and feasibility justifications are absent. Obvious issues can be identified from the perspective of clarity and missing details."
+        },
+        {
+          "id": "78610_6270",
+          "points": 6.0,
+          "description": "FL",
+          "long_description": "This document fails to meet most of the criteria. Missing or completely generic technical design that lacks computational engineering effort."
+        }
+      ]
+    },
+    {
+      "id": "78610_1728",
+      "points": 20.0,
+      "description": "Software Verification, Deployment & Resources",
+      "long_description": "Evaluates Testing and Analysis, Deployment planning, and Resource allocation.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "78610_1634",
+          "points": 20.0,
+          "description": "HD",
+          "long_description": "Provides an explicit and well designed testing plan spanning clear methodologies, Unit Testing, Integration Testing, or rigorous validation, which secures quality. The deployment plan outlines execution on the client’s infrastructure and details how bug fixes/updates will be distributed. Categorizes resources smoothly across client-provided assets and group-prepared needs."
+        },
+        {
+          "id": "78610_817",
+          "points": 15.99,
+          "description": "DI",
+          "long_description": "Clear description of testing methodologies and client deployment mechanisms. Resource divisions (hardware/software) are complete, with minor details missing on deployment plan outlines execution on the client’s infrastructure and details how bug fixes/updates will be distributed."
+        },
+        {
+          "id": "78610_4102",
+          "points": 12.0,
+          "description": "CR",
+          "long_description": "Testing and analysis are mentioned but stay basic without structural parameters or clear unit framework choices. Deployment details are abstract or gloss over environment constraints. Basic and general description on resource."
+        },
+        {
+          "id": "78610_4980",
+          "points": 7.99,
+          "description": "PS",
+          "long_description": "Provides some basic information but misses out a major portion OR/AND there are flaws in the expression. Testing, deployment paths, and resource planning are addressed briefly with minimal software engineering substance. Missing important details on deployment plan, and rough and general description on resource allocation."
+        },
+        {
+          "id": "78610_131",
+          "points": 3.99,
+          "description": "FL",
+          "long_description": "Omits essential verification strategies, deployment plans, and hardware/software resource breakdowns."
+        }
+      ]
+    },
+    {
+      "id": "78610_6699",
+      "points": 20.0,
+      "description": "Project Governance, Scheduling & Risk Assessment",
+      "long_description": "Evaluates Roles &amp; Responsibilities, Risk Assessment &amp; Mitigation, and Milestones/Schedule.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "78610_8493",
+          "points": 20.0,
+          "description": "HD",
+          "long_description": "Comprehensively outlines all resources needed by the project but need to be prepared by the group"
+        },
+        {
+          "id": "78610_7575",
+          "points": 15.99,
+          "description": "DI",
+          "long_description": "Most needed resources are outlined and correct"
+        },
+        {
+          "id": "78610_5377",
+          "points": 12.0,
+          "description": "CR",
+          "long_description": "Some needed resources are mentioned, but the list is incomplete or some identification is incorrect or unclear"
+        },
+        {
+          "id": "78610_9274",
+          "points": 7.99,
+          "description": "PS",
+          "long_description": "Provides some basic information but misses out a major portion OR/AND there are flaws in the expression."
+        },
+        {
+          "id": "78610_8793",
+          "points": 3.99,
+          "description": "FL",
+          "long_description": "Limited information is clear, correct or mentioned"
+        },
+        {
+          "id": "78610_871",
+          "points": 0.0,
+          "description": "No Marks",
+          "long_description": "All relevant information is missing, unclear, or incorrect."
+        }
+      ]
+    },
+    {
+      "id": "1782957665848",
+      "points": 15.0,
+      "description": "Professional Writing and Presentation, & members' engagement and contributions",
+      "long_description": "Evaluates professional writing and presentation, overall logic structure and organisation of the report, reliability of source material, consistent and academic referencing style, citation placement.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "1",
+          "points": 15.0,
+          "description": "Exceeds",
+          "long_description": "Report flows logically and professionally and demonstrates outstanding quality. All figures, illustrations and diagrams are of high-quality. Employs accurate (e.g. APA) referencing style seamlessly. Every claim, figure, or background fact features an exact in-text citation placed within the relevant sentence. Relies on authoritative, high-quality journals, verified library databases, and USYD recommended AI. All group members genuinely collaborate and contribute to the assignment and project."
+        },
+        {
+          "id": "2",
+          "points": 11.25,
+          "description": "Mastery",
+          "long_description": "Report flows logically and professional writing throughout. All figures, illustrations and diagrams are of good quality, but may miss necessary caption or explanation. Employs accurate (e.g. APA) referencing style but may has 1 or 2 minor formatting oversights in the presentation or references. Relies on authoritative, high-quality journals, verified library databases, and USYD recommended AI. All group members genuinely collaborate and contribute to the assignment and project."
+        },
+        {
+          "id": "3",
+          "points": 7.5,
+          "description": "Near",
+          "long_description": "Report flows logically and well structured. The quality of the figures, illustrations and diagrams should be improved and may miss necessary caption or explanation. May lists references at the end without proper corresponding in-text citations within the body sentences. Relies heavily on basic web URLs instead of peer-reviewed digital library databases, may use AI tools not recommended by the University. One group members lacks dedication and contribution."
+        },
+        {
+          "id": "4",
+          "points": 3.75,
+          "description": "Below",
+          "long_description": "Writing is legible but some parts could be disjointed or not consistent. Displays referencing issues, and may miss necessary citations. Concerns on reliability of source materials. Two or three group members lacks dedication and contribution."
+        }
+      ]
+    }
+  ]
+}

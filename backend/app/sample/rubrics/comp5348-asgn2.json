@@ -1,0 +1,295 @@
+{
+  "course": {
+    "id": 73762,
+    "name": "COMP4348 COMP5348 Enterprise Scale Software Architecture",
+    "course_code": "COMP4348 COMP5348 (NE)",
+    "url": "https://canvas.sydney.edu.au/courses/73762"
+  },
+  "assignment": {
+    "id": 693966,
+    "name": "Assignment 2 main file submission",
+    "url": "https://canvas.sydney.edu.au/courses/73762/assignments/693966",
+    "points_possible": 10.0,
+    "use_rubric_for_grading": false,
+    "rubric_settings": {
+      "id": 127049,
+      "title": "COMP4348/COMP5348 2026 Assessment 2",
+      "points_possible": 10.0,
+      "free_form_criterion_comments": false,
+      "hide_score_total": false,
+      "hide_points": false
+    }
+  },
+  "rubric": [
+    {
+      "id": "_8870",
+      "points": 1.0,
+      "description": "Q1(a) Resources and URI design",
+      "long_description": "A table of at least six operations, including app publication, app update, app purchase and retrieval of a user&#39;s purchased apps, with resource-oriented URIs.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_5489",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "At least six operations including the four required ones; URIs identify resources rather than actions; resource, URI and verb given for each operation."
+        },
+        {
+          "id": "_4992",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "A required operation missing, fewer than six operations, or a few action-style or inconsistent URIs."
+        },
+        {
+          "id": "_9384",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "An RPC-style design with actions in the URIs, or two or more of the required operations missing."
+        }
+      ]
+    },
+    {
+      "id": "_9926",
+      "points": 1.0,
+      "description": "Q1(b) HTTP verbs and success status codes",
+      "long_description": "An appropriate HTTP verb and one success status code for each operation.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_3708",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Verbs and status codes appropriate for every operation."
+        },
+        {
+          "id": "_3748",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "One inappropriate verb or status code."
+        },
+        {
+          "id": "_7765",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Two or more inappropriate verbs or status codes, or status codes missing."
+        }
+      ]
+    },
+    {
+      "id": "_2544",
+      "points": 1.0,
+      "description": "Q2(1) Service demands and low-load bounds",
+      "long_description": "Service demand at each device for the given transaction mix, and the low-load throughput and response-time bounds, with working shown.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_3822",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Device demands and both bounds correct, with working."
+        },
+        {
+          "id": "_737",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Correct method with an arithmetic or unit error."
+        },
+        {
+          "id": "_3465",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Bounds not derived from service demands, or no working."
+        }
+      ]
+    },
+    {
+      "id": "_3439",
+      "points": 1.0,
+      "description": "Q2(2) High-load bound and bottleneck",
+      "long_description": "The high-load response-time bound used to find the largest number of clients for which the bound stays below 2 seconds, and the bottleneck device identified. Errors carried forward from earlier parts are not penalised again.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_577",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Correct bottleneck and correct largest integer, with working."
+        },
+        {
+          "id": "_8199",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Correct method, but the wrong integer or the bottleneck not stated."
+        },
+        {
+          "id": "_1030",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Bound not based on the bottleneck demand, or wrong bottleneck."
+        }
+      ]
+    },
+    {
+      "id": "_4836",
+      "points": 1.0,
+      "description": "Q2(3) Variable update mix",
+      "long_description": "Service demands that depend on N, the largest N for which the high-load bound stays below 2 seconds, and the bottleneck throughput bound at that N. Errors carried forward from earlier parts are not penalised again.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_9531",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "N-dependent demands, correct N and correct throughput bound, with working."
+        },
+        {
+          "id": "_3874",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "N-dependent demands used, but N or the throughput bound wrong or missing."
+        },
+        {
+          "id": "_6867",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Update mix treated as fixed, or no N-dependent demands."
+        }
+      ]
+    },
+    {
+      "id": "_228",
+      "points": 1.0,
+      "description": "Q2(4) CPU upgrade and new bottleneck",
+      "long_description": "The smallest speed-up beyond which CPU upgrades no longer improve the throughput bound, the device that then limits throughput, and the maximum throughput bound reachable through CPU upgrades alone. Errors carried forward from earlier parts are not penalised again.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_8005",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "All three results correct and derived from the service demands."
+        },
+        {
+          "id": "_2168",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Two of the three results correct."
+        },
+        {
+          "id": "_6657",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "One or none correct, or results not derived from the service demands."
+        }
+      ]
+    },
+    {
+      "id": "_4965",
+      "points": 1.0,
+      "description": "Q3(1a) Component and StoreSys availability",
+      "long_description": "The availability of each component and of the series system, with working.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_3900",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Component and system availability correct, combined correctly for components in series."
+        },
+        {
+          "id": "_9191",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Correct method with an arithmetic or unit error."
+        },
+        {
+          "id": "_5618",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Series availability not combined correctly."
+        }
+      ]
+    },
+    {
+      "id": "_1170",
+      "points": 1.0,
+      "description": "Q3(1b) StoreSys MTTF and MTTR",
+      "long_description": "The MTTF and MTTR of the series system, with working. Errors carried forward from earlier parts are not penalised again.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_2056",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "MTTF and MTTR both correct, using a valid method."
+        },
+        {
+          "id": "_9985",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Only one of MTTF or MTTR correct."
+        },
+        {
+          "id": "_848",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Neither correct."
+        }
+      ]
+    },
+    {
+      "id": "_6982",
+      "points": 1.0,
+      "description": "Q3(2a) StoreSys2 availability",
+      "long_description": "The availability of the redundant 2-plex, treating one complete StoreSys as the replicated unit. Errors carried forward from earlier parts are not penalised again.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_8819",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "Parallel availability correct, applied to the whole StoreSys."
+        },
+        {
+          "id": "_6237",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Correct method with an arithmetic error, or redundancy applied per component."
+        },
+        {
+          "id": "_1617",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Availability not combined as a parallel system."
+        }
+      ]
+    },
+    {
+      "id": "_6755",
+      "points": 1.0,
+      "description": "Q3(2b) StoreSys2 MTTF and MTTR",
+      "long_description": "The MTTF of the 2-plex using the n-plex approximation, and its MTTR, with working. Errors carried forward from earlier parts are not penalised again.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_4520",
+          "points": 1.0,
+          "description": "Full credit",
+          "long_description": "MTTF from the n-plex approximation and MTTR from a valid method, both correct."
+        },
+        {
+          "id": "_319",
+          "points": 0.5,
+          "description": "Partial credit",
+          "long_description": "Only one of MTTF or MTTR correct."
+        },
+        {
+          "id": "_3772",
+          "points": 0.0,
+          "description": "No credit",
+          "long_description": "Neither MTTF nor MTTR correct."
+        }
+      ]
+    }
+  ]
+}

@@ -100,7 +100,9 @@
   .wbar i{ height:100%; }
   .wbar i:nth-child(4n+1){ background:var(--lv1); } .wbar i:nth-child(4n+2){ background:var(--lv2); } .wbar i:nth-child(4n+3){ background:var(--lv3); } .wbar i:nth-child(4n+4){ background:var(--lv4); }
   .checks{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-  .ck{ font-size:12px; padding:3px 10px; border-radius:20px; }
+  .ck{ font-size:12px; padding:3px 10px; border-radius:20px; border:0; font-family:inherit; line-height:1.5; }
+  button.ck{ cursor:pointer; }
+  button.ck:hover, button.ck:focus-visible{ box-shadow:0 0 0 2px currentColor; outline:none; }
   .ck.ok{ background:var(--conf-high-bg); color:var(--conf-high); }
   .ck.bad{ background:var(--risk-bg); color:var(--risk); }
   .ck.warn{ background:var(--conf-med-bg); color:var(--conf-med); }
@@ -123,6 +125,9 @@
   .c-w:focus-within{ box-shadow:0 0 0 2px var(--primary); }
   .c-rm{ width:24px; height:24px; flex:none; border:0; background:none; color:var(--ink-soft); cursor:pointer; border-radius:6px; font-size:16px; line-height:1; }
   .c-rm:hover{ color:var(--risk); background:var(--risk-bg); }
+  .c-desc{ grid-column:1 / -1; display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--ink-soft); }
+  .c-desc em{ font-style:normal; color:var(--conf-med); }
+  .c-desc textarea{ width:100%; min-height:54px; resize:vertical; border:1px solid var(--border); border-radius:7px; padding:7px 8px; font-size:12.5px; line-height:1.45; background:#fff; }
   .bands{ display:none; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:8px; padding:2px 20px 16px 54px; }
   .crit.open .bands{ display:grid; }
   .band{ display:flex; flex-direction:column; gap:4px; }
@@ -131,8 +136,13 @@
   .band.l1{ --c:var(--lv1); } .band.l2{ --c:var(--lv2); } .band.l3{ --c:var(--lv3); } .band.l4{ --c:var(--lv4); } .band.l5{ --c:var(--lv5); }
   .band textarea{ width:100%; min-height:92px; resize:vertical; border:1px solid var(--border); border-radius:7px; padding:7px 8px; font-size:12.5px; line-height:1.45; background:var(--tint); }
   .band textarea:focus{ outline:none; border-color:var(--primary); background:#fff; }
-  .level-head{ display:grid; grid-template-columns:minmax(0,1fr) 62px; gap:5px; }
+  .level-head{ display:grid; grid-template-columns:minmax(0,1fr) 62px 24px; gap:5px; }
   .level-head input{ width:100%; min-width:0; border:1px solid var(--border); border-radius:5px; padding:4px 6px; font-size:11.5px; background:#fff; }
+  .level-rm{ width:24px; height:26px; border:0; border-radius:5px; background:transparent; color:var(--ink-soft); cursor:pointer; padding:0; font-size:16px; line-height:1; }
+  .level-rm:hover{ color:var(--risk); background:var(--risk-bg); }
+  .level-actions{ grid-column:1 / -1; display:flex; align-items:center; padding-top:2px; }
+  .add-level{ border:0; background:none; padding:3px 0; color:var(--ink-soft); font-size:12.5px; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+  .add-level:hover{ color:var(--primary); }
   .sid-input{ width:135px; border:1px solid var(--border-strong); border-radius:5px; padding:4px 7px; font:12px 'IBM Plex Mono',monospace; }
   .band.missing textarea{ border-color:var(--risk); background:var(--risk-bg); }
   .band.missing label{ color:var(--risk); }
@@ -455,14 +465,20 @@
     $('boxPaste').classList.toggle('active', from === 'paste');
     drawLib(); drawEditor(); update();
   }
+  /* A level needs a label and points. Descriptors are optional: many real rubrics give level
+     labels and points only, and the AI then judges against the criterion description. */
+  function levelOK(level){ return String(level.label||'').trim() && String(level.points).trim()!=='' && !isNaN(Number(level.points)); }
+  function described(c){ return c.levels.some(function(level){ return String(level.description||'').trim(); }); }
   function checks(){
     var list = [], t = L.total(R);
     list.push(t > 0 ? ['ok','Maximum total: ' + t + ' marks'] : ['bad','Total marks must be greater than zero']);
-    var miss = 0, short=0, missingWeight=0; R.criteria.forEach(function(c){ if(!(Number(c.weight)>0))missingWeight++; if(c.levels.length<2)short++; c.levels.forEach(function(level){ if(!String(level.label||'').trim()||!String(level.description||'').trim()||String(level.points).trim()===''||isNaN(Number(level.points)))miss++; }); });
-    list.push(miss ? ['bad', miss + ' incomplete scoring level' + (miss > 1 ? 's' : '')] : ['ok','All detected scoring levels are complete']);
-    if(short)list.push(['bad','Each criterion needs at least 2 scoring levels']);
-    if(missingWeight)list.push(['bad',missingWeight+' criterion'+(missingWeight>1?'s have':' has')+' no maximum marks']);
-    if (R.criteria.some(function(c){ return !String(c.name || '').trim(); })) list.push(['bad','A criterion has no name']);
+    var miss = 0, short=0, missingWeight=0, labelOnly=0, partial=0; R.criteria.forEach(function(c){ if(!(Number(c.weight)>0))missingWeight++; if(c.levels.length<2)short++; c.levels.forEach(function(level){ if(!levelOK(level))miss++; }); if(!described(c))labelOnly++; else if(c.levels.some(function(level){ return !String(level.description||'').trim(); }))partial++; });
+    list.push(miss ? ['bad', miss + ' level' + (miss > 1 ? 's need' : ' needs') + ' a label and points','level-fields'] : ['ok','Every level has a label and points']);
+    if(labelOnly)list.push(['warn',labelOnly+' criteri'+(labelOnly>1?'a use':'on uses')+' level labels only — judged against the criterion description','label-only']);
+    if(partial)list.push(['warn',partial+' criteri'+(partial>1?'a have':'on has')+' some levels without a descriptor','partial-descriptor']);
+    if(short)list.push(['bad',short+' criterion'+(short>1?' need':' needs')+' at least 2 scoring levels','short-levels']);
+    if(missingWeight)list.push(['bad',missingWeight+' criterion'+(missingWeight>1?'s have':' has')+' no maximum marks','weight']);
+    if (R.criteria.some(function(c){ return !String(c.name || '').trim(); })) list.push(['bad','A criterion has no name','name']);
     if (!R.criteria.length) list.push(['bad','No criteria']);
     list.push(['ok','Level count and labels come from this rubric']);
     return list;
@@ -470,7 +486,10 @@
   function rubricOK(){ return R && !checks().some(function(c){ return c[0] === 'bad'; }); }
   function drawHead(){
     $('wbar').innerHTML = R.criteria.map(function(c){ return '<i style="flex:' + Math.max(Number(c.weight) || 0, 0.5) + '" title="' + esc(c.name) + ' · ' + c.weight + ' marks"></i>'; }).join('');
-    $('checks').innerHTML = checks().map(function(c){ return '<span class="ck ' + c[0] + '">' + (c[0] === 'ok' ? '✓ ' : '! ') + esc(c[1]) + '</span>'; }).join('');
+    $('checks').innerHTML = checks().map(function(c){
+      var content=(c[0] === 'ok' ? '✓ ' : '! ')+esc(c[1]);
+      return c[2] ? '<button type="button" class="ck '+c[0]+'" data-check="'+c[2]+'" title="Show the first matching criterion">'+content+'</button>' : '<span class="ck '+c[0]+'">'+content+'</span>';
+    }).join('');
     var showSave = origin === 'paste' || dirty;
     $('saveLibWrap').style.display = showSave ? '' : 'none';
     $('saveLibLbl').textContent = origin === 'library' ? 'Update “' + R.title + '” in the library' : 'Save to rubric library';
@@ -479,21 +498,22 @@
   function drawEditor(){
     $('critEmpty').hidden = !!R; $('critEditor').hidden = !R;
     if (!R) return;
-    $('rTitle').value = R.title; $('rSrc').textContent = R.source;
+    $('rTitle').value = R.title; $('rSrc').textContent = String(R.source||'').replace(/ai-recovery:[^·]+/i,'Recovered with AI').replace(/ai-draft:[^·]+/i,'Drafted with AI');
     $('crits').innerHTML = R.criteria.map(function(c, i){
-      var miss = c.levels.filter(function(level){ return !String(level.label||'').trim()||!String(level.description||'').trim()||String(level.points).trim()===''||isNaN(Number(level.points)); }).length;
-      return '<div class="crit' + (openSet[i] ? ' open' : '') + (miss ? ' flagged' : '') + '" data-i="' + i + '">' +
+      var miss = c.levels.filter(function(level){ return !levelOK(level); }).length, short = c.levels.length < 2, plain = !described(c), issue = miss || short || !(Number(c.weight)>0) || !String(c.name||'').trim();
+      var flagText = miss ? (miss + (miss > 1 ? ' levels' : ' level') + ' missing') : short ? 'Add a scoring level' : !(Number(c.weight)>0) ? 'Maximum missing' : !String(c.name||'').trim() ? 'Name missing' : '';
+      return '<div class="crit' + (openSet[i] ? ' open' : '') + (issue ? ' flagged' : '') + '" data-i="' + i + '">' +
         '<div class="crit-row">' +
           '<button class="fold" type="button" aria-label="Show grade levels" aria-expanded="' + !!openSet[i] + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>' +
           '<input class="c-name" data-f="name" value="' + esc(c.name) + '" aria-label="Criterion name" placeholder="Criterion name">' +
-          (miss ? '<span class="c-flag">' + miss + (miss > 1 ? ' levels' : ' level') + ' missing</span>' : '') +
+          (flagText ? '<span class="c-flag">' + flagText + '</span>' : '') +
           '<span class="c-w"><input type="number" min="0" step="0.5" data-f="weight" value="' + c.weight + '" aria-label="Maximum marks"> pts</span>' +
           '<button class="c-rm" type="button" data-rm aria-label="Remove criterion">×</button>' +
         '</div>' +
-        '<div class="bands">' + c.levels.map(function(level, j){
-          var complete=String(level.label||'').trim()&&String(level.description||'').trim()&&String(level.points).trim()!==''&&!isNaN(Number(level.points));
-          return '<div class="band l' + ((j%5)+1) + (complete ? '' : ' missing') + '"><div class="level-head"><input data-f="level-label" data-j="'+j+'" value="'+esc(level.label)+'" aria-label="Level label"><input type="number" step="0.5" min="0" data-f="level-points" data-j="'+j+'" value="'+level.points+'" aria-label="Level points"></div><textarea id="b' + i + '_' + j + '" data-f="level-description" data-j="' + j + '" placeholder="Describe this level…">' + esc(level.description) + '</textarea></div>';
-        }).join('') + '</div></div>';
+        '<div class="bands"><label class="c-desc"><span>What this criterion assesses' + (plain ? ' <em>· levels have no descriptors, so the AI judges against this</em>' : '') + '</span><textarea data-f="description" placeholder="Criterion description (optional)">' + esc(c.description) + '</textarea></label>' + c.levels.map(function(level, j){
+          var complete=levelOK(level);
+          return '<div class="band l' + ((j%5)+1) + (complete ? '' : ' missing') + '"><div class="level-head"><input data-f="level-label" data-j="'+j+'" value="'+esc(level.label)+'" aria-label="Level label"><input type="number" step="0.5" min="0" data-f="level-points" data-j="'+j+'" value="'+level.points+'" aria-label="Level points"><button class="level-rm" type="button" data-rm-level="'+j+'" aria-label="Remove '+esc(level.label||('level '+(j+1)))+'" title="Remove performance level">×</button></div><textarea id="b' + i + '_' + j + '" data-f="level-description" data-j="' + j + '" placeholder="No descriptor (optional)">' + esc(level.description) + '</textarea></div>';
+        }).join('') + '<div class="level-actions"><button type="button" class="add-level" data-add-level>+ Add performance level</button></div></div></div>';
     }).join('');
     $('toggleAll').textContent = R.criteria.every(function(_, i){ return openSet[i]; }) ? 'Collapse all' : 'Expand all';
     drawHead();
@@ -501,15 +521,17 @@
   function refreshCriterionState(row, c){
     var missing=0;
     Array.prototype.forEach.call(row.querySelectorAll('.band'),function(band,j){
-      var level=c.levels[j]||{}, complete=String(level.label||'').trim()&&String(level.description||'').trim()&&String(level.points).trim()!==''&&!isNaN(Number(level.points));
+      var level=c.levels[j]||{}, complete=levelOK(level);
       band.classList.toggle('missing',!complete);
       if(!complete)missing++;
     });
-    row.classList.toggle('flagged',missing>0);
+    var short=c.levels.length<2, missingWeight=!(Number(c.weight)>0), missingName=!String(c.name||'').trim();
+    row.classList.toggle('flagged',missing>0||short||missingWeight||missingName);
     var flag=row.querySelector('.c-flag');
-    if(missing){
+    var message=missing ? missing+(missing>1?' levels':' level')+' missing' : short ? 'Add a scoring level' : missingWeight ? 'Maximum missing' : missingName ? 'Name missing' : '';
+    if(message){
       if(!flag){flag=document.createElement('span');flag.className='c-flag';row.querySelector('.c-w').before(flag);}
-      flag.textContent=missing+(missing>1?' levels':' level')+' missing';
+      flag.textContent=message;
     }else if(flag){
       flag.remove();
     }
@@ -518,6 +540,7 @@
     var el = e.target, row = el.closest('.crit'); if (!row) return;
     var i = Number(row.dataset.i), c = R.criteria[i]; dirty = true;
     if (el.dataset.f === 'name'){c.name=el.value;c.prov.name='edited';}
+    if (el.dataset.f === 'description'){c.description=el.value;c.prov.description='edited';}
     if (el.dataset.f === 'weight'){c.weight=el.value===''?'':Number(el.value);c.prov.weight='edited';}
     if (el.dataset.f === 'level-label'){c.levels[Number(el.dataset.j)].label=el.value;c.levels[Number(el.dataset.j)].prov.label='edited';}
     if (el.dataset.f === 'level-points'){var editedLevel=c.levels[Number(el.dataset.j)];editedLevel.points=el.value===''?'':Number(el.value);editedLevel.min_score=editedLevel.points;editedLevel.max_score=editedLevel.points;editedLevel.prov.points='edited';}
@@ -529,12 +552,40 @@
   $('crits').addEventListener('click', function(e){
     var row = e.target.closest('.crit'); if (!row) return;
     var i = Number(row.dataset.i);
+    var removeLevel=e.target.closest('[data-rm-level]');
+    if(removeLevel){
+      var levelIndex=Number(removeLevel.dataset.rmLevel);
+      R.criteria[i].levels.splice(levelIndex,1); dirty=true; openSet[i]=true; drawEditor(); update(); return;
+    }
+    if(e.target.closest('[data-add-level]')){
+      R.criteria[i].levels.push({id:'level-'+(R.criteria[i].levels.length+1),label:'',points:'',min_score:null,max_score:null,min_inclusive:true,max_inclusive:true,description:'',prov:{label:'edited',points:'edited',description:'missing'},source_text:{}});
+      dirty=true; openSet[i]=true; drawEditor(); update();
+      var addedBands=document.querySelectorAll('.crit[data-i="'+i+'"] .band'), added=addedBands[addedBands.length-1]&&addedBands[addedBands.length-1].querySelector('[data-f="level-label"]'); if(added)added.focus(); return;
+    }
     if (e.target.closest('.fold')){ openSet[i] = !openSet[i]; row.classList.toggle('open', !!openSet[i]); e.target.closest('.fold').setAttribute('aria-expanded', !!openSet[i]); return; }
     if (e.target.closest('[data-rm]')){
       if (!confirm('Remove “' + (R.criteria[i].name || 'this criterion') + '”?')) return;
       R.criteria.splice(i, 1); var o = {}; Object.keys(openSet).forEach(function(k){ k = Number(k); if (k < i) o[k] = openSet[k]; if (k > i) o[k - 1] = openSet[k]; }); openSet = o;
       dirty = true; drawEditor(); update();
     }
+  });
+  $('checks').addEventListener('click',function(e){
+    var button=e.target.closest('[data-check]'); if(!button||!R)return;
+    var kind=button.dataset.check, index=R.criteria.findIndex(function(c){
+      if(kind==='level-fields')return c.levels.some(function(level){return !levelOK(level);});
+      if(kind==='short-levels')return c.levels.length<2;
+      if(kind==='weight')return !(Number(c.weight)>0);
+      if(kind==='name')return !String(c.name||'').trim();
+      if(kind==='label-only')return !described(c);
+      if(kind==='partial-descriptor')return described(c)&&c.levels.some(function(level){return !String(level.description||'').trim();});
+      return false;
+    });
+    if(index<0)return;
+    openSet[index]=true; drawEditor();
+    var row=document.querySelector('.crit[data-i="'+index+'"]'); if(!row)return;
+    row.scrollIntoView({behavior:'smooth',block:'center'});
+    var target=kind==='weight'?row.querySelector('[data-f="weight"]'):kind==='name'?row.querySelector('[data-f="name"]'):kind==='short-levels'?row.querySelector('[data-add-level]'):kind==='partial-descriptor'||kind==='label-only'?row.querySelector('[data-f="level-description"]'):row.querySelector('.band.missing input');
+    if(target)setTimeout(function(){target.focus();},250);
   });
   $('addCrit').addEventListener('click', function(){
     R.criteria.push({ name:'', weight:3, levels:[{id:'3',label:'3',points:3,description:''},{id:'2',label:'2',points:2,description:''},{id:'1',label:'1',points:1,description:''},{id:'0',label:'0',points:0,description:''}] }); openSet[R.criteria.length - 1] = true; dirty = true; drawEditor(); update();
