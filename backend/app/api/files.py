@@ -8,6 +8,8 @@ from app.config import Settings
 from app.db.models.batch import Batch
 from app.db.models.submission import File, Submission
 from app.deps import get_db, get_settings
+from app.domain.ids import new_id
+from app.ingest import UnsafeArchive, expand_upload, mime_for
 from app.services.submission_service import store_upload
 
 router = APIRouter(prefix="/batches", tags=["files"])
@@ -27,18 +29,58 @@ async def upload_files(
     with db.begin_nested():
         for upload in files:
             content = await upload.read()
-            manifest.append(
-                store_upload(
-                    db, settings, batch, upload.filename or "submission", content, upload.content_type
+            upload_name = upload.filename or "submission"
+            try:
+                candidates = expand_upload(upload_name, content, upload.content_type)
+                if not candidates:
+                    manifest.append(
+                        {
+                            "id": new_id("fil"),
+                            "name": upload_name,
+                            "size": len(content),
+                            "mime_type": mime_for(upload_name, upload.content_type),
+                            "sha256": None,
+                            "sid_guess": None,
+                            "status": "unsupported",
+                            "duplicate_of": None,
+                            "message": "ZIP contains no supported submission files",
+                            "source_archive": upload_name,
+                        }
+                    )
+                for candidate in candidates:
+                    manifest.append(
+                        store_upload(
+                            db,
+                            settings,
+                            batch,
+                            candidate.name,
+                            candidate.content,
+                            candidate.declared_mime,
+                            candidate.source_archive,
+                        )
+                    )
+            except UnsafeArchive as exc:
+                manifest.append(
+                    {
+                        "id": new_id("fil"),
+                        "name": upload_name,
+                        "size": len(content),
+                        "mime_type": mime_for(upload_name, upload.content_type),
+                        "sha256": None,
+                        "sid_guess": None,
+                        "status": "rejected",
+                        "duplicate_of": None,
+                        "message": str(exc),
+                        "source_archive": upload_name,
+                    }
                 )
-            )
     db.commit()
     return {
         "files": manifest,
         "summary": {
             "accepted": sum(i["status"] == "accepted" for i in manifest),
-            "duplicates": 0,
-            "skipped": sum(i["status"] != "accepted" for i in manifest),
+            "duplicates": sum(i["status"] == "duplicate" for i in manifest),
+            "skipped": sum(i["status"] in {"unsupported", "rejected"} for i in manifest),
             "needs_sid": sum(i["sid_guess"] is None for i in manifest if i["status"] == "accepted"),
             "likely_scanned": 0,
         },

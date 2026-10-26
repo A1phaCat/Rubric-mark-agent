@@ -65,6 +65,20 @@ test('results and report pages render stored marks, feedback and evidence', asyn
   await expect(page.locator('.ai-note')).toHaveCount(0);
 });
 
+test('completed results can re-enter review while finalised results stay locked', async ({ page }) => {
+  await page.goto('/04-batch-complete.html?batch_id=bat_sample_asgn1');
+  await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
+  const edit = page.getByRole('link', { name: 'Edit marks' }).first();
+  await expect(edit).toBeVisible();
+  await edit.click();
+  await expect(page.locator('.score-input').first()).toBeEnabled();
+
+  await page.goto('/04-batch-complete.html?batch_id=bat_sample_quiz3');
+  await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
+  await expect(page.getByRole('link', { name: 'Edit marks' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reopen for changes' })).toBeVisible();
+});
+
 test('local-fake API completes a new single-file batch', async ({ request, page }) => {
   let createdBatchId = null;
   try {

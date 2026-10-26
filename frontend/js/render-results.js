@@ -21,7 +21,7 @@
       change = Math.abs(delta) < 0.001 && item.flags.indexOf('adjusted') < 0 ? '<span class="change same">Matches AI</span>'
         : '<span class="change"><span class="delta ' + (delta < 0 ? 'down' : 'up') + '">' + (delta > 0 ? '+' : delta < 0 ? '−' : '±') + ui.num(Math.abs(delta)) + '</span><span>adjusted by tutor' + (bandChanged ? '<small>band changed ' + bandOf(ai, maximum) + ' → ' + bandOf(fin, maximum) + '</small>' : '') + '</span></span>';
     }
-    var link = confirmed ? '<a class="rep" href="05-mark-report.html?submission_id=' + encodeURIComponent(item.id) + '">View report →</a>'
+    var link = confirmed ? '<span class="row-actions"><a class="rep" href="05-mark-report.html?submission_id=' + encodeURIComponent(item.id) + '">View report</a>' + (locked ? '' : '<a class="rep" href="03b-review-split.html?submission_id=' + encodeURIComponent(item.id) + '">Edit marks →</a>') + '</span>'
       : (locked ? '—' : '<a class="rep" href="03b-review-split.html?submission_id=' + encodeURIComponent(item.id) + '">Review →</a>');
     return '<tr data-adjusted="' + (confirmed && item.flags.indexOf('adjusted') >= 0 ? 1 : 0) + '" data-confirmed="' + (confirmed ? 1 : 0) + '" data-band-changed="' + (confirmed && ai != null && bandOf(fin, maximum) !== bandOf(ai, maximum) ? 1 : 0) + '">' +
       '<td class="sid">' + ui.esc(item.sid || item.filename) + '</td><td>' + mark + '</td><td>' + change + '</td><td>' + ui.esc(item.marker ? item.marker.name : '—') + '</td><td>' + link + '</td></tr>';
@@ -72,7 +72,7 @@
         '<div class="card"><h2>Grade distribution <small>final marks</small></h2><div class="dist" aria-label="Grade distribution">' + dist + '</div></div></div>' +
         '<div class="card" style="margin-bottom:24px"><h2>By criterion <small>where tutors changed the AI most</small></h2><table class="crit-table"><thead><tr><th>Criterion</th><th class="num">Avg mark</th><th class="num">AI avg</th><th class="num">Adjusted</th></tr></thead><tbody>' + criteriaRows + '</tbody></table><p class="note"><span class="dot"></span>' + note + '</p></div>' +
         '<div class="filters"><button type="button" class="chip active" data-f="all">All (' + rows.length + ')</button><button type="button" class="chip" data-f="adjusted">Adjusted by tutor (' + adjustedCount + ')</button><button type="button" class="chip" data-f="same">Matches AI (' + (confirmedCount - adjustedCount) + ')</button><button type="button" class="chip" data-f="band">Band changed (' + bandChanged + ')</button></div>' +
-        '<div class="table-wrap"><table class="subs"><thead><tr><th>Submission</th><th>Final mark</th><th>Tutor changes</th><th>Tutor</th><th>Mark report</th></tr></thead><tbody>' + rows.map(function (r) { return rowHTML(ui, r, maximum, locked); }).join('') + '</tbody></table>' +
+        '<div class="table-wrap"><table class="subs"><thead><tr><th>Submission</th><th>Final mark</th><th>Tutor changes</th><th>Tutor</th><th>Actions</th></tr></thead><tbody>' + rows.map(function (r) { return rowHTML(ui, r, maximum, locked); }).join('') + '</tbody></table>' +
         '<div id="resultsPager" style="padding:0 16px"></div><div class="foot"><span id="showing">' + rows.length + ' submissions</span><span>' + (locked ? 'Marks are locked — reopen the batch to change them' : 'Marks can still be changed from the review page') + '</span></div></div>';
 
       /* Filter, then page 100 rows at a time so batches of 1,000+ stay fast to render and scroll. */

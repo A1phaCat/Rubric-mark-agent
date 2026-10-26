@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -35,6 +36,7 @@ def store_upload(
     filename: str,
     content: bytes,
     declared_mime: str | None = None,
+    source_archive: str | None = None,
 ) -> dict[str, Any]:
     """Persist one uploaded file and its submission row; return its manifest entry."""
 
@@ -54,6 +56,25 @@ def store_upload(
             "status": "unsupported",
             "duplicate_of": None,
             "message": "Unsupported file type",
+            "source_archive": source_archive,
+        }
+    duplicate = session.scalar(
+        select(File).where(File.batch_id == batch.id, File.sha256 == digest).limit(1)
+    )
+    if duplicate is not None:
+        return {
+            "id": new_id("fil"),
+            "name": filename,
+            "size": len(content),
+            "mime_type": mime,
+            "sha256": digest,
+            "sid_guess": sid_from_filename(filename),
+            "pages": None,
+            "has_text_layer": None,
+            "status": "duplicate",
+            "duplicate_of": duplicate.id,
+            "message": "Identical file skipped",
+            "source_archive": source_archive,
         }
     now = datetime.now(timezone.utc)
     file_id, submission_id = new_id("fil"), new_id("sub")
@@ -89,6 +110,9 @@ def store_upload(
         )
     )
     batch.total_count += 1
+    # SessionLocal disables autoflush; make this digest visible to later files in
+    # the same multi-file/ZIP request so exact duplicates are skipped reliably.
+    session.flush()
     return {
         "id": file_id,
         "submission_id": submission_id,
@@ -102,6 +126,8 @@ def store_upload(
         "status": "accepted",
         "duplicate_of": None,
         "message": None,
+        "source_archive": source_archive,
+        "version": 1,
     }
 
 
