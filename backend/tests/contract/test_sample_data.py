@@ -73,17 +73,61 @@ def test_manual_marking_submission_opens_with_empty_criteria(client: TestClient)
     assert all(item["ai_score"] is None and item["score"] is None for item in review["rubric"]["criteria"])
 
 
-def test_new_batches_are_pinned_above_samples_and_reseeding_keeps_them(client: TestClient) -> None:
-    created = client.post(
-        "/api/v1/batches",
-        json={"name": "Demo batch", "unit": None, "term_id": "term_2026s2", "rubric_id": "rub_shortanswer", "rubric_version": 1},
-    ).json()["batch"]
-    assert created["pinned"] is True
-    assert client.get("/api/v1/batches").json()["items"][0]["id"] == created["id"]
-    assert client.put(f"/api/v1/batches/{created['id']}/pin", json={"pinned": False}).json()["pinned"] is False
+def test_at_most_three_batches_are_pinned_and_new_ones_go_on_top(client: TestClient) -> None:
+    body = {"name": "Demo batch", "unit": None, "term_id": "term_2026s2", "rubric_id": "rub_shortanswer", "rubric_version": 1}
+    created = client.post("/api/v1/batches", json=body).json()
+    batch = created["batch"]
+    assert batch["pinned"] is True
+    assert [item["name"] for item in created["unpinned"]] == ["Quiz 3 — Short Answer"]  # oldest pin
     items = client.get("/api/v1/batches").json()["items"]
-    assert items[-1]["id"] == created["id"]
-    seed()  # re-seeding replaces the samples but keeps the tutor's batch and its rubric
+    assert items[0]["id"] == batch["id"]
+    assert sum(item["pinned"] for item in items) == 3
+
+    # Re-pinning a sample evicts the oldest remaining pin; unpinning drops below the pins.
+    repin = client.put("/api/v1/batches/bat_sample_quiz3/pin", json={"pinned": True}).json()
+    assert len(repin["unpinned"]) == 1
+    assert client.put(f"/api/v1/batches/{batch['id']}/pin", json={"pinned": False}).json()["pinned"] is False
+    items = client.get("/api/v1/batches").json()["items"]
+    assert sum(item["pinned"] for item in items) <= 3
+    assert not next(item for item in items if item["id"] == batch["id"])["pinned"]
+
+
+def test_reset_restores_samples_and_keeps_the_tutors_batches(client: TestClient) -> None:
+    # Mark a sample submission, then reset: the sample goes back to its starting state.
+    rows = client.get("/api/v1/batches/bat_sample_asgn2/submissions?filter=ready").json()["items"]
+    review = client.get(f"/api/v1/submissions/{rows[0]['id']}/review").json()
+    version = review["submission"]["version"]
+    assert client.post(f"/api/v1/submissions/{rows[0]['id']}/confirm", json={"version": version}).status_code == 200
+    before = client.get("/api/v1/batches/bat_sample_asgn2").json()["batch"]["counts"]["confirmed"]
+    mine = client.post(
+        "/api/v1/batches",
+        json={"name": "Mine", "unit": None, "term_id": "term_2026s2", "rubric_id": "rub_shortanswer", "rubric_version": 1},
+    ).json()["batch"]
+
+    result = client.post("/api/v1/samples/reset").json()
+    assert result["reset"] is True and result["batches"] == 3
+    after = client.get("/api/v1/batches/bat_sample_asgn2").json()["batch"]["counts"]["confirmed"]
+    assert before == 2 and after == 1
+    items = client.get("/api/v1/batches").json()["items"]
+    assert [item["id"] for item in items[:3]] == ["bat_sample_asgn2", "bat_sample_asgn1", "bat_sample_quiz3"]
     with SessionLocal() as session:
-        assert session.get(Batch, created["id"]) is not None
+        assert session.get(Batch, mine["id"]) is not None  # the tutor's batch is kept (unpinned)
         assert len(list(session.scalars(select(Batch).where(Batch.is_sample.is_(True))))) == 3
+
+
+def test_new_batch_defaults_to_the_current_term(client: TestClient) -> None:
+    term = client.get("/api/v1/me").json()["term"]
+    created = client.post(
+        "/api/v1/batches", json={"name": "No term given", "rubric_id": "rub_shortanswer", "rubric_version": 1}
+    ).json()["batch"]
+    assert created["term"]["id"] == term["id"]
+
+
+def test_local_account_name_is_stored_and_editable(client: TestClient) -> None:
+    original = client.get("/api/v1/me").json()["user"]["name"]
+    assert original
+    assert client.put("/api/v1/me", json={"name": "  "}).status_code == 422
+    renamed = client.put("/api/v1/me", json={"name": "Dr Lee"}).json()
+    assert renamed["user"]["name"] == "Dr Lee"
+    assert client.get("/api/v1/me").json()["user"]["name"] == "Dr Lee"
+    client.put("/api/v1/me", json={"name": original})

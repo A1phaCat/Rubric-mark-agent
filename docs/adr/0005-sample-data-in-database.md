@@ -12,8 +12,12 @@ Status: accepted, 2026-10-20 · supersedes the mock/fixture parts of ADR 0001 an
   tutor edits/confirmations via `ReviewUseCases`, finalisation via `BatchUseCases`. Only AI grading is
   replayed from recorded results (`provider="sample"`), and every recorded evidence quote must be found in
   the extracted text or seeding fails.
-- Batches and rubrics carry `pinned`. New ones start pinned; lists order pinned first, newest first. Samples
-  are pinned too, so a newly created demo batch appears above them.
+- At most three batches are pinned (`pinned`, `pinned_at`); Home shows them. New batches are pinned and
+  evict the oldest pin. Rubrics carry `pinned` without a cap.
+- Samples reset to their initial state on every API start (`MARKER_RESET_SAMPLES_ON_START`) and via
+  `POST /api/v1/samples/reset`, so a demo can mark them again; tutor-created data is kept.
+- Library rubrics for the samples are files in `app/sample/rubrics/` parsed by the local parser; an
+  ambiguous file stops the seed instead of loading a wrong rubric.
 - The FakeLLM is available only when `MARKER_ENV=test`.
 
 ## Consequences

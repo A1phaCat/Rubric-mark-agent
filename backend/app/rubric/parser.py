@@ -930,17 +930,43 @@ def parse_rubric_text(text: str, source_name: str | None = None) -> dict[str, An
     return result
 
 
+def _spreadsheet_as_table(text: str, delimiter: str) -> str:
+    """Turn CSV/TSV rows (e.g. exported from Excel) into the pipe table the parser reads."""
+
+    import csv
+    from io import StringIO
+
+    rows = [
+        [cell.strip().replace("|", "/") for cell in row]
+        for row in csv.reader(StringIO(text), delimiter=delimiter)
+        if any(cell.strip() for cell in row)
+    ]
+    if not rows:
+        return ""
+    width = max(len(row) for row in rows)
+    rows = [row + [""] * (width - len(row)) for row in rows]
+    lines = ["| " + " | ".join(rows[0]) + " |", "|" + "---|" * width]
+    lines.extend("| " + " | ".join(row) + " |" for row in rows[1:])
+    return "\n".join(lines)
+
+
 def extract_rubric_file(filename: str, content: bytes) -> str:
     """Extract text from the lightweight local-MVP rubric formats."""
 
     suffix = Path(filename).suffix.lower()
     if suffix in {".txt", ".md", ".csv", ".tsv", ".json"}:
+        text = None
         for encoding in ("utf-8-sig", "utf-16", "gb18030"):
             try:
-                return content.decode(encoding)
+                text = content.decode(encoding)
+                break
             except UnicodeDecodeError:
                 continue
-        return content.decode("utf-8", errors="replace")
+        if text is None:
+            text = content.decode("utf-8", errors="replace")
+        if suffix in {".csv", ".tsv"}:
+            return _spreadsheet_as_table(text, "\t" if suffix == ".tsv" else ",")
+        return text
     if suffix == ".docx":
         from docx import Document
 

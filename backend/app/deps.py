@@ -29,5 +29,5 @@ def get_current_user() -> dict[str, Any]:
     with SessionLocal() as session:
         user = session.get(User, settings.local_user_id)
         if user is None:
-            return {"id": settings.local_user_id, "name": "Local tutor", "role": "tutor"}
+            return {"id": settings.local_user_id, "name": "Tutor", "role": "tutor"}
         return {"id": user.id, "name": user.name, "role": user.role}

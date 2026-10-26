@@ -23,12 +23,21 @@ from app.domain.timefmt import iso_utc
 from app.jobs.queue import JobQueue
 
 PROCESSING_STATES = ("extracting", "ocr_running", "queued", "marking")
+MAX_PINNED = 3  # Home shows the pinned batches, so the pin list is capped
 NEEDS_MANUAL_STATES = ("needs_ocr", "ocr_failed")
 
 
 class BatchUseCases:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def _current_term_id(self) -> str:
+        """The newest term in the database (same order GET /me reports)."""
+
+        term = self.session.query(Term).order_by(Term.id.desc()).first()
+        if term is None:
+            raise ValueError("No term is configured; create one before adding batches")
+        return term.id
 
     def create(
         self,
@@ -45,21 +54,22 @@ class BatchUseCases:
             id=batch_id or new_id("bat"),
             name=payload["name"],
             unit=payload.get("unit"),
-            term_id=payload["term_id"],
+            term_id=payload.get("term_id") or self._current_term_id(),
             due_at=_dt(payload.get("due_at")),
             status=BatchStatus.DRAFT.value,
             rubric_library_id=payload.get("rubric_id"),
             rubric_version=payload.get("rubric_version"),
             total_count=0,
             is_sample=is_sample,
-            pinned=True,
             created_by=actor_id,
             created_at=now,
             version=1,
         )
         self.session.add(batch)
         self.session.flush()
-        return {"batch": self.serialize(batch)}
+        # A new batch goes straight to the top of Home; the oldest pin makes room for it.
+        unpinned = self._pin(batch)
+        return {"batch": self.serialize(batch), "unpinned": unpinned}
 
     def list(
         self,
@@ -73,7 +83,9 @@ class BatchUseCases:
     ) -> dict[str, Any]:
         """Pinned batches first, then the rest; newest first within each group."""
 
-        statement = select(Batch).order_by(Batch.pinned.desc(), Batch.created_at.desc())
+        statement = select(Batch).order_by(
+            Batch.pinned.desc(), Batch.pinned_at.desc(), Batch.created_at.desc()
+        )
         if term:
             statement = statement.where(Batch.term_id == term)
         if status:
@@ -97,10 +109,36 @@ class BatchUseCases:
         }
 
     def set_pinned(self, batch_id: str, pinned: bool) -> dict[str, Any]:
+        """Pin or unpin. Pinning a fourth batch unpins the one pinned longest ago."""
+
         batch = self._batch(batch_id)
-        batch.pinned = bool(pinned)
+        unpinned: list[dict[str, str]] = []
+        if pinned:
+            unpinned = self._pin(batch)
+        else:
+            batch.pinned = False
+            batch.pinned_at = None
+            self.session.flush()
+        return {"batch_id": batch.id, "pinned": batch.pinned, "unpinned": unpinned}
+
+    def _pin(self, batch: Batch) -> list[dict[str, str]]:
+        batch.pinned = True
+        batch.pinned_at = datetime.now(timezone.utc)
         self.session.flush()
-        return {"batch_id": batch.id, "pinned": batch.pinned}
+        pinned = list(
+            self.session.scalars(
+                select(Batch)
+                .where(Batch.pinned.is_(True))
+                .order_by(Batch.pinned_at.desc(), Batch.created_at.desc())
+            )
+        )
+        released = []
+        for other in pinned[MAX_PINNED:]:
+            other.pinned = False
+            other.pinned_at = None
+            released.append({"batch_id": other.id, "name": other.name})
+        self.session.flush()
+        return released
 
     def snapshot_rubric(self, batch: Batch) -> list[RubricCriterion]:
         """Freeze the batch's rubric version into the batch and return its criteria."""
@@ -544,6 +582,7 @@ class BatchUseCases:
             "display_status": "processing" if counts["processing"] > 0 else batch.status,
             "is_sample": bool(batch.is_sample),
             "pinned": bool(batch.pinned),
+            "pinned_at": _iso(batch.pinned_at),
             "rubric": rubric_summary,
             "counts": counts,
             "insights": self._insights(batch.id, maximum),

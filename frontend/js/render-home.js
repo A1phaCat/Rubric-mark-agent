@@ -59,6 +59,7 @@
 
       document.getElementById('homeTerm').textContent = me.term ? me.term.label : '';
       document.getElementById('homeGreeting').textContent = greeting(me.user.name);
+      window.addEventListener('marker:user', function (event) { document.getElementById('homeGreeting').textContent = greeting(event.detail.name); });
       var needing = summary.batches_needing_review;
       document.getElementById('homeLede').textContent = (needing ? needing + ' batch' + (needing === 1 ? ' needs' : 'es need') + ' your review. ' : 'Nothing is waiting for review. ') + 'The AI finds evidence for each criterion; you decide every final mark.';
 
@@ -73,7 +74,17 @@
         '<a class="stat" href="' + (manualBatch ? '02-batch-status.html?batch_id=' + encodeURIComponent(manualBatch.batch_id) + '&filter=needs_manual' : '07-batches.html') + '"><span class="k"><span class="dot" style="background:var(--conf-none)"></span>Need manual marking</span><span class="v">' + manual.count + '</span><span class="s">no readable text found</span></a>' +
         '<div class="stat"><span class="k"><span class="dot" style="background:var(--info)"></span>Confirmed this week</span><span class="v">' + week.count + '</span><span class="s">' + week.by_me + ' by you</span></div>';
 
-      var shown = batches.items.filter(function (b) { return b.pinned || (b.status !== 'cancelled' && b.status !== 'finalised'); }).slice(0, 6);
+      /* Home shows at most three batches: the (at most three) pinned ones, then the newest. */
+      var shown = batches.items.filter(function (b) { return b.status !== 'cancelled'; }).slice(0, 3);
+      var reset = document.getElementById('resetSamples');
+      if (reset && !reset.dataset.wired) {
+        reset.dataset.wired = '1';
+        reset.addEventListener('click', function () {
+          if (!confirm('Reset the sample batches? Their marks, comments and confirmations go back to the starting state. Your own batches and rubrics are kept.')) return;
+          reset.disabled = true; reset.textContent = 'Resetting…';
+          MarkerAPI.resetSamples().then(function () { location.reload(); }).catch(function (error) { reset.disabled = false; reset.textContent = '↺ Reset samples'; alert(error.message); });
+        });
+      }
       document.getElementById('homeBatches').innerHTML = shown.length ? shown.map(function (b) { return batchCard(ui, b); }).join('') : '<p class="home-empty">No batches yet. Start one with “New marking batch”.</p>';
 
       var items = queue.items;
@@ -83,7 +94,8 @@
       foot.hidden = !items.length;
       if (items.length) document.getElementById('queueStart').href = '03b-review-split.html?submission_id=' + encodeURIComponent(items[0].submission_id);
 
-      var recent = rubrics.items.slice(0, 3);
+      /* The three most recently created or edited rubrics. */
+      var recent = rubrics.items.slice().sort(function (a, b) { return Date.parse(b.updated_at) - Date.parse(a.updated_at); }).slice(0, 3);
       document.getElementById('recentRubrics').innerHTML = recent.map(function (r) {
         return '<a class="r" href="06-rubrics.html#open=' + encodeURIComponent(r.id) + '"><span>' + ui.esc(r.title) + '<small>Updated ' + ui.ago(r.updated_at) + (r.is_sample ? ' · sample' : '') + '</small></span><span>' + r.criteria_count + ' criteria</span></a>';
       }).join('') + '<a class="r-add" href="01a-rubric-import.html">+ Import a rubric</a>';

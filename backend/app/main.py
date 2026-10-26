@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,11 +10,13 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from app.api import batches, files, me, rubrics, submissions
+from app.api import batches, files, me, rubrics, samples, submissions
 from app.api import settings as settings_api
 from app.config import settings
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
+
+logger = logging.getLogger("marker")
 
 
 @asynccontextmanager
@@ -24,7 +27,24 @@ async def lifespan(_app: FastAPI):
 
     with SessionLocal() as session:
         load_ai_settings(session, settings)
+    if settings.reset_samples_on_start and settings.env != "test":
+        try:
+            _reset_samples("startup")
+        except Exception:
+            pass  # logged; the API still starts
     yield
+
+
+def _reset_samples(reason: str) -> dict:
+    from app.sample.seed import seed
+
+    try:
+        counts = seed()
+        print(f"Sample data reset ({reason}): {counts}", flush=True)
+        return counts
+    except Exception:  # never block the API on demo data
+        logger.exception("sample data reset failed (%s)", reason)
+        raise
 
 
 def create_app() -> FastAPI:
@@ -41,6 +61,7 @@ def create_app() -> FastAPI:
         files.router,
         submissions.router,
         rubrics.router,
+        samples.router,
         settings_api.router,
     ):
         app.include_router(router, prefix=api)

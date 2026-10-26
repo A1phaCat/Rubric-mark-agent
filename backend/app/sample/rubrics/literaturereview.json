@@ -1,0 +1,213 @@
+{
+  "title": "Literature Review",
+  "source": "From Canvas · local snapshot",
+  "pinned": true,
+  "age_days": 2,
+  "criteria": [
+    {
+      "name": "Scope & search strategy",
+      "weight": 15,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 15.0,
+          "min_score": 12.75,
+          "max_score": 15.0,
+          "description": "Search is systematic, documented and clearly bounded."
+        },
+        {
+          "label": "DI",
+          "points": 12.6,
+          "min_score": 11.25,
+          "max_score": 12.75,
+          "description": "Search is sound and mostly documented."
+        },
+        {
+          "label": "CR",
+          "points": 11.1,
+          "min_score": 9.75,
+          "max_score": 11.25,
+          "description": "Search is reasonable but loosely described."
+        },
+        {
+          "label": "PS",
+          "points": 9.6,
+          "min_score": 7.5,
+          "max_score": 9.75,
+          "description": "Search is narrow or unclear."
+        },
+        {
+          "label": "FL",
+          "points": 7.35,
+          "min_score": 0.0,
+          "max_score": 7.5,
+          "description": "No evident search strategy."
+        }
+      ]
+    },
+    {
+      "name": "Synthesis of sources",
+      "weight": 30,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 30.0,
+          "min_score": 25.5,
+          "max_score": 30.0,
+          "description": "Sources are compared and grouped into clear themes."
+        },
+        {
+          "label": "DI",
+          "points": 25.2,
+          "min_score": 22.5,
+          "max_score": 25.5,
+          "description": "Most sources are synthesised into themes."
+        },
+        {
+          "label": "CR",
+          "points": 22.2,
+          "min_score": 19.5,
+          "max_score": 22.5,
+          "description": "Some synthesis; parts read as a list of summaries."
+        },
+        {
+          "label": "PS",
+          "points": 19.2,
+          "min_score": 15.0,
+          "max_score": 19.5,
+          "description": "Mostly a list of summaries."
+        },
+        {
+          "label": "FL",
+          "points": 14.7,
+          "min_score": 0.0,
+          "max_score": 15.0,
+          "description": "Sources are not connected."
+        }
+      ]
+    },
+    {
+      "name": "Critical evaluation",
+      "weight": 25,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 25.0,
+          "min_score": 21.25,
+          "max_score": 25.0,
+          "description": "Weighs the strength and limits of each body of work."
+        },
+        {
+          "label": "DI",
+          "points": 21.0,
+          "min_score": 18.75,
+          "max_score": 21.25,
+          "description": "Evaluates key sources with some depth."
+        },
+        {
+          "label": "CR",
+          "points": 18.5,
+          "min_score": 16.25,
+          "max_score": 18.75,
+          "description": "Some evaluation, mostly descriptive."
+        },
+        {
+          "label": "PS",
+          "points": 16.0,
+          "min_score": 12.5,
+          "max_score": 16.25,
+          "description": "Little evaluation."
+        },
+        {
+          "label": "FL",
+          "points": 12.25,
+          "min_score": 0.0,
+          "max_score": 12.5,
+          "description": "No evaluation."
+        }
+      ]
+    },
+    {
+      "name": "Research gap",
+      "weight": 15,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 15.0,
+          "min_score": 12.75,
+          "max_score": 15.0,
+          "description": "Gap is precise and follows directly from the review."
+        },
+        {
+          "label": "DI",
+          "points": 12.6,
+          "min_score": 11.25,
+          "max_score": 12.75,
+          "description": "Gap is clear and mostly supported."
+        },
+        {
+          "label": "CR",
+          "points": 11.1,
+          "min_score": 9.75,
+          "max_score": 11.25,
+          "description": "Gap is stated but loosely supported."
+        },
+        {
+          "label": "PS",
+          "points": 9.6,
+          "min_score": 7.5,
+          "max_score": 9.75,
+          "description": "Gap is vague."
+        },
+        {
+          "label": "FL",
+          "points": 7.35,
+          "min_score": 0.0,
+          "max_score": 7.5,
+          "description": "No gap identified."
+        }
+      ]
+    },
+    {
+      "name": "Referencing & style",
+      "weight": 15,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 15.0,
+          "min_score": 12.75,
+          "max_score": 15.0,
+          "description": "Consistent, accurate referencing; polished writing."
+        },
+        {
+          "label": "DI",
+          "points": 12.6,
+          "min_score": 11.25,
+          "max_score": 12.75,
+          "description": "Minor referencing or style slips."
+        },
+        {
+          "label": "CR",
+          "points": 11.1,
+          "min_score": 9.75,
+          "max_score": 11.25,
+          "description": "Several referencing errors."
+        },
+        {
+          "label": "PS",
+          "points": 9.6,
+          "min_score": 7.5,
+          "max_score": 9.75,
+          "description": "Frequent errors."
+        },
+        {
+          "label": "FL",
+          "points": 7.35,
+          "min_score": 0.0,
+          "max_score": 7.5,
+          "description": "Referencing missing or unusable."
+        }
+      ]
+    }
+  ]
+}

@@ -178,6 +178,8 @@ paths:
       operationId: deleteRubric
       parameters: [{name: version, in: query, required: true, schema: {type: integer}}]
       responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/samples/reset:
+    post: {operationId: resetSamples, description: Recreate the sample batches in their initial state; the tutor's own data is kept., responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
   /api/v1/settings/ai:
     get:
       operationId: getAiSettings

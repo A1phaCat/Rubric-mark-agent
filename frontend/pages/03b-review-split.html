@@ -406,6 +406,7 @@
   .ec-links a, .ec-links button{ color:var(--ink-soft); background:none; border:0; padding:0; font:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
   .ec-links a:hover, .ec-links button:hover{ color:var(--primary); }
   footer.actionbar .btn:disabled{ opacity:.45; cursor:default; }
+  html:not([data-api-state="ready"]) .mark-inner .crit-card, html:not([data-api-state="ready"]) .crit-strip a{ visibility:hidden; }
 </style>
 </head>
 <body>
@@ -432,7 +433,7 @@
         <div class="rv-sub" id="pgSub"><span class="dot"></span><span id="pgProc">14</span> still with AI · 48 in batch</div>
       </div>
     </div>
-    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+    <div class="ab-user" title="Local single-user mode"><span class="ab-uname">&nbsp;</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true"></span></div>
   </div>
 </header>
 
@@ -471,109 +472,110 @@
   <!-- ===== Right: marking ===== -->
   <section class="mark-pane" id="markPane" aria-label="Marking">
     <nav class="crit-strip" aria-label="Criteria">
-      <a href="#c1" data-c="c1"><span class="st" id="nav1"></span>Argument structure <span class="w">30%</span></a>
-      <a href="#c2" data-c="c2"><span class="st" id="nav2"></span>Evidence &amp; sources <span class="w">25%</span></a>
-      <a href="#c3" data-c="c3"><span class="st" id="nav3"></span>Critical analysis <span class="w">30%</span></a>
-      <a href="#c4" data-c="c4"><span class="st" id="nav4"></span>Writing clarity <span class="w">15%</span></a>
+      <a href="#c1" data-c="c1"><span class="st" id="nav1"></span>C1 <span class="w"></span></a>
+      <a href="#c2" data-c="c2"><span class="st" id="nav2"></span>C2 <span class="w"></span></a>
+      <a href="#c3" data-c="c3"><span class="st" id="nav3"></span>C3 <span class="w"></span></a>
+      <a href="#c4" data-c="c4"><span class="st" id="nav4"></span>C4 <span class="w"></span></a>
     </nav>
     <div class="mark-inner">
       <div class="doc-header">
         <div>
           <h1>Review</h1>
-          <p>4 criteria · 8 evidence spans across 6 pages · 1 criterion flagged low-confidence</p>
+          <p>Loading criteria…</p>
         </div>
         <button class="fold-all" type="button" id="foldAll">Collapse all</button>
       </div>
 
       <section class="crit-card" id="c1">
         <div class="crit-top">
-          <div><h2 class="crit-title">Argument structure</h2><div class="crit-desc">HD band: a clear, well-sequenced thesis carried consistently through each section.</div></div>
-          <span class="crit-weight-badge">30 pts</span>
+          <div><h2 class="crit-title">Criterion 1</h2><div class="crit-desc"></div></div>
+          <span class="crit-weight-badge"></span>
         </div>
-        <span class="conf-tag high"><span class="dot"></span>High confidence</span>
-        <div class="evidence" data-ev="e1"><span class="tab">p.1 ¶2</span><span class="jump">Show in submission ↗</span>
-          <blockquote>"This essay argues that decentralised governance models, while promising in theory, consistently underperform in practice due to coordination costs that scale non-linearly with participant count."</blockquote></div>
-        <div class="also">Also used: <span class="chip" data-ev="e2"><b>p.6 ¶1</b><i>"In conclusion, the evidence reviewed here supports the claim…"</i></span></div>
-        <div class="ai-box"><span class="badge">AI · 26/30</span>
-          <div class="reason">Thesis is stated early and referenced again in the conclusion (<a data-ev="e2">p.6 ¶1</a>). Section transitions are explicit. <b>Minor:</b> the counter-argument in section 5 is introduced without a clear link back to the thesis.</div></div>
+        <span class="conf-tag none"><span class="dot"></span></span>
+        <div class="evidence" data-ev="tpl1a"><span class="tab"></span><span class="jump">Show in submission ↗</span>
+          <blockquote></blockquote></div>
+        <div class="also"></div>
+        <div class="ai-box"><span class="badge"></span>
+          <div class="reason"></div></div>
         <div class="marker-row">
           <label>Your score</label>
-          <input class="score-input" type="number" value="26" data-max="30" data-ai="26">
-          <span class="score-max">/ 30</span>
+          <input class="score-input" type="number" value="" data-max="" data-ai="">
+          <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
-        <div class="comment-field"><label class="lbl" for="cm1">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm1" placeholder="e.g. Clear thesis throughout — tie the counter-argument in section 5 back to it."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+        <div class="comment-field"><label class="lbl" for="cm1">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm1" placeholder="Feedback for the student on this criterion"></textarea></div>
       </section>
 
-      <section class="crit-card flagged" id="c2">
+      <section class="crit-card" id="c2">
         <div class="crit-top">
-          <div><h2 class="crit-title">Evidence &amp; sources</h2><div class="crit-desc">HD band: sources are current, credible, and integrated — not just listed.</div></div>
-          <span class="crit-weight-badge">25 pts</span>
+          <div><h2 class="crit-title">Criterion 2</h2><div class="crit-desc"></div></div>
+          <span class="crit-weight-badge"></span>
         </div>
-        <span class="conf-tag low"><span class="dot"></span>Low confidence — worth a closer look</span>
-        <div class="evidence" data-ev="e3"><span class="tab">p.3 ¶4</span><span class="jump">Show in submission ↗</span>
-          <blockquote>"A 2019 study (Kessler &amp; Boone) found similar coordination overhead in cooperative networks, though the sample was limited to twelve organisations."</blockquote></div>
-        <div class="also">Also used: <span class="chip" data-ev="e4"><b>p.3 ¶1</b><i>"Studies of large open-source projects show…" — no citation</i></span></div>
-        <div class="ai-box"><span class="badge">AI · 15/25</span>
-          <div class="reason">Only one external source is directly cited with integration; the claim in <a data-ev="e4">p.3 ¶1</a> has no citation, and two other sources appear in the bibliography but aren't referenced in the body. Coverage is thin relative to the HD descriptor.</div></div>
+        <span class="conf-tag none"><span class="dot"></span></span>
+        <div class="evidence" data-ev="tpl2a"><span class="tab"></span><span class="jump">Show in submission ↗</span>
+          <blockquote></blockquote></div>
+        <div class="also"></div>
+        <div class="ai-box"><span class="badge"></span>
+          <div class="reason"></div></div>
         <div class="marker-row">
           <label>Your score</label>
-          <input class="score-input" type="number" value="15" data-max="25" data-ai="15">
-          <span class="score-max">/ 25</span>
+          <input class="score-input" type="number" value="" data-max="" data-ai="">
+          <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
-        <div class="comment-field"><label class="lbl" for="cm2">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm2" placeholder="e.g. Cite the open-source studies in section 3, and use your bibliography sources in the body."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+        <div class="comment-field"><label class="lbl" for="cm2">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm2" placeholder="Feedback for the student on this criterion"></textarea></div>
       </section>
 
       <section class="crit-card" id="c3">
         <div class="crit-top">
-          <div><h2 class="crit-title">Critical analysis</h2><div class="crit-desc">HD band: goes beyond description to weigh competing explanations.</div></div>
-          <span class="crit-weight-badge">30 pts</span>
+          <div><h2 class="crit-title">Criterion 3</h2><div class="crit-desc"></div></div>
+          <span class="crit-weight-badge"></span>
         </div>
-        <span class="conf-tag high"><span class="dot"></span>High confidence</span>
-        <div class="evidence" data-ev="e5"><span class="tab">p.4 ¶1</span><span class="jump">Show in submission ↗</span>
-          <blockquote>"Yet this reading understates a second possibility: coordination costs may not be intrinsic to decentralisation itself, but to the specific incentive structures layered on top of it."</blockquote></div>
-        <div class="also">Also used: <span class="chip" data-ev="e6"><b>p.4 ¶3</b><i>"If this is right, the underperformance documented in Section 3…"</i></span></div>
-        <div class="ai-box"><span class="badge">AI · 27/30</span>
-          <div class="reason">Presents and weighs an alternative explanation rather than restating the source material, then draws out its consequence (<a data-ev="e6">p.4 ¶3</a>) — the strongest section of the essay against the descriptor.</div></div>
+        <span class="conf-tag none"><span class="dot"></span></span>
+        <div class="evidence" data-ev="tpl3a"><span class="tab"></span><span class="jump">Show in submission ↗</span>
+          <blockquote></blockquote></div>
+        <div class="also"></div>
+        <div class="ai-box"><span class="badge"></span>
+          <div class="reason"></div></div>
         <div class="marker-row">
           <label>Your score</label>
-          <input class="score-input" type="number" value="27" data-max="30" data-ai="27">
-          <span class="score-max">/ 30</span>
+          <input class="score-input" type="number" value="" data-max="" data-ai="">
+          <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
-        <div class="comment-field"><label class="lbl" for="cm3">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm3" placeholder="e.g. The alternative explanation in section 4 is the strongest part of the essay."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+        <div class="comment-field"><label class="lbl" for="cm3">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm3" placeholder="Feedback for the student on this criterion"></textarea></div>
       </section>
 
       <section class="crit-card" id="c4">
         <div class="crit-top">
-          <div><h2 class="crit-title">Writing clarity</h2><div class="crit-desc">HD band: precise, concise prose with few mechanical errors.</div></div>
-          <span class="crit-weight-badge">15 pts</span>
+          <div><h2 class="crit-title">Criterion 4</h2><div class="crit-desc"></div></div>
+          <span class="crit-weight-badge"></span>
         </div>
-        <span class="conf-tag medium"><span class="dot"></span>Medium confidence</span>
-        <div class="evidence" data-ev="e7"><span class="tab">p.2 ¶3</span><span class="jump">Show in submission ↗</span>
-          <blockquote>"…which, it should be noted, is not to say that the model does not have merit in certain more smaller-scale contexts where…"</blockquote></div>
-        <div class="also">Also used: <span class="chip" data-ev="e8"><b>p.5 ¶2</b><i>"It is, perhaps, worth considering that the costs…"</i></span></div>
-        <div class="ai-box"><span class="badge">AI · 12/15</span>
-          <div class="reason">Generally clear, but the quoted sentence and a similar one in <a data-ev="e8">p.5 ¶2</a> run long with nested qualifiers ("more smaller-scale" is also ungrammatical). No major errors elsewhere.</div></div>
+        <span class="conf-tag none"><span class="dot"></span></span>
+        <div class="evidence" data-ev="tpl4a"><span class="tab"></span><span class="jump">Show in submission ↗</span>
+          <blockquote></blockquote></div>
+        <div class="also"></div>
+        <div class="ai-box"><span class="badge"></span>
+          <div class="reason"></div></div>
         <div class="marker-row">
           <label>Your score</label>
-          <input class="score-input" type="number" value="12" data-max="15" data-ai="12">
-          <span class="score-max">/ 15</span>
+          <input class="score-input" type="number" value="" data-max="" data-ai="">
+          <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
-        <div class="comment-field"><label class="lbl" for="cm4">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm4" placeholder="e.g. Shorten long, nested sentences; watch phrasing like “more smaller-scale”."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+        <div class="comment-field"><label class="lbl" for="cm4">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm4" placeholder="Feedback for the student on this criterion"></textarea></div>
       </section>
+
     </div>
   </section>
 </div>
 
 <footer class="actionbar">
-  <div class="final">Weighted total <b id="footerTotal">80</b> / 100 <span class="ai-sug" id="aiSug">AI suggested 80</span></div>
+  <div class="final">Weighted total <b id="footerTotal">–</b> / – <span class="ai-sug" id="aiSug"></span></div>
   <span class="hint">Hover to highlight · click to jump · <kbd>↑</kbd><kbd>↓</kbd> step · <kbd>Esc</kbd> clears</span>
   <div class="nav-btns">
     <button class="btn btn-ghost" type="button" id="btnPrev">← Previous</button>

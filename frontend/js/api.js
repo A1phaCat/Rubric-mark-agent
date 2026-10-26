@@ -18,7 +18,9 @@
     return parts.length ? '?' + parts.join('&') : '';
   }
   window.MarkerAPI = {
+    resetSamples: function () { return request('/samples/reset', { method: 'POST', body: '{}' }); },
     me: function () { return request('/me'); },
+    updateMe: function (value) { return request('/me', { method: 'PUT', body: JSON.stringify(value) }); },
     homeSummary: function () { return request('/me/summary'); },
     homeQueue: function (limit) { return request('/me/queue?limit=' + (limit || 5)); },
     listRubrics: function () { return request('/rubrics'); },
@@ -40,7 +42,7 @@
     uploadFiles: function (batchId, files) { var form = new FormData(); Array.prototype.forEach.call(files, function (file) { form.append('files', file); }); return request('/batches/' + id(batchId) + '/files', { method: 'POST', body: form }); },
     patchSubmission: function (batchId, submissionId, value) { return request('/batches/' + id(batchId) + '/submissions/' + id(submissionId), { method: 'PATCH', body: JSON.stringify(value) }); },
     startBatch: function (batchId, value, sample) { return request('/batches/' + id(batchId) + '/start' + (sample ? '?sample=' + sample : ''), { method: 'POST', body: JSON.stringify(value) }); },
-    listSubmissions: function (batchId, filter) { return request('/batches/' + id(batchId) + '/submissions' + query({ filter: filter && filter !== 'all' ? filter : null, page_size: 500 })); },
+    listSubmissions: function (batchId, filter, page, pageSize) { return request('/batches/' + id(batchId) + '/submissions' + query({ filter: filter && filter !== 'all' ? filter : null, page: page || 1, page_size: pageSize || 100 })); },
     nextInQueue: function (batchId, after) { return request('/batches/' + id(batchId) + '/queue/next' + query({ after: after })); },
     getReview: function (submissionId) { return request('/submissions/' + id(submissionId) + '/review'); },
     retrySubmission: function (submissionId, version) { return request('/submissions/' + id(submissionId) + '/retry', { method: 'POST', body: JSON.stringify({ stage: 'mark', version: version }) }); },

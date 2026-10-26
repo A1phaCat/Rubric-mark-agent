@@ -23,7 +23,7 @@
     }
     var link = confirmed ? '<a class="rep" href="05-mark-report.html?submission_id=' + encodeURIComponent(item.id) + '">View report →</a>'
       : (locked ? '—' : '<a class="rep" href="03b-review-split.html?submission_id=' + encodeURIComponent(item.id) + '">Review →</a>');
-    return '<tr data-adjusted="' + (confirmed && ai != null && Math.abs(fin - ai) > 0.001 ? 1 : 0) + '" data-confirmed="' + (confirmed ? 1 : 0) + '" data-band-changed="' + (confirmed && ai != null && bandOf(fin, maximum) !== bandOf(ai, maximum) ? 1 : 0) + '">' +
+    return '<tr data-adjusted="' + (confirmed && item.flags.indexOf('adjusted') >= 0 ? 1 : 0) + '" data-confirmed="' + (confirmed ? 1 : 0) + '" data-band-changed="' + (confirmed && ai != null && bandOf(fin, maximum) !== bandOf(ai, maximum) ? 1 : 0) + '">' +
       '<td class="sid">' + ui.esc(item.sid || item.filename) + '</td><td>' + mark + '</td><td>' + change + '</td><td>' + ui.esc(item.marker ? item.marker.name : '—') + '</td><td>' + link + '</td></tr>';
   }
 
@@ -56,7 +56,7 @@
         ? ui.esc(mostAdjusted.name) + ' had the most tutor adjustments (' + mostAdjusted.adjusted_count + ' of ' + s.confirmed + ' confirmed submissions).'
         : 'Tutors confirmed every criterion as the AI suggested.';
 
-      var adjustedCount = rows.filter(function (r) { return r.status === 'confirmed' && r.ai_total != null && Math.abs(r.final_total - r.ai_total) > 0.001; }).length;
+      var adjustedCount = rows.filter(function (r) { return r.status === 'confirmed' && r.flags.indexOf('adjusted') >= 0; }).length;
       var bandChanged = rows.filter(function (r) { return r.status === 'confirmed' && r.ai_total != null && bandOf(r.final_total, maximum) !== bandOf(r.ai_total, maximum); }).length;
       var confirmedCount = rows.filter(function (r) { return r.status === 'confirmed'; }).length;
 
@@ -73,19 +73,27 @@
         '<div class="card" style="margin-bottom:24px"><h2>By criterion <small>where tutors changed the AI most</small></h2><table class="crit-table"><thead><tr><th>Criterion</th><th class="num">Avg mark</th><th class="num">AI avg</th><th class="num">Adjusted</th></tr></thead><tbody>' + criteriaRows + '</tbody></table><p class="note"><span class="dot"></span>' + note + '</p></div>' +
         '<div class="filters"><button type="button" class="chip active" data-f="all">All (' + rows.length + ')</button><button type="button" class="chip" data-f="adjusted">Adjusted by tutor (' + adjustedCount + ')</button><button type="button" class="chip" data-f="same">Matches AI (' + (confirmedCount - adjustedCount) + ')</button><button type="button" class="chip" data-f="band">Band changed (' + bandChanged + ')</button></div>' +
         '<div class="table-wrap"><table class="subs"><thead><tr><th>Submission</th><th>Final mark</th><th>Tutor changes</th><th>Tutor</th><th>Mark report</th></tr></thead><tbody>' + rows.map(function (r) { return rowHTML(ui, r, maximum, locked); }).join('') + '</tbody></table>' +
-        '<div class="foot"><span id="showing">Showing ' + rows.length + ' of ' + rows.length + '</span><span>' + (locked ? 'Marks are locked — reopen the batch to change them' : 'Marks can still be changed from the review page') + '</span></div></div>';
+        '<div id="resultsPager" style="padding:0 16px"></div><div class="foot"><span id="showing">' + rows.length + ' submissions</span><span>' + (locked ? 'Marks are locked — reopen the batch to change them' : 'Marks can still be changed from the review page') + '</span></div></div>';
 
+      /* Filter, then page 100 rows at a time so batches of 1,000+ stay fast to render and scroll. */
+      var PAGE = 100, current = { f: 'all', page: 1 };
+      function matches(tr, f) { return f === 'all' || (f === 'adjusted' && tr.dataset.adjusted === '1') || (f === 'same' && tr.dataset.confirmed === '1' && tr.dataset.adjusted === '0') || (f === 'band' && tr.dataset.bandChanged === '1'); }
+      function apply() {
+        var all = Array.prototype.slice.call(document.querySelectorAll('table.subs tbody tr')), hits = all.filter(function (tr) { return matches(tr, current.f); });
+        var pages = Math.max(1, Math.ceil(hits.length / PAGE)); current.page = Math.min(current.page, pages);
+        all.forEach(function (tr) { tr.hidden = true; });
+        hits.slice((current.page - 1) * PAGE, current.page * PAGE).forEach(function (tr) { tr.hidden = false; });
+        var holder = document.getElementById('resultsPager'); holder.innerHTML = ui.pager(hits.length, current.page, PAGE);
+        holder.querySelectorAll('[data-page]').forEach(function (b) { b.addEventListener('click', function () { current.page = Number(b.dataset.page); apply(); document.querySelector('.filters').scrollIntoView({ block: 'start' }); }); });
+        document.getElementById('showing').textContent = hits.length + ' of ' + rows.length + ' submissions';
+      }
       Array.prototype.forEach.call(document.querySelectorAll('.filters .chip'), function (chip) {
         chip.addEventListener('click', function () {
           document.querySelectorAll('.filters .chip').forEach(function (c) { c.classList.toggle('active', c === chip); });
-          var f = chip.dataset.f, shown = 0;
-          document.querySelectorAll('table.subs tbody tr').forEach(function (tr) {
-            var visible = f === 'all' || (f === 'adjusted' && tr.dataset.adjusted === '1') || (f === 'same' && tr.dataset.confirmed === '1' && tr.dataset.adjusted === '0') || (f === 'band' && tr.dataset.bandChanged === '1');
-            tr.hidden = !visible; if (visible) shown++;
-          });
-          document.getElementById('showing').textContent = 'Showing ' + shown + ' of ' + rows.length;
+          current = { f: chip.dataset.f, page: 1 }; apply();
         });
       });
+      apply();
       var finalise = document.getElementById('finaliseBtn');
       if (finalise) finalise.addEventListener('click', function () {
         if (!confirm('Finalise this batch? Marks will be locked until the batch is reopened.')) return;

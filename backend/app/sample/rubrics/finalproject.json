@@ -1,0 +1,254 @@
+{
+  "title": "Final Project Report",
+  "source": "From Canvas · local snapshot",
+  "pinned": false,
+  "age_days": 5,
+  "criteria": [
+    {
+      "name": "Introduction",
+      "weight": 5,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 5.0,
+          "min_score": 4.25,
+          "max_score": 5.0,
+          "description": "Clearly explains and fully meets all criteria to a professional standard."
+        },
+        {
+          "label": "DI",
+          "points": 4.2,
+          "min_score": 3.75,
+          "max_score": 4.25,
+          "description": "Properly explains and meets the substantial majority of criteria."
+        },
+        {
+          "label": "CR",
+          "points": 3.7,
+          "min_score": 3.25,
+          "max_score": 3.75,
+          "description": "Meets some criteria but misses or does not clearly address others."
+        },
+        {
+          "label": "PS",
+          "points": 3.2,
+          "min_score": 2.5,
+          "max_score": 3.25,
+          "description": "Explains some basic criteria but misses most."
+        },
+        {
+          "label": "FL",
+          "points": 2.45,
+          "min_score": 0.0,
+          "max_score": 2.5,
+          "description": "Does not address the criteria."
+        }
+      ]
+    },
+    {
+      "name": "System Specifications and Architecture Design",
+      "weight": 25,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 25.0,
+          "min_score": 21.25,
+          "max_score": 25.0,
+          "description": "Comprehensively addresses all criteria with in-depth, well-evidenced architecture and user stories."
+        },
+        {
+          "label": "DI",
+          "points": 21.0,
+          "min_score": 18.75,
+          "max_score": 21.25,
+          "description": "Extensively addresses the majority; good architecture and user stories."
+        },
+        {
+          "label": "CR",
+          "points": 18.5,
+          "min_score": 16.25,
+          "max_score": 18.75,
+          "description": "Addresses some criteria; acceptable architecture with gaps."
+        },
+        {
+          "label": "PS",
+          "points": 16.0,
+          "min_score": 12.5,
+          "max_score": 16.25,
+          "description": "Misses a considerable portion; architecture is unclear."
+        },
+        {
+          "label": "FL",
+          "points": 12.25,
+          "min_score": 0.0,
+          "max_score": 12.5,
+          "description": "Little or no specification or design."
+        }
+      ]
+    },
+    {
+      "name": "Quality of Work",
+      "weight": 40,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 40.0,
+          "min_score": 34.0,
+          "max_score": 40.0,
+          "description": "Thoroughly addresses all criteria with strong evidence of working, tested features."
+        },
+        {
+          "label": "DI",
+          "points": 33.6,
+          "min_score": 30.0,
+          "max_score": 34.0,
+          "description": "Addresses a substantial majority with good evidence."
+        },
+        {
+          "label": "CR",
+          "points": 29.6,
+          "min_score": 26.0,
+          "max_score": 30.0,
+          "description": "Addresses most criteria; some evidence missing."
+        },
+        {
+          "label": "PS",
+          "points": 25.6,
+          "min_score": 20.0,
+          "max_score": 26.0,
+          "description": "Misses a considerable portion; limited evidence."
+        },
+        {
+          "label": "FL",
+          "points": 19.6,
+          "min_score": 0.0,
+          "max_score": 20.0,
+          "description": "Little working evidence."
+        }
+      ]
+    },
+    {
+      "name": "Quality of Group Processes and Individual Contributions",
+      "weight": 20,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 20.0,
+          "min_score": 17.0,
+          "max_score": 20.0,
+          "description": "Meets all criteria with clear evidence of balanced collaboration."
+        },
+        {
+          "label": "DI",
+          "points": 16.8,
+          "min_score": 15.0,
+          "max_score": 17.0,
+          "description": "Meets most criteria; good evidence of collaboration."
+        },
+        {
+          "label": "CR",
+          "points": 14.8,
+          "min_score": 13.0,
+          "max_score": 15.0,
+          "description": "Meets some criteria; basic evidence."
+        },
+        {
+          "label": "PS",
+          "points": 12.8,
+          "min_score": 10.0,
+          "max_score": 13.0,
+          "description": "Explains a few criteria; minimal evidence."
+        },
+        {
+          "label": "FL",
+          "points": 9.8,
+          "min_score": 0.0,
+          "max_score": 10.0,
+          "description": "No evidence of group process."
+        }
+      ]
+    },
+    {
+      "name": "Reflections and Conclusions",
+      "weight": 5,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 5.0,
+          "min_score": 4.25,
+          "max_score": 5.0,
+          "description": "Excellent analysis with a prioritised improvement plan."
+        },
+        {
+          "label": "DI",
+          "points": 4.2,
+          "min_score": 3.75,
+          "max_score": 4.25,
+          "description": "Adequate analysis covering most areas."
+        },
+        {
+          "label": "CR",
+          "points": 3.7,
+          "min_score": 3.25,
+          "max_score": 3.75,
+          "description": "Basic analysis; basic next steps."
+        },
+        {
+          "label": "PS",
+          "points": 3.2,
+          "min_score": 2.5,
+          "max_score": 3.25,
+          "description": "Partial analysis; vague actions."
+        },
+        {
+          "label": "FL",
+          "points": 2.45,
+          "min_score": 0.0,
+          "max_score": 2.5,
+          "description": "Little to no meaningful analysis."
+        }
+      ]
+    },
+    {
+      "name": "Documentation Organization & Writing",
+      "weight": 5,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 5.0,
+          "min_score": 4.25,
+          "max_score": 5.0,
+          "description": "Professionally structured; links work; evidence easy to access."
+        },
+        {
+          "label": "DI",
+          "points": 4.2,
+          "min_score": 3.75,
+          "max_score": 4.25,
+          "description": "Mostly clear and consistent; minor gaps."
+        },
+        {
+          "label": "CR",
+          "points": 3.7,
+          "min_score": 3.25,
+          "max_score": 3.75,
+          "description": "Some gaps, missing captions or links."
+        },
+        {
+          "label": "PS",
+          "points": 3.2,
+          "min_score": 2.5,
+          "max_score": 3.25,
+          "description": "Structure needs substantial work."
+        },
+        {
+          "label": "FL",
+          "points": 2.45,
+          "min_score": 0.0,
+          "max_score": 2.5,
+          "description": "Low readability; many broken links."
+        }
+      ]
+    }
+  ]
+}

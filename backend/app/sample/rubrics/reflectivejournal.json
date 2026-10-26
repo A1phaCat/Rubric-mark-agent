@@ -1,0 +1,131 @@
+{
+  "title": "Reflective Journal",
+  "source": "Uploaded DOCX · parsed by AI",
+  "pinned": false,
+  "age_days": 120,
+  "criteria": [
+    {
+      "name": "Depth of reflection",
+      "weight": 50,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 50.0,
+          "min_score": 42.5,
+          "max_score": 50.0,
+          "description": "Links experience to theory and future practice."
+        },
+        {
+          "label": "DI",
+          "points": 42.0,
+          "min_score": 37.5,
+          "max_score": 42.5,
+          "description": "Clear reflection with some theory."
+        },
+        {
+          "label": "CR",
+          "points": 37.0,
+          "min_score": 32.5,
+          "max_score": 37.5,
+          "description": "Some reflection, mostly descriptive."
+        },
+        {
+          "label": "PS",
+          "points": 32.0,
+          "min_score": 25.0,
+          "max_score": 32.5,
+          "description": "Mostly descriptive."
+        },
+        {
+          "label": "FL",
+          "points": 24.5,
+          "min_score": 0.0,
+          "max_score": 25.0,
+          "description": "No reflection."
+        }
+      ]
+    },
+    {
+      "name": "Use of evidence",
+      "weight": 30,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 30.0,
+          "min_score": 25.5,
+          "max_score": 30.0,
+          "description": "Specific, well-chosen examples."
+        },
+        {
+          "label": "DI",
+          "points": 25.2,
+          "min_score": 22.5,
+          "max_score": 25.5,
+          "description": "Relevant examples."
+        },
+        {
+          "label": "CR",
+          "points": 22.2,
+          "min_score": 19.5,
+          "max_score": 22.5,
+          "description": "General examples."
+        },
+        {
+          "label": "PS",
+          "points": 19.2,
+          "min_score": 15.0,
+          "max_score": 19.5,
+          "description": "Few examples."
+        },
+        {
+          "label": "FL",
+          "points": 14.7,
+          "min_score": 0.0,
+          "max_score": 15.0,
+          "description": "None."
+        }
+      ]
+    },
+    {
+      "name": "Writing",
+      "weight": 20,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 20.0,
+          "min_score": 17.0,
+          "max_score": 20.0,
+          "description": "Clear and concise."
+        },
+        {
+          "label": "DI",
+          "points": 16.8,
+          "min_score": 15.0,
+          "max_score": 17.0,
+          "description": "Clear with minor errors."
+        },
+        {
+          "label": "CR",
+          "points": 14.8,
+          "min_score": 13.0,
+          "max_score": 15.0,
+          "description": "Understandable."
+        },
+        {
+          "label": "PS",
+          "points": 12.8,
+          "min_score": 10.0,
+          "max_score": 13.0,
+          "description": "Errors slow the reader."
+        },
+        {
+          "label": "FL",
+          "points": 9.8,
+          "min_score": 0.0,
+          "max_score": 10.0,
+          "description": "Hard to read."
+        }
+      ]
+    }
+  ]
+}

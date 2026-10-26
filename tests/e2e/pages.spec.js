@@ -102,7 +102,12 @@ test('setup UI parses variable levels and opens the newly created batch', async 
   try {
     await page.request.put('/api/v1/settings/ai', { data: { provider:'fake', model:'fake-marker-v1', base_url:null } });
     await page.goto('/01-upload.html');
-    await page.locator('#fillSample').click();
+    await page.locator('#pasteText').fill([
+      'Short response rubric (9 marks)', '',
+      '1. Accuracy — 3 marks', 'Excellent (3): Correct and complete.', 'Good (2): Mostly correct.', 'Basic (1): Partly correct.', 'Missing (0): Absent.', '',
+      '2. Reasoning — 3 marks', 'Excellent (3): Clear and supported.', 'Good (2): Sound but brief.', 'Basic (1): Limited.', 'Missing (0): None.', '',
+      '3. Communication — 3 marks', 'Excellent (3): Precise.', 'Good (2): Clear overall.', 'Basic (1): Sometimes unclear.', 'Missing (0): Cannot be assessed.',
+    ].join('\n'));
     await page.locator('#parseBtn').click();
     await expect(page.locator('#parseState')).toContainText('Found 3 criteria');
     await expect(page.locator('.crit')).toHaveCount(3);

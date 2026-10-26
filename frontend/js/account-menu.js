@@ -3,15 +3,16 @@
    The working frontend sends settings and connection tests to the backend; secrets never enter localStorage. */
 (function () {
   /* The university service runs on Azure OpenAI. "Own key" options below it. */
-  var UNI = { label: 'Azure OpenAI', models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o'] };
+  /* No built-in model names: the model list comes from the provider (Test), or you type it. */
+  var UNI = { label: 'Azure OpenAI' };
   var PROVIDERS = {
-    minimax:   { label: 'MiniMax (China mainland)', models: ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed', 'MiniMax-M3', 'MiniMax-M2.5', 'MiniMax-M2'], ph: 'MiniMax API key', base: 'https://api.minimaxi.com/v1', live: true },
-    azure:     { label: 'Azure OpenAI (your own resource)', models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o'], ph: 'Azure key', base: 'https://<resource>.openai.azure.com' },
-    anthropic: { label: 'Anthropic', models: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-haiku-4-5'], ph: 'sk-ant-…', base: 'https://api.anthropic.com/v1', live: 'anthropic' },
-    openai:    { label: 'OpenAI', models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o'], ph: 'sk-…', base: 'https://api.openai.com/v1', live: true }
+    minimax:   { label: 'MiniMax (China mainland)', ph: 'MiniMax API key', base: 'https://api.minimaxi.com/v1', live: true },
+    azure:     { label: 'Azure OpenAI (your own resource)', ph: 'Azure key', base: 'https://<resource>.openai.azure.com' },
+    anthropic: { label: 'Anthropic', ph: 'sk-ant-…', base: 'https://api.anthropic.com/v1', live: 'anthropic' },
+    openai:    { label: 'OpenAI', ph: 'sk-…', base: 'https://api.openai.com/v1', live: true }
   };
   var DEFAULTS = {
-    ai: { provider: 'minimax', model: 'gpt-4.1', key: '', base: '', ok: true, useUni: true, hasKey: false },
+    ai: { provider: 'minimax', model: '', key: '', base: '', ok: true, useUni: true, hasKey: false },
     canvas: { url: '', token: '', ok: false }
   };
 
@@ -33,6 +34,8 @@
     '.am-who{ display:flex; align-items:center; gap:12px; padding:16px 18px; border-bottom:1px solid var(--border,#E2D8CE); }' +
     '.am-who .av{ width:36px; height:36px; border-radius:50%; background:#9A8F86; color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; flex:none; }' +
     '.am-who b{ display:block; font-weight:600; } .am-who small{ color:var(--ink-soft,#6E655E); font-size:12px; }' +
+    '.am-who-t{ flex:1; min-width:0; } .am-who-t input{ width:100%; font:inherit; font-weight:600; border:1px solid transparent; border-radius:6px; padding:2px 6px; margin-left:-6px; background:transparent; color:inherit; }' +
+    '.am-who-t input:hover, .am-who-t input:focus{ border-color:var(--border,#E2D8CE); background:#fff; outline:none; } .am-who small{ display:block; }' +
     '.am-h{ padding:12px 18px 4px; font:500 11px "IBM Plex Mono",monospace; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft,#6E655E); }' +
     '.am-row{ border-top:1px solid var(--border,#E2D8CE); }' +
     '.am-row:first-of-type{ border-top:0; }' +
@@ -73,20 +76,22 @@
     return ['off', 'Not available in local MVP'];
   }
 
-  /* Models shown in the dropdown: the live list from the provider if we have fetched one for this
-     provider + base URL, otherwise a short built-in list (may be out of date). */
+  /* Model suggestions: the live list from the provider once fetched for this provider + base URL;
+     otherwise none — type the model (or Azure deployment) name. */
   var NOT_CHAT = /embed|whisper|tts|speech|audio|dall-e|image|video|music|moderation|transcribe|realtime|search|davinci|babbage|voice/i;
   function modelsFor(S, prov, base) {
     var f = S.ai.fetched;
     if (f && f.prov === prov && f.base === base && f.models.length) return { list: f.models, live: true, at: f.at };
-    return { list: PROVIDERS[prov].models, live: false };
+    return { list: [], live: false };
   }
   function modelNote(m) {
-    return m.live ? m.list.length + ' models from your API · updated ' + ago(m.at) : 'Suggested list — press Test to load the models your key can use';
+    return m.live ? m.list.length + ' models from your API · updated ' + ago(m.at) : 'Type the model or deployment name, or press Test to load the models your key can use';
   }
   function ago(t) { var m = Math.round((Date.now() - t) / 6e4); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; }
-  function fillModels(sel, list, keep) {
-    sel.innerHTML = list.map(function (m) { return '<option' + (m === keep ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('');
+  function fillModels(input, list, keep) {
+    var options = document.getElementById('amModelList');
+    if (options) options.innerHTML = list.map(function (m) { return '<option value="' + esc(m) + '"></option>'; }).join('');
+    if (keep != null) input.value = keep;
   }
 
   /* GET {base}/models — resolves to { ok, status, models[], err, raw } */
@@ -126,7 +131,7 @@
     var menu = document.createElement('div'); menu.className = 'am'; menu.hidden = true;
     menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', 'Account and connections');
     document.body.appendChild(menu);
-    if(window.MarkerAPI)MarkerAPI.getSettings().then(function(config){var ai=config.ai||{}, provider=ai.provider||'university';S.ai.provider=provider==='university'||!PROVIDERS[provider]?'minimax':provider;S.ai.model=provider==='fake'?'MiniMax-M3.1-Flash-Preview':(ai.model||S.ai.model);S.ai.base=ai.base_url||'';S.ai.useUni=provider==='university';S.ai.hasKey=!!ai.has_api_key;S.ai.ok=S.ai.useUni||S.ai.hasKey;if(!menu.hidden)draw(null);badge();}).catch(function(){});
+    if(window.MarkerAPI)MarkerAPI.getSettings().then(function(config){var ai=config.ai||{}, provider=ai.provider||'university';S.ai.provider=provider==='university'||!PROVIDERS[provider]?'minimax':provider;S.ai.model=ai.model||'';S.ai.base=ai.base_url||'';S.ai.useUni=provider==='university';S.ai.hasKey=!!ai.has_api_key;S.ai.ok=S.ai.useUni||S.ai.hasKey;if(!menu.hidden)draw(null);badge();}).catch(function(){});
 
     function badge() {
       var warn = !S.ai.useUni && !S.ai.hasKey && (!S.ai.key || !S.ai.ok);
@@ -138,7 +143,7 @@
     function draw(openId) {
       var p = PROVIDERS[S.ai.provider], a = aiSummary(S), c = cvSummary(S), mf = modelsFor(S, S.ai.provider, S.ai.base || p.base || '');
       menu.innerHTML =
-        '<div class="am-who"><span class="av">' + esc(WHO.initials) + '</span><span><b>' + esc(WHO.name) + '</b><small>Tutor · local single-user mode</small></span></div>' +
+        '<div class="am-who"><span class="av">' + esc(WHO.initials) + '</span><span class="am-who-t"><input type="text" id="amName" value="' + esc(WHO.name) + '" maxlength="80" aria-label="Your display name" spellcheck="false"><small>Tutor · local single-user mode · <span id="amNameMsg">name shown in headers and reports</span></small></span><button class="am-btn" type="button" id="amNameSave">Save</button></div>' +
         '<div class="am-h">Connections</div>' +
         '<div class="am-row' + (openId === 'ai' ? ' open' : '') + '" data-id="ai">' +
           '<button class="am-sum" type="button" aria-expanded="' + (openId === 'ai') + '"><span class="am-ic">' + ICON_AI + '</span><span class="t"><b>AI model</b><small><span class="am-dot ' + a[0] + '"></span>' + esc(a[1]) + '</small></span>' + CHEV + '</button>' +
@@ -149,7 +154,7 @@
               '<label class="am-f" id="amBaseWrap"' + (p.base ? '' : ' hidden') + '><span>Base URL</span><input type="text" class="mono" id="amBase" value="' + esc(S.ai.base || p.base || '') + '" spellcheck="false"></label>' +
               '<label class="am-f"><span>API key</span><span class="am-key"><input type="password" class="mono" id="amKey" placeholder="' + p.ph + '" value="' + esc(S.ai.key) + '" autocomplete="off" spellcheck="false"><button class="am-eye" type="button" data-eye="amKey" aria-label="Show key">Show</button></span></label>' +
             '</div>' +
-            '<label class="am-f"><span>Model</span><select id="amModel">' + (S.ai.useUni ? UNI.models : mf.list).map(function (m) { return '<option' + (m === S.ai.model ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select><small class="am-note' + (mf.live ? ' live' : '') + '" id="amModelNote"' + (S.ai.useUni ? ' hidden' : '') + '>' + esc(modelNote(mf)) + '</small></label>' +
+            '<label class="am-f"><span>Model</span><input type="text" class="mono" id="amModel" list="amModelList" value="' + esc(S.ai.model) + '" placeholder="model or deployment name" autocomplete="off" spellcheck="false"><datalist id="amModelList">' + (S.ai.useUni ? [] : mf.list).map(function (m) { return '<option value="' + esc(m) + '"></option>'; }).join('') + '</datalist><small class="am-note' + (mf.live ? ' live' : '') + '" id="amModelNote">' + esc(S.ai.useUni ? 'The deployment name configured on the university gateway' : modelNote(mf)) + '</small></label>' +
             '<div class="am-act"><span class="msg" id="amAiMsg"></span><button class="am-btn" type="button" data-test="ai">Test</button><button class="am-btn pri" type="button" data-save="ai">Save</button></div>' +
           '</div>' +
         '</div>' +
@@ -178,6 +183,14 @@
       if (sum) { var row = sum.parentNode, was = row.classList.contains('open'); draw(was ? null : row.dataset.id); return; }
       var eye = e.target.closest('[data-eye]');
       if (eye) { var inp = document.getElementById(eye.dataset.eye); var show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; eye.textContent = show ? 'Hide' : 'Show'; return; }
+      if (e.target.id === 'amNameSave') {
+        var nm = document.getElementById('amName').value.trim(), nmsg = document.getElementById('amNameMsg');
+        if (!nm) { nmsg.textContent = 'Name cannot be empty'; return; }
+        nmsg.textContent = 'Saving…';
+        MarkerAPI.updateMe({ name: nm }).then(function (me) { if (window.MarkerUI && MarkerUI.applyUser) MarkerUI.applyUser(me); var av = menu.querySelector('.am-who .av'); if (av) av.textContent = WHO.initials; nmsg.textContent = '✓ Saved'; })
+          .catch(function (err) { nmsg.textContent = err.message || 'Could not save the name'; });
+        return;
+      }
       if (e.target.id === 'amOut') { e.preventDefault(); alert('Signing out is not part of this demo.'); return; }
       var t = e.target.closest('[data-test]'), sv = e.target.closest('[data-save]');
       if (!t && !sv) return;
@@ -217,9 +230,16 @@
             });
             return;
           }
-          setTimeout(function () { msg.className = 'msg ' + (okAi ? 'ok' : 'err'); msg.textContent = okAi ? '✓ Connected · ' + model : 'Key rejected — check it and try again'; }, 700); return;
+          /* Ask the backend to actually reach the provider; never report success without a response. */
+          window.MarkerAPI.testAI({ provider: uni ? 'university' : prov, model: model || null, base_url: base || null, api_key: key || null }).then(function (j) {
+            lastTest = { key: key, ok: !!j.ok };
+            msg.className = 'msg ' + (j.ok ? 'ok' : 'err');
+            msg.textContent = j.ok ? '✓ Connected' + (model ? ' · ' + model : '') + ' · ' + j.latency_ms + ' ms' : (j.message || 'Connection failed');
+          }).catch(function (err) { lastTest = null; msg.className = 'msg err'; msg.textContent = err.message || 'Connection failed'; });
+          return;
         }
-        if (!uni && PROVIDERS[prov].live && lastTest && lastTest.key === key) okAi = lastTest.ok;
+        if (!model.trim()) { msg.className = 'msg err'; msg.textContent = 'Enter the model or deployment name'; return; }
+        if (lastTest && lastTest.key === key) okAi = lastTest.ok;
         var nextAi = { provider: prov, model: model, key: key, base: base, ok: okAi, useUni: uni, hasKey:S.ai.hasKey||!!key, fetched: S.ai.fetched };
         msg.className = 'msg'; msg.textContent = 'Saving…';
         save({ai:nextAi,canvas:S.canvas}).then(function(saved){
@@ -241,9 +261,9 @@
         document.getElementById('amBaseWrap').hidden = !PROVIDERS[prov].base;
         if (e.target.id === 'amProv') document.getElementById('amBase').value = PROVIDERS[prov].base || '';
         var mf2 = modelsFor(S, prov, document.getElementById('amBase').value.trim().replace(/\/+$/, ''));
-        var list = uni ? UNI.models : mf2.list;
-        var nt = document.getElementById('amModelNote'); nt.hidden = uni; nt.textContent = modelNote(mf2); nt.className = 'am-note' + (mf2.live ? ' live' : '');
-        fillModels(document.getElementById('amModel'), list, list[0]);
+        var list = uni ? [] : mf2.list;
+        var nt = document.getElementById('amModelNote'); nt.textContent = uni ? 'The deployment name configured on the university gateway' : modelNote(mf2); nt.className = 'am-note' + (mf2.live && !uni ? ' live' : '');
+        fillModels(document.getElementById('amModel'), list, list.length ? list[0] : null);
         var mm = document.getElementById('amAiMsg'); mm.textContent = ''; mm.className = 'msg';
         document.getElementById('amKey').placeholder = PROVIDERS[prov].ph;
       }

@@ -18,7 +18,17 @@ python -m venv .venv
 
 Open <http://127.0.0.1:8000/>. The API contract is exposed at `/api/v1/openapi.json`; health is `/healthz`.
 
+
+## mac run
+
+```text
+.venv/bin/python -m pip install -e "backend[dev]"
+.venv/bin/python scripts/tasks.py migrate
+.venv/bin/python scripts/tasks.py dev
 Run modes:
+```
+
+
 
 - **local:** run `make dev`, then choose the AI provider (university gateway, Azure, MiniMax, OpenAI) and save
   its key from the account menu; keys stay server-side. Everything the pages show is read from the local
@@ -28,18 +38,25 @@ Run modes:
 
 ### Sample data
 
-`make seed` (or `python -m app.sample.seed` in `backend/`) loads sample data into the database:
-six library rubrics and three pinned sample batches — *ASGN2 Critical Essay* (in review, including one
-scanned submission that needs manual marking), *ASGN1 Literature Review* (all confirmed, still editable) and
-*Quiz 3 Short Answer* (finalised and locked). The submission files are real PDFs/DOCX under
-`backend/app/sample/files/`; they are stored and text-extracted exactly like uploads, tutor edits and
-confirmations go through the review service, and the evidence quotes are located in the extracted text. Only
-the AI grading step is replayed from results recorded in `backend/app/sample/manifest.py`, so the samples
-load offline and identically everywhere. Re-running the seed replaces the samples and leaves your own
-batches, rubrics and AI settings alone.
+Sample data lives in the database like everything else: six library rubrics and three sample
+batches — *ASGN2 Critical Essay* (in review, including one scanned submission that needs manual
+marking), *ASGN1 Literature Review* (all confirmed, still editable) and *Quiz 3 Short Answer*
+(finalised and locked). The submission files are real PDFs/DOCX under `backend/app/sample/files/`;
+they are stored and text-extracted like uploads, tutor edits and confirmations go through the review
+service, and evidence quotes are located in the extracted text. Only AI grading is replayed from
+results recorded in `backend/app/sample/manifest.py`, so the samples load offline.
 
-Batches and rubrics you create are saved in the same database and **pinned** to the top of Home, *All
-batches* and the rubric library; pin or unpin them from those lists. To change the sample texts, edit
+**The samples reset to their starting state every time the API starts** (`make dev` / `make api`),
+and on demand with **↺ Reset samples** on Home or `make seed`. Your own batches, rubrics and AI
+settings are kept. Set `MARKER_RESET_SAMPLES_ON_START=false` to keep sample marks across restarts.
+
+**Pinning:** at most three batches are pinned, and Home shows those three (if fewer are pinned, the
+newest batches fill the remaining places). A new batch is pinned automatically; pinning a fourth batch
+unpins the one pinned longest ago. Resetting the samples pins the three samples again.
+
+**Preloaded rubrics:** every file in `backend/app/sample/rubrics/` is loaded into the library — JSON
+(exact; recommended), a Markdown table, or a CSV/TSV exported from Excel. See that folder's README and
+the `_template.json` / `_template.csv` files. To change the sample texts, edit
 `backend/app/sample/documents.py` and rebuild the files with `python scripts/build_sample_files.py`
 (needs `reportlab` and `Pillow`).
 
@@ -47,7 +64,7 @@ Useful commands:
 
 ```text
 make migrate        # Alembic upgrade
-make seed           # load or reload the sample rubrics and batches
+make seed           # reset the sample batches and reload rubrics from backend/app/sample/rubrics/
 make api            # API/static server only
 make worker         # one DB-queue worker
 make test           # unit + contract + architecture

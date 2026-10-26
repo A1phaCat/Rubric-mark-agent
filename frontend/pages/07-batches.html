@@ -174,7 +174,7 @@
     <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><span aria-current="page" id="bcCur">Batches</span></li></ol><a class="bc-up" href="00-home.html"><span aria-hidden="true">‹</span><span class="t">Home</span></a></nav>
   </div>
   <div class="ab-right">
-    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+    <div class="ab-user" title="Local single-user mode"><span class="ab-uname">&nbsp;</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true"></span></div>
   </div>
 </header>
 
@@ -216,7 +216,7 @@
   }
   function row(b){
     var p = PILL[b.st] || PILL.draft;
-    var actions='<button class="row-action" type="button" data-act="pin" data-id="'+b.id+'" data-pinned="'+(b.pinned?1:0)+'" title="'+(b.pinned?'Unpin':'Pin to the top of Home and this list')+'">'+(b.pinned?'📌 Pinned':'Pin')+'</button>'+(b.canCancel?'<button class="row-action" type="button" data-act="cancel" data-id="'+b.id+'" data-version="'+b.version+'">Terminate</button>':'')+(b.canDelete?'<button class="row-action" type="button" data-act="delete" data-id="'+b.id+'" data-version="'+b.version+'">Delete</button>':'');
+    var actions='<button class="row-action" type="button" data-act="pin" data-id="'+b.id+'" data-pinned="'+(b.pinned?1:0)+'" title="'+(b.pinned?'Unpin':'Pin to Home (up to 3; pinning a fourth unpins the oldest)')+'">'+(b.pinned?'📌 Pinned':'Pin')+'</button>'+(b.canCancel?'<button class="row-action" type="button" data-act="cancel" data-id="'+b.id+'" data-version="'+b.version+'">Terminate</button>':'')+(b.canDelete?'<button class="row-action" type="button" data-act="delete" data-id="'+b.id+'" data-version="'+b.version+'">Delete</button>':'');
     return '<div class="brow" data-href="' + b.href + '">' +
       '<div class="b-main"><div class="b-name">' + esc(b.name) + (b.sample ? '<span class="on-home sample-tag" title="Pinned sample batch — reload with: python -m app.sample.seed">Sample</span>' : '') + (b.home && !b.sample ? '<span class="on-home" title="Shown on Home">On Home</span>' : '') + '</div>' +
       '<div class="b-meta mono">' + b.n + ' · ' + b.crit + ' criteria · ' + b.date + '</div></div>' +
@@ -257,7 +257,7 @@
     if(action){
       e.preventDefault();e.stopPropagation();
       var id=action.dataset.id,version=Number(action.dataset.version),isCancel=action.dataset.act==='cancel';
-      if(action.dataset.act==='pin'){action.disabled=true;MarkerAPI.pinBatch(id,action.dataset.pinned!=='1').then(function(){location.reload();}).catch(function(error){action.disabled=false;alert(error.message);});return;}
+      if(action.dataset.act==='pin'){action.disabled=true;MarkerAPI.pinBatch(id,action.dataset.pinned!=='1').then(function(r){if(r.unpinned&&r.unpinned.length)alert('Up to 3 batches can be pinned to Home. Unpinned: '+r.unpinned.map(function(x){return x.name;}).join(', '));location.reload();}).catch(function(error){action.disabled=false;alert(error.message);});return;}
       var message=isCancel?'Terminate this batch? Queued work will stop and partial results will be retained.':'Delete this batch and its uploaded files permanently?';
       if(!confirm(message))return;
       action.disabled=true;action.textContent=isCancel?'Terminating…':'Deleting…';

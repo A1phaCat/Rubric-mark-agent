@@ -27,8 +27,10 @@ class Batch(Base):
     total_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Sample batches are seeded by app.sample.seed and listed before user batches.
     is_sample: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    # Pinned batches are listed first (newest first). New batches start pinned.
-    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # At most three batches are pinned (see BatchUseCases.MAX_PINNED); pinned batches are
+    # listed first, most recently pinned first, and are the ones shown on Home.
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    pinned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

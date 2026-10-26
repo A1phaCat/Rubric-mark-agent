@@ -21,6 +21,9 @@ def run(*args: str, cwd: Path = ROOT) -> None:
 
 def main() -> None:
     task = sys.argv[1] if len(sys.argv) > 1 else "help"
+    if task in {"api", "dev"}:
+        # Keep the schema current so the startup sample reset never meets an old database.
+        run(sys.executable, "-m", "alembic", "-c", "alembic.ini", "upgrade", "head", cwd=BACKEND)
     if task == "api":
         run(
             sys.executable,

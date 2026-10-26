@@ -36,6 +36,17 @@
       main.insertBefore(box, main.firstChild);
     }
   }
+  /* "Showing 101–200 of 1,000" with previous/next; rendered only when there is more than one page. */
+  function pager(total, page, size) {
+    var pages = Math.max(1, Math.ceil(total / size));
+    if (pages <= 1) return total ? '<p class="pager-note" style="font-size:12px;color:var(--ink-soft);margin:10px 2px">Showing all ' + total + '</p>' : '';
+    var from = (page - 1) * size + 1, to = Math.min(total, page * size);
+    return '<div class="pager" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 2px;font-size:12.5px;color:var(--ink-soft)">' +
+      '<span>Showing ' + from + '–' + to + ' of ' + total.toLocaleString('en-AU') + '</span><span style="display:flex;gap:6px">' +
+      '<button type="button" class="chip" data-page="' + (page - 1) + '"' + (page <= 1 ? ' disabled' : '') + '>← Previous</button>' +
+      '<span style="align-self:center">Page ' + page + ' / ' + pages + '</span>' +
+      '<button type="button" class="chip" data-page="' + (page + 1) + '"' + (page >= pages ? ' disabled' : '') + '>Next →</button></span></div>';
+  }
   function setCrumb(text) { var node = document.getElementById('bcCur'); if (node) node.textContent = text; }
   function stepTrack(status) {
     var node = document.getElementById('stepTrack'); if (!node) return;
@@ -73,15 +84,20 @@
     });
   }
   function wireUser() {
-    return MarkerAPI.me().then(function (me) {
+    return MarkerAPI.me().then(applyUser).catch(function (error) { console.warn('Could not load the current user', error); });
+  }
+  /* Paint the stored account name into every header; also used after a rename. */
+  function applyUser(me) {
+    {
       var name = me.user.name, initials = name.split(/[\s.]+/).filter(Boolean).map(function (p) { return p[0]; }).join('').slice(0, 2).toUpperCase();
       document.querySelectorAll('.ab-uname').forEach(function (node) { node.textContent = name; });
       document.querySelectorAll('.ab-avatar').forEach(function (node) { node.textContent = initials; });
       document.querySelectorAll('.ab-user').forEach(function (node) { node.title = 'Local single-user mode'; });
       window.dispatchEvent(new CustomEvent('marker:user', { detail: { name: name, initials: initials } }));
-    }).catch(function (error) { console.warn('Could not load the current user', error); });
+    }
+    return me;
   }
-  var ui = { esc: esc, num: num, shortDate: shortDate, longDate: longDate, ago: ago, statusLabel: statusLabel, setCrumb: setCrumb, stepTrack: stepTrack, batchNav: batchNav, batchHref: batchHref, reportError: reportError };
+  var ui = { pager: pager, esc: esc, num: num, shortDate: shortDate, longDate: longDate, ago: ago, statusLabel: statusLabel, setCrumb: setCrumb, stepTrack: stepTrack, batchNav: batchNav, batchHref: batchHref, reportError: reportError, applyUser: applyUser };
   window.MarkerUI = ui;
 
   /* ------------------------------------------------------------- rubrics */
@@ -125,11 +141,11 @@
   /* -------------------------------------------------------- batch status */
   var FILTERS = [['all', 'All', 'total'], ['ready', 'Ready for review', 'ready'], ['low_confidence', 'Low confidence', 'low_confidence'], ['needs_manual', 'Needs manual marking', 'needs_manual'], ['processing', 'Processing', 'processing'], ['confirmed', 'Confirmed', 'confirmed'], ['failed', 'Failed', 'failed']];
   function wireBatchStatus() {
-    var params = new URLSearchParams(location.search), batchId = params.get('batch_id'), filter = params.get('filter') || 'all';
+    var params = new URLSearchParams(location.search), batchId = params.get('batch_id'), filter = params.get('filter') || 'all', page = Math.max(1, Number(params.get('page') || 1)), PAGE_SIZE = 100;
     if (!batchId) { location.replace('07-batches.html'); return Promise.resolve(null); }
     var timer = null;
     function load() {
-      return Promise.all([MarkerAPI.getBatch(batchId), MarkerAPI.listSubmissions(batchId, filter)]).then(function (values) {
+      return Promise.all([MarkerAPI.getBatch(batchId), MarkerAPI.listSubmissions(batchId, filter, page, PAGE_SIZE)]).then(function (values) {
         var batch = values[0].batch, submissions = values[1], counts = batch.counts || {}, rubric = batch.rubric || {};
         window.__MARKER_PAGE_DATA = { batch: batch, submissions: submissions };
         var maximum = Number(rubric.total_weight || 0), processed = Number(counts.processed || 0), all = Number(counts.total || 0), pct = all ? Math.round(processed / all * 100) : 0;
@@ -150,7 +166,7 @@
         var done = batch.status === 'completed' || batch.status === 'finalised';
         var action = done ? '<a class="start-btn" href="04-batch-complete.html?batch_id=' + encodeURIComponent(batch.id) + '">View results →</a>'
           : first ? '<a class="start-btn" href="03b-review-split.html?submission_id=' + encodeURIComponent(first.id) + '">' + (counts.confirmed ? 'Continue reviewing →' : 'Start reviewing →') + '</a>' : '';
-        var pin = '<button type="button" class="chip" id="pinBatch" title="Pinned batches are listed first on Home and in All batches">' + (batch.pinned ? '📌 Pinned' : 'Pin to top') + '</button>';
+        var pin = '<button type="button" class="chip" id="pinBatch" title="Up to 3 pinned batches are shown on Home; pinning a fourth unpins the oldest">' + (batch.pinned ? '📌 Pinned' : 'Pin to top') + '</button>';
         var due = batch.due_at ? (new Date(batch.due_at) < new Date() ? 'closed ' : 'due ') + shortDate(batch.due_at) : null;
         var chips = FILTERS.filter(function (f) { return f[0] === 'all' || counts[f[2]] || f[0] === filter; }).map(function (f) { return '<button type="button" class="chip' + (f[0] === filter ? ' active' : '') + '" data-filter="' + f[0] + '">' + f[1] + ' (' + Number(counts[f[2]] || 0) + ')</button>'; }).join('');
         document.getElementById('batchMain').innerHTML =
@@ -158,12 +174,18 @@
           '<div class="progress-card"><div class="progress-top"><span class="label">Batch progress</span><span class="val">' + processed + ' / ' + all + ' processed</span></div><div class="bar"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
           '<div class="progress-stats"><span><b>' + Number(counts.ready || 0) + '</b> ready</span><span><b>' + Number(counts.confirmed || 0) + '</b> confirmed</span><span><b>' + Number(counts.needs_manual || 0) + '</b> manual</span><span><b>' + Number(counts.processing || 0) + '</b> processing</span>' + (counts.not_started ? '<span><b>' + counts.not_started + '</b> not started</span>' : '') + '<span><b>' + Number(counts.failed || 0) + '</b> failed</span></div></div>' +
           '<div class="filters">' + chips + '</div>' +
-          '<table><thead><tr><th>Submission</th><th>Status</th><th>Mark</th><th>Flags</th><th>Tutor</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5" style="color:var(--ink-soft)">No submissions in this view.</td></tr>') + '</tbody></table>';
+          '<table><thead><tr><th>Submission</th><th>Status</th><th>Mark</th><th>Flags</th><th>Tutor</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5" style="color:var(--ink-soft)">No submissions in this view.</td></tr>') + '</tbody></table>' + pager(submissions.total, page, PAGE_SIZE);
         document.querySelectorAll('#batchMain tr[data-href]').forEach(function (tr) { tr.addEventListener('click', function () { location.href = tr.dataset.href; }); });
-        document.querySelectorAll('#batchMain [data-filter]').forEach(function (button) {
-          button.addEventListener('click', function () { filter = button.dataset.filter; var p = new URLSearchParams(location.search); if (filter === 'all') p.delete('filter'); else p.set('filter', filter); history.replaceState(null, '', '?' + p.toString()); clearTimeout(timer); load().catch(reportError); });
-        });
-        document.getElementById('pinBatch').addEventListener('click', function () { MarkerAPI.pinBatch(batch.id, !batch.pinned).then(function () { load(); }).catch(reportError); });
+        function go(nextFilter, nextPage) {
+          filter = nextFilter; page = nextPage;
+          var p = new URLSearchParams(location.search);
+          if (filter === 'all') p.delete('filter'); else p.set('filter', filter);
+          if (page > 1) p.set('page', page); else p.delete('page');
+          history.replaceState(null, '', '?' + p.toString()); clearTimeout(timer); load().catch(reportError);
+        }
+        document.querySelectorAll('#batchMain [data-filter]').forEach(function (button) { button.addEventListener('click', function () { go(button.dataset.filter, 1); }); });
+        document.querySelectorAll('#batchMain [data-page]').forEach(function (button) { button.addEventListener('click', function () { go(filter, Number(button.dataset.page)); window.scrollTo(0, 0); }); });
+        document.getElementById('pinBatch').addEventListener('click', function () { MarkerAPI.pinBatch(batch.id, !batch.pinned).then(function (r) { if (r.unpinned && r.unpinned.length) alert('Up to 3 batches can be pinned to Home. Unpinned: ' + r.unpinned.map(function (x) { return x.name; }).join(', ')); load(); }).catch(reportError); });
         document.querySelectorAll('[data-retry]').forEach(function (button) { button.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); button.disabled = true; button.textContent = 'Retrying…'; MarkerAPI.retrySubmission(button.dataset.retry, Number(button.dataset.version)).then(function () { load(); }).catch(function (error) { button.disabled = false; button.textContent = 'Retry remaining criteria'; alert(error.message); }); }); });
         setCrumb(batch.name); stepTrack(batch.status);
         document.title = batch.name + ' — AI-assisted marker';
@@ -194,7 +216,7 @@
           n: total + ' submission' + (total === 1 ? '' : 's'), crit: Number(rubric.criteria_count || 0),
           rubric: [rubric.title || 'No rubric', rubric.id || ''], date: when,
           prog: [pct, progress, state === 'complete' ? 'var(--ink-soft)' : state === 'review' ? 'var(--info)' : 'var(--primary)'],
-          href: batchHref(batch), home: batch.pinned || state === 'processing' || state === 'review', version: Number(batch.version || 0),
+          href: batchHref(batch), home: batch.pinned, version: Number(batch.version || 0),
           canCancel: batch.status === 'processing', canDelete: batch.status !== 'processing' && batch.status !== 'finalised'
         };
       });
@@ -295,7 +317,7 @@
         regradeControl.className = 'regrade-control'; regradeButton.type = 'button'; regradeButton.className = 'icon-btn'; regradeButton.dataset.regrade = 'true'; regradeButton.textContent = hasEvidence ? 'Re-run AI evidence' : 'Retrieve evidence'; regradeMeter.className = 'regrade-meter'; regradeMeter.appendChild(regradeFill); regradeControl.appendChild(regradeButton); regradeControl.appendChild(regradeMeter); document.querySelector('.doc-tools').insertBefore(regradeControl, document.getElementById('collapse'));
         var regradeError = function (message) { var old = document.querySelector('.regrade-error'); if (old) old.remove(); var box = document.createElement('div'); box.className = 'regrade-error'; box.setAttribute('role', 'alert'); box.innerHTML = '<b>AI evidence retrieval stopped.</b><br>' + esc(message) + '<button type="button" aria-label="Close">×</button>'; box.querySelector('button').addEventListener('click', function () { box.remove(); }); document.body.appendChild(box); };
         var stopRegrade = function (message) { regradeControl.classList.remove('running'); regradeButton.disabled = false; regradeButton.textContent = hasEvidence ? 'Re-run AI evidence' : 'Retrieve evidence'; regradeFill.style.width = '0'; if (message) regradeError(message); };
-        var pollRegrade = function () { MarkerAPI.listSubmissions(batch.id).then(function (result) { var item = (result.items || []).find(function (row) { return row.id === submissionId; }); if (!item) throw new Error('Submission progress is unavailable.'); var progress = String(item.progress || ''), match = progress.match(/(\d+)\s*\/\s*(\d+)\s+criteria/), done = match ? Number(match[1]) : 0, count = match ? Number(match[2]) : criteria.length, pct = count ? Math.max(5, Math.round(done / count * 100)) : 5; regradeFill.style.width = pct + '%'; regradeButton.textContent = match ? 'Retrieving ' + done + '/' + count : 'Queued…'; if (item.status === 'ai_done' || item.status === 'in_review') { regradeFill.style.width = '100%'; regradeButton.textContent = 'Evidence ready'; setTimeout(function () { location.reload(); }, 350); return; } if (item.status === 'failed') { stopRegrade(item.error && item.error.message ? item.error.message : 'The AI provider did not return a usable result after three attempts.'); return; } setTimeout(pollRegrade, 1500); }).catch(function (error) { console.error('Regrade progress failed', error); stopRegrade(error.message); }); };
+        var pollRegrade = function () { MarkerAPI.getReview(submissionId).then(function (result) { var item = Object.assign({}, result.submission, { error: result.submission.error ? { message: result.submission.error } : null }); var progress = String(item.progress || ''), match = progress.match(/(\d+)\s*\/\s*(\d+)\s+criteria/), done = match ? Number(match[1]) : 0, count = match ? Number(match[2]) : criteria.length, pct = count ? Math.max(5, Math.round(done / count * 100)) : 5; regradeFill.style.width = pct + '%'; regradeButton.textContent = match ? 'Retrieving ' + done + '/' + count : 'Queued…'; if (item.status === 'ai_done' || item.status === 'in_review') { regradeFill.style.width = '100%'; regradeButton.textContent = 'Evidence ready'; setTimeout(function () { location.reload(); }, 350); return; } if (item.status === 'failed') { stopRegrade(item.error && item.error.message ? item.error.message : 'The AI provider did not return a usable result after three attempts.'); return; } setTimeout(pollRegrade, 1500); }).catch(function (error) { console.error('Regrade progress failed', error); stopRegrade(error.message); }); };
         var startRegrade = function () { regradeControl.classList.add('running'); regradeButton.disabled = true; regradeFill.style.width = '5%'; pollRegrade(); };
         regradeButton.addEventListener('click', function () { regradeControl.classList.add('running'); regradeButton.disabled = true; regradeButton.textContent = 'Queueing…'; regradeFill.style.width = '3%'; MarkerAPI.regrade(submissionId).then(startRegrade).catch(function (error) { console.error('Regrade request failed', error); stopRegrade(error.message); }); });
         if (submission.status === 'queued' || submission.status === 'marking') startRegrade();

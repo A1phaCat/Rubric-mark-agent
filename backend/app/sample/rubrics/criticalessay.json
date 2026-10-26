@@ -1,0 +1,172 @@
+{
+  "title": "Critical Essay — HD/D/C/P",
+  "source": "Uploaded PDF · parsed by AI",
+  "pinned": true,
+  "age_days": 0,
+  "criteria": [
+    {
+      "name": "Argument structure",
+      "weight": 30,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 30.0,
+          "min_score": 25.5,
+          "max_score": 30.0,
+          "description": "A clear, well-sequenced thesis carried consistently through each section."
+        },
+        {
+          "label": "DI",
+          "points": 25.2,
+          "min_score": 22.5,
+          "max_score": 25.5,
+          "description": "A clear thesis; most sections connect back to it, with minor lapses."
+        },
+        {
+          "label": "CR",
+          "points": 22.2,
+          "min_score": 19.5,
+          "max_score": 22.5,
+          "description": "Thesis is present but sequencing is uneven; some sections drift from it."
+        },
+        {
+          "label": "PS",
+          "points": 19.2,
+          "min_score": 15.0,
+          "max_score": 19.5,
+          "description": "Thesis is implied rather than stated; the essay reads as a sequence of points."
+        },
+        {
+          "label": "FL",
+          "points": 14.7,
+          "min_score": 0.0,
+          "max_score": 15.0,
+          "description": "No identifiable thesis or argument."
+        }
+      ]
+    },
+    {
+      "name": "Evidence & sources",
+      "weight": 25,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 25.0,
+          "min_score": 21.25,
+          "max_score": 25.0,
+          "description": "Sources are current, credible, and integrated — not just listed."
+        },
+        {
+          "label": "DI",
+          "points": 21.0,
+          "min_score": 18.75,
+          "max_score": 21.25,
+          "description": "Credible sources, mostly integrated into the argument."
+        },
+        {
+          "label": "CR",
+          "points": 18.5,
+          "min_score": 16.25,
+          "max_score": 18.75,
+          "description": "Adequate sources, though some are listed rather than used."
+        },
+        {
+          "label": "PS",
+          "points": 16.0,
+          "min_score": 12.5,
+          "max_score": 16.25,
+          "description": "Few sources, weakly connected to the claims they support."
+        },
+        {
+          "label": "FL",
+          "points": 12.25,
+          "min_score": 0.0,
+          "max_score": 12.5,
+          "description": "Little or no evidence offered."
+        }
+      ]
+    },
+    {
+      "name": "Critical analysis",
+      "weight": 30,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 30.0,
+          "min_score": 25.5,
+          "max_score": 30.0,
+          "description": "Goes beyond description to weigh competing explanations."
+        },
+        {
+          "label": "DI",
+          "points": 25.2,
+          "min_score": 22.5,
+          "max_score": 25.5,
+          "description": "Evaluates some alternatives, though not always in depth."
+        },
+        {
+          "label": "CR",
+          "points": 22.2,
+          "min_score": 19.5,
+          "max_score": 22.5,
+          "description": "Mostly descriptive, with occasional analysis."
+        },
+        {
+          "label": "PS",
+          "points": 19.2,
+          "min_score": 15.0,
+          "max_score": 19.5,
+          "description": "Largely descriptive; little evaluation of ideas."
+        },
+        {
+          "label": "FL",
+          "points": 14.7,
+          "min_score": 0.0,
+          "max_score": 15.0,
+          "description": "No analysis evident."
+        }
+      ]
+    },
+    {
+      "name": "Writing clarity",
+      "weight": 15,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 15.0,
+          "min_score": 12.75,
+          "max_score": 15.0,
+          "description": "Precise, concise prose with few mechanical errors."
+        },
+        {
+          "label": "DI",
+          "points": 12.6,
+          "min_score": 11.25,
+          "max_score": 12.75,
+          "description": "Clear prose with minor errors that don’t affect meaning."
+        },
+        {
+          "label": "CR",
+          "points": 11.1,
+          "min_score": 9.75,
+          "max_score": 11.25,
+          "description": "Generally understandable; some errors slow the reader."
+        },
+        {
+          "label": "PS",
+          "points": 9.6,
+          "min_score": 7.5,
+          "max_score": 9.75,
+          "description": "Meaning is mostly clear, but errors are frequent."
+        },
+        {
+          "label": "FL",
+          "points": 7.35,
+          "min_score": 0.0,
+          "max_score": 7.5,
+          "description": "Frequent errors obscure meaning."
+        }
+      ]
+    }
+  ]
+}

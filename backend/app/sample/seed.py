@@ -1,8 +1,11 @@
 """Load the sample rubrics and batches into the database through the real services.
 
-Usage: ``python -m app.sample.seed`` (from ``backend/``). Safe to re-run: previous
-sample batches and sample rubrics are removed and recreated; the tutor's own batches,
-rubrics and saved AI settings are left untouched.
+Usage: ``python -m app.sample.seed`` (from ``backend/``). The API server also runs it on
+every start (``MARKER_RESET_SAMPLES_ON_START``, default on) and Home has a "Reset samples"
+button (``POST /api/v1/samples/reset``), so the samples can be marked again in every demo.
+Re-running removes and recreates the sample batches and sample rubrics, and pins the three
+samples to Home again; the tutor's own batches, rubrics and AI settings are kept (their
+batches stay in the list, unpinned).
 
 What is real: the submission files (PDF/DOCX), their storage and text extraction, the
 evidence offsets (located in the extracted text), every tutor edit and confirmation
@@ -14,6 +17,7 @@ audit trail. What is replayed: the AI grading step, from the results recorded in
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -36,6 +40,7 @@ from app.domain.bands import level_for_score
 from app.domain.ids import new_id
 from app.domain.states import BatchStatus, SubmissionStatus
 from app.retrieval import locate_quote
+from app.rubric.parser import extract_rubric_file, parse_rubric_text
 from app.sample import manifest
 from app.services.batch_service import BatchUseCases
 from app.services.review_service import ReviewUseCases
@@ -65,6 +70,13 @@ def seed() -> dict[str, int]:
         with SessionLocal.begin() as session:
             counts["submissions"] += _create_batch(session, spec)
             counts["batches"] += 1
+    with SessionLocal.begin() as session:
+        # Show the samples on Home in manifest order (the first one on top).
+        now = datetime.now(timezone.utc)
+        for index, spec in enumerate(manifest.BATCHES):
+            batch = session.get(Batch, spec["id"])
+            if batch is not None and batch.pinned:
+                batch.pinned_at = now - timedelta(seconds=index)
     return counts
 
 
@@ -89,7 +101,7 @@ def _remove_previous_samples(session: Session) -> None:
     in_use = set(
         session.scalars(select(Batch.rubric_library_id).where(Batch.rubric_library_id.is_not(None)))
     )
-    sample_ids = {item["id"] for item in manifest.RUBRICS}
+    sample_ids = {item["id"] for item in load_rubric_files()}
     for rubric in list(session.scalars(select(Rubric))):
         if rubric.id in in_use:
             continue  # kept: one of the tutor's own batches marks against it
@@ -121,11 +133,62 @@ def _delete_batch_rows(session: Session, batch: Batch) -> None:
     session.delete(batch)
 
 
+RUBRIC_FILES = Path(__file__).resolve().parent / "rubrics"
+RUBRIC_SUFFIXES = {".json", ".md", ".csv", ".tsv", ".txt", ".docx", ".pdf"}
+
+
+def load_rubric_files(folder: Path = RUBRIC_FILES) -> list[dict[str, Any]]:
+    """Parse every rubric file in ``app/sample/rubrics`` with the local (non-AI) parser.
+
+    The rubric id is ``rub_<file name>`` (``shortanswer.json`` → ``rub_shortanswer``). JSON
+    files may also set ``source``, ``pinned`` and ``age_days``. A file that the parser cannot
+    read exactly (missing points, empty descriptions, totals that disagree) stops the seed
+    with the parser's warnings, so a preloaded rubric is never silently wrong.
+    """
+
+    specs = []
+    for path in sorted(folder.iterdir()):
+        if (
+            path.suffix.lower() not in RUBRIC_SUFFIXES
+            or path.name.startswith(("_", "."))
+            or path.stem.lower() == "readme"
+        ):
+            continue
+        text = extract_rubric_file(path.name, path.read_bytes())
+        try:
+            parsed = parse_rubric_text(text, path.name)
+        except ValueError as exc:
+            raise SampleDataError(f"rubrics/{path.name}: {exc}") from exc
+        problems = [item.get("message", str(item)) if isinstance(item, dict) else str(item) for item in parsed.get("warnings", [])]
+        if problems:
+            raise SampleDataError(f"rubrics/{path.name}: " + "; ".join(problems))
+        extra = json.loads(text) if path.suffix.lower() == ".json" else {}
+        specs.append(
+            {
+                "id": "rub_" + re.sub(r"[^a-z0-9]+", "", path.stem.lower()),
+                "title": parsed["title"],
+                "source": extra.get("source") or f"Preloaded · {path.name}",
+                "pinned": bool(extra.get("pinned", True)),
+                "age_days": float(extra.get("age_days", 0)),
+                "criteria": [
+                    {
+                        "name": criterion["name"],
+                        "weight": criterion["weight"],
+                        "description": criterion.get("description", ""),
+                        "levels": criterion["levels"],
+                    }
+                    for criterion in parsed["criteria"]
+                ],
+            }
+        )
+    return specs
+
+
 def _create_rubrics(session: Session) -> dict[str, list[RubricCriterion]]:
     service = RubricUseCases(session)
     now = datetime.now(timezone.utc)
     created: dict[str, list[RubricCriterion]] = {}
-    for spec in manifest.RUBRICS:
+    for spec in load_rubric_files():
         if session.get(Rubric, spec["id"]) is not None:
             # Still used by a tutor's batch: reuse the stored version 1 the samples mark against.
             created[spec["id"]] = _criteria_v1(session, spec["id"])

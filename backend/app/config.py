@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     timezone: str = "Australia/Sydney"
     worker_id: str = "local-worker-1"
     local_user_id: str = "usr_jalvarez"
+    # Reload the sample batches on every API start so they can be marked again.
+    reset_samples_on_start: bool = True
     job_lease_seconds: int = 60
     job_max_attempts: int = 3
     ai_base_url: str | None = None

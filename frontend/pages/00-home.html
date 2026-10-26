@@ -130,6 +130,9 @@
   .pill.final{ background:var(--conf-high-bg); color:var(--conf-high); }
   .sample-tag{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--primary); border:1px solid var(--primary); border-radius:4px; padding:1px 5px; margin-left:8px; vertical-align:2px; font-weight:400; }
   .pin-mark{ font-size:11px; margin-left:6px; vertical-align:2px; }
+  .sh-actions{ display:flex; gap:16px; align-items:baseline; }
+  .linkish{ border:0; background:none; padding:0; font:inherit; font-size:13px; color:var(--ink-soft); cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+  .linkish:disabled{ cursor:wait; opacity:.6; }
   .home-empty{ margin:0; padding:16px 20px; font-size:13px; color:var(--ink-soft); }
   .tag.manual{ background:var(--conf-none-bg); color:var(--conf-none); }
 
@@ -272,7 +275,7 @@
     <nav class="ab-crumbs ab-crumbs-home" aria-label="Breadcrumb"><ol><li><span aria-current="page" id="bcCur">Home</span></li></ol></nav>
   </div>
   <div class="ab-right">
-    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+    <div class="ab-user" title="Local single-user mode"><span class="ab-uname">&nbsp;</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true"></span></div>
   </div>
 </header>
 
@@ -295,7 +298,7 @@
 
   <div class="cols">
     <section>
-      <div class="section-head"><h2>Batches</h2><a href="07-batches.html">View all batches →</a></div>
+      <div class="section-head"><h2>Batches</h2><span class="sh-actions"><button type="button" class="linkish" id="resetSamples" title="Put the three sample batches back to their starting state. Your own batches are kept.">↺ Reset samples</button><a href="07-batches.html">View all batches →</a></span></div>
       <div class="batches" id="homeBatches"><p class="home-empty">Loading batches…</p></div>
     </section>
 

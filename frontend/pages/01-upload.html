@@ -274,7 +274,7 @@
     <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><span aria-current="page" id="bcCur">Set up batch</span></li></ol><a class="bc-up" href="00-home.html"><span aria-hidden="true">‹</span><span class="t">Home</span></a></nav>
   </div>
   <div class="ab-right">
-    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+    <div class="ab-user" title="Local single-user mode"><span class="ab-uname">&nbsp;</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true"></span></div>
   </div>
 </header>
 <div class="ab-steps"><div class="ab-steps-in"><div class="step-track">
@@ -303,7 +303,6 @@
         <p class="hint">The parser keeps the criteria and scoring levels from your rubric. It does not force a five-band HD–FL scale.</p>
         <textarea class="paste" id="pasteText" spellcheck="false" placeholder="e.g.&#10;1. Analysis — 3 marks&#10;Excellent (3): …&#10;Good (2): …&#10;Basic (1): …&#10;Missing (0): …"></textarea>
         <div class="row-btns">
-          <button class="linkbtn" type="button" id="fillSample">Paste an example</button>
           <button class="linkbtn" type="button" id="rubricFileBtn">Upload PDF, DOCX or TXT</button>
           <input type="file" id="rubricFile" accept=".pdf,.docx,.txt,.md,.csv,.tsv,.json" hidden>
           <span class="sp"></span>
@@ -407,29 +406,7 @@
   });
 
   /* ---------- B. Paste + parse ---------- */
-  var SAMPLE = [
-    'Short response rubric (9 marks)',
-    '',
-    '1. Accuracy — 3 marks',
-    'Excellent (3): Correct and complete.',
-    'Good (2): Mostly correct with a minor omission.',
-    'Basic (1): Partly correct.',
-    'Missing (0): Incorrect or absent.',
-    '',
-    '2. Reasoning — 3 marks',
-    'Excellent (3): Reasoning is clear and fully supported.',
-    'Good (2): Reasoning is sound but brief.',
-    'Basic (1): Limited reasoning.',
-    'Missing (0): No relevant reasoning.',
-    '',
-    '3. Communication — 3 marks',
-    'Excellent (3): Precise and easy to follow.',
-    'Good (2): Clear overall.',
-    'Basic (1): Meaning is sometimes unclear.',
-    'Missing (0): Cannot be assessed.'
-  ].join('\n');
   $('pasteText').addEventListener('input', function(){ $('parseBtn').disabled = !this.value.trim(); });
-  $('fillSample').addEventListener('click', function(){ var t = $('pasteText'); t.value = SAMPLE; $('parseBtn').disabled = false; t.focus(); t.setSelectionRange(0, 0); t.scrollTop = 0; });
   $('parseBtn').addEventListener('click', function(){
     var text = $('pasteText').value; if (!text.trim()) return;
     if (dirty && !confirm('Replace the rubric you are editing?')) return;
@@ -592,7 +569,7 @@
   });
   function zipLoaded(files){
     var rows=files.map(function(file,i){var m=file.name.match(/SID[-_ ]?(\d+)/i),sid=m?('SID-'+m[1]):'';return {file:file,sid:sid,index:i};});
-    $('zipFiles').innerHTML = rows.map(function(row){return '<div class="file"><span class="nm">'+esc(row.file.name)+'</span><label>SID <input class="sid-input" data-sid-index="'+row.index+'" value="'+esc(row.sid)+'" placeholder="SID-40219" required></label></div>';}).join('')+
+    $('zipFiles').innerHTML = rows.map(function(row){return '<div class="file"><span class="nm">'+esc(row.file.name)+'</span><label>SID <input class="sid-input" data-sid-index="'+row.index+'" value="'+esc(row.sid)+'" placeholder="Student ID" required></label></div>';}).join('')+
       '<div class="row-btns"><button class="linkbtn" type="button" id="clearZip">Remove</button></div>';
     $('assnSel').value = ''; $('assnInfo').classList.remove('show');
     S = { kind:'zip', label:files.length===1?files[0].name:(files.length+' files'), count:files.length, scanned:0, rows:rows };
@@ -633,7 +610,7 @@
     var button=this;button.disabled=true;button.textContent='Creating batch…';$('why').textContent='Saving rubric and uploading submission';
     var rubricPayload={title:R.title,source:R.source||'Uploaded / AI parsed',parser:R.parser||null,save_to_library:$('saveLib').checked,criteria:R.criteria.map(function(c){return {name:c.name,weight:Number(c.weight),description:c.description||'',stated_percent:c.stated_percent,grading_mode:c.grading_mode,scoring_mode:c.scoring_mode,score_mapping:c.score_mapping,granularity:c.granularity,aspects:c.aspects||[],prov:c.prov||{},source_text:c.source_text||{},levels:c.levels.map(function(level,j){return {id:level.id||('level-'+(j+1)),label:level.label,points:Number(level.points),min_score:level.min_score==null?Number(level.points):Number(level.min_score),max_score:level.max_score==null?Number(level.points):Number(level.max_score),min_inclusive:level.min_inclusive!==false,max_inclusive:level.max_inclusive!==false,description:level.description,prov:level.prov||{},source_text:level.source_text||{}};})};})};
     var rubricPromise=R.libId?MarkerAPI.getRubric(R.libId):MarkerAPI.createRubric(rubricPayload);
-    rubricPromise.then(function(saved){var rubric=saved.rubric;return MarkerAPI.createBatch({name:R.title+' — validation batch',unit:null,term_id:'term_2026s2',rubric_id:rubric.id,rubric_version:rubric.version});}).then(function(created){
+    rubricPromise.then(function(saved){var rubric=saved.rubric;return MarkerAPI.createBatch({name:R.title+' — validation batch',unit:null,rubric_id:rubric.id,rubric_version:rubric.version});}).then(function(created){
       var batch=created.batch;return MarkerAPI.uploadFiles(batch.id,S.rows.map(function(row){return row.file;})).then(function(upload){return Promise.all(upload.files.filter(function(item){return item.status==='accepted';}).map(function(item,index){var sid=S.rows[index]&&S.rows[index].sid;if(!sid||item.sid_guess===sid)return Promise.resolve();return MarkerAPI.patchSubmission(batch.id,item.submission_id,{student_id:sid,version:1});})).then(function(){return {batch:batch,upload:upload};});});
     }).then(function(context){
       return MarkerAPI.getSettings().then(function(config){
