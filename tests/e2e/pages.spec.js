@@ -136,6 +136,93 @@ test('review header refreshes batch progress while AI processing continues', asy
   await expect(page.locator('#pgProc')).toHaveText('26');
 });
 
+test('end-of-review dialog discovers the next AI-ready submission without refresh', async ({ page }) => {
+  const listing = await (await page.request.get('/api/v1/batches/bat_sample_asgn2/submissions')).json();
+  const current = listing.items.find((item) => item.status === 'ai_done' || item.status === 'in_review');
+  let queueChecks = 0;
+  await page.route(new RegExp(`/api/v1/submissions/${current.id}/confirm$`), async route => route.fulfill({
+    contentType:'application/json',
+    body:JSON.stringify({
+      submission_id:current.id,status:'confirmed',batch_status:'processing',next_id:null,
+      remaining:{ready:0,processing:103,failed:0},
+    }),
+  }));
+  await page.route(/\/api\/v1\/batches\/bat_sample_asgn2\/queue\/next/, async route => {
+    queueChecks += 1;
+    const nextReady = queueChecks > 1;
+    await route.fulfill({contentType:'application/json',body:JSON.stringify({
+      next_id:nextReady?'sub_new_ready':null,
+      next_sid:nextReady?'SID-424242':null,
+      remaining:{ready:nextReady?1:0,needs_manual:0,processing:nextReady?102:103,failed:0,confirmed:5,total:108},
+    })});
+  });
+
+  await page.goto(`/03b-review-split.html?submission_id=${current.id}`);
+  await page.locator('#btnNext').click();
+  await expect(page.locator('#endCard')).toContainText('Waiting for the AI');
+  await expect(page.locator('#endCard')).toContainText('no refresh needed');
+  await expect(page.locator('#endCard')).toContainText('Next submission is ready', {timeout:7000});
+  const openNext = page.getByRole('link', {name:'Open SID-424242 →'});
+  await expect(openNext).toBeVisible();
+  await expect(openNext).toHaveAttribute('href', /submission_id=sub_new_ready/);
+});
+
+test('large processing batches show compact live activity without overlapping actions', async ({ page }) => {
+  const batch = {
+    id:'bat_ui_activity', name:'Short response rubric (9 marks) — validation batch', status:'processing', display_status:'processing',
+    version:2, pinned:true, created_at:'2026-10-27T00:00:00Z', due_at:null,
+    term:{id:'term_2026s2',label:'Semester 2, 2026'},
+    rubric:{id:'rub_ui',title:'Short response rubric with a deliberately long title (9 marks)',criteria_count:3,total_weight:9},
+    counts:{total:108,processed:1,ready:1,confirmed:0,needs_manual:0,processing:107,active:3,queued:104,not_started:0,failed:0},
+  };
+  await page.route(/\/api\/v1\/batches$/, async route => route.fulfill({contentType:'application/json',body:JSON.stringify({items:[batch]})}));
+  await page.setViewportSize({width:1080,height:800});
+  await page.goto('/07-batches.html');
+
+  const row = page.locator('.brow.is-processing');
+  await expect(row).toBeVisible();
+  const rubricBox = await row.locator('.b-rub').boundingBox();
+  const actionsBox = await row.locator('.batch-actions').boundingBox();
+  expect(rubricBox.x + rubricBox.width).toBeLessThanOrEqual(actionsBox.x);
+  await expect(row.locator('.b-ptxt')).toContainText('3 active · 104 queued');
+  expect(await row.locator('.bar span').evaluate(el => getComputedStyle(el, '::after').animationName)).toBe('batch-flow');
+  expect(await row.locator('.pill.processing').evaluate(el => getComputedStyle(el).animationName)).toBe('batch-breathe');
+
+  const waitingBatch = JSON.parse(JSON.stringify(batch));
+  waitingBatch.counts.active = 0;
+  waitingBatch.counts.queued = 107;
+  waitingBatch.eta_seconds = 1080;
+  waitingBatch.queue = {
+    jobs_ahead:93,
+    blocked_by:{id:'bat_earlier',name:'Earlier validation batch',status:'processing',created_at:'2026-10-27T00:46:00Z'},
+  };
+  await page.route(/\/api\/v1\/batches\/bat_ui_activity$/, async route => route.fulfill({contentType:'application/json',body:JSON.stringify({batch:waitingBatch})}));
+  await page.route(/\/api\/v1\/batches\/bat_ui_activity\/submissions/, async route => route.fulfill({contentType:'application/json',body:JSON.stringify({
+    total:108,page:1,page_size:50,items:[
+      {id:'sub_waiting',sid:'SID-10001',filename:'SID-10001.pdf',status:'queued',progress:'Queued for extraction and AI grading',flags:[],version:1},
+      {id:'sub_queued',sid:'SID-10002',filename:'SID-10002.pdf',status:'queued',progress:'Queued for extraction and AI grading',flags:[],version:1},
+      {id:'sub_review',sid:'SID-10003',filename:'SID-10003.pdf',status:'in_review',progress:'In review',ai_total:8,flags:[],version:1},
+      {id:'sub_ready',sid:'SID-10004',filename:'SID-10004.pdf',status:'ai_done',progress:'Ready for review',ai_total:8,flags:[],version:1},
+      {id:'sub_cancelled',sid:'SID-10005',filename:'SID-10005.pdf',status:'cancelled',progress:'Cancelled',flags:[],version:1},
+      {id:'sub_failed',sid:'SID-10006',filename:'SID-10006.pdf',status:'failed',progress:'Failed',flags:[],error:{message:'Provider error'},version:1},
+    ],
+  })}));
+  await page.goto('/02-batch-status.html?batch_id=bat_ui_activity');
+  await expect(page.locator('.live-work')).toHaveText(/Waiting behind.*Earlier validation batch.*93 jobs ahead/);
+  await expect(page.locator('.live-work a')).toHaveAttribute('href', /batch_id=bat_earlier/);
+  await expect(page.locator('.progress-stats .eta')).toHaveText('~18 min remaining');
+  await expect(page.locator('.status-pill.in-review')).toHaveText('In review');
+  await expect(page.locator('.status-pill.ready')).toHaveText('Ready for review');
+  expect(await page.locator('.status-pill.in-review').evaluate(el => getComputedStyle(el).color)).toBe('rgb(0, 125, 193)');
+  expect(await page.locator('.status-pill.ready').evaluate(el => getComputedStyle(el).color)).toBe('rgb(47, 122, 69)');
+  await expect(page.locator('.status-pill.failed')).toHaveCount(2);
+  await expect(page.locator('.status-pill.failed').nth(0)).toHaveText('Cancelled');
+  await expect(page.locator('.status-pill.failed').nth(1)).toHaveText('Failed');
+  await expect(page.locator('tr.active-work')).toHaveCount(0);
+  await expect(page.locator('tr.queued-work')).toHaveCount(2);
+  await expect(page.locator('.pager')).toContainText('Showing 1–30 of 108');
+});
+
 test('large submission selections collapse matched files into a summary', async ({ page }) => {
   await page.goto('/01-upload.html');
   const files = Array.from({ length:20 }, (_, index) => ({
@@ -150,6 +237,19 @@ test('large submission selections collapse matched files into a summary', async 
   await expect(page.locator('#zipFiles .file-details')).not.toHaveAttribute('open', '');
   await expect(page.locator('#zipFiles .file-details summary')).toHaveText('View all 20 matched files');
   await expect(page.locator('#zipFiles .file-list-scroll .file')).toHaveCount(20);
+});
+
+test('ZIP selections defer the submission count and estimate until unpacked', async ({ page }) => {
+  await page.goto('/01-upload.html');
+  await page.locator('#zipIn').setInputFiles({
+    name:'submissions.zip',
+    mimeType:'application/zip',
+    buffer:Buffer.from('placeholder ZIP content'),
+  });
+
+  await expect(page.locator('#vSub')).toHaveText('1 ZIP · count after upload');
+  await expect(page.locator('#vTime')).toHaveText('—');
+  await expect(page.locator('#aiPrepEstimate')).toHaveAttribute('title', /after the ZIP is unpacked/i);
 });
 
 test('SID repair queue confirms valid input and advances to the next file', async ({ page }) => {
@@ -289,6 +389,89 @@ test('external AI consent uses the in-app modal and supports keyboard cancellati
   await page.locator('#consentContinue').click();
   await expect(dialog).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__externalConsentResult)).toBe(true);
+});
+
+test('cancelling external processing restores focus and rubric edits discard the pending batch', async ({ page }) => {
+  let deletedBatch = false;
+  await page.route('**/api/v1/rubrics', async route => {
+    if(route.request().method()!=='POST')return route.fallback();
+    await route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({rubric:{id:'rub_pending',version:1}})});
+  });
+  await page.route('**/api/v1/batches', async route => {
+    if(route.request().method()!=='POST')return route.fallback();
+    await route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({batch:{id:'bat_pending',version:1}})});
+  });
+  await page.route('**/api/v1/batches/bat_pending/files', async route => route.fulfill({
+    contentType:'application/json',
+    body:JSON.stringify({summary:{accepted:1,duplicates:0,skipped:0,needs_sid:0},files:[{name:'SID-12345.txt',status:'accepted',sid_guess:'SID-12345',submission_id:'sub_pending',version:1}]})
+  }));
+  await page.route('**/api/v1/settings/ai', async route => route.fulfill({contentType:'application/json',body:JSON.stringify({provider:'minimax',model:'test'})}));
+  await page.route('**/api/v1/settings/canvas', async route => route.fulfill({contentType:'application/json',body:'{}'}));
+  await page.route('**/api/v1/batches/bat_pending/start', async route => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({error:{message:'Test stop'}})});
+  });
+  await page.route(/\/api\/v1\/batches\/bat_pending\?version=1$/, async route => {
+    deletedBatch = true;
+    await route.fulfill({status:204,body:''});
+  });
+
+  await page.goto('/01-upload.html');
+  await page.locator('#pasteText').fill([
+    'Draft rubric', 'CRITERION: Analysis', 'MAX: 3',
+    'Excellent (3): Complete.', 'Missing (0): Absent.',
+  ].join('\n'));
+  await page.locator('#parseBtn').click();
+  await expect(page.locator('.crit')).toHaveCount(1);
+  await page.locator('#zipIn').setInputFiles({name:'SID-12345.txt',mimeType:'text/plain',buffer:Buffer.from('Submission')});
+  const start=page.locator('#startBtn');
+  await start.click();
+  await expect(page.locator('#externalConsent')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#externalConsent')).toBeHidden();
+  await expect(start).toBeFocused();
+  await expect(start).toHaveText('Start processing →');
+
+  await start.click();
+  await page.locator('#consentContinue').click();
+  await expect(page.locator('#why')).toHaveText('AI is grading 1 criterion · estimated <1 min');
+  await expect(start).toBeEnabled();
+
+  await page.locator('.crit').first().locator('.fold').click();
+  await page.locator('.crit').first().locator('[data-f="description"]').fill('Updated assessment description');
+  await expect.poll(() => deletedBatch).toBe(true);
+  await expect(start).toHaveText('Start batch →');
+  await expect(page.locator('#zipFiles .upload-summary')).toContainText('1 file selected');
+});
+
+test('edited library rubrics create the batch with the saved new version', async ({ page }) => {
+  await page.goto('/01-upload.html');
+  await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
+  await page.locator('#libList .lib-row').first().click();
+  await page.locator('#rTitle').fill('Edited library rubric');
+  await page.locator('#zipIn').setInputFiles({name:'SID-23456.txt',mimeType:'text/plain',buffer:Buffer.from('Submission')});
+  await page.evaluate(() => {
+    window.__updatedRubric = null;
+    window.__createdBatch = null;
+    MarkerAPI.getRubric = rubricId => Promise.resolve({rubric:{id:rubricId,version:7}});
+    MarkerAPI.updateRubric = (rubricId, payload) => {
+      window.__updatedRubric = {rubricId, payload};
+      return Promise.resolve({rubric:{id:rubricId,version:8}});
+    };
+    MarkerAPI.createBatch = payload => {
+      window.__createdBatch = payload;
+      return Promise.resolve({batch:{id:'bat_edited_rubric',version:1}});
+    };
+    MarkerAPI.uploadFiles = () => Promise.resolve({summary:{accepted:0,duplicates:0,skipped:1,needs_sid:0},files:[]});
+  });
+
+  await page.locator('#startBtn').click();
+  await expect.poll(() => page.evaluate(() => window.__createdBatch)).not.toBeNull();
+  const saved = await page.evaluate(() => ({updated:window.__updatedRubric, batch:window.__createdBatch}));
+  expect(saved.updated.payload.version).toBe(7);
+  expect(saved.updated.payload.title).toBe('Edited library rubric');
+  expect(saved.batch.rubric_id).toBe(saved.updated.rubricId);
+  expect(saved.batch.rubric_version).toBe(8);
 });
 
 test('setup UI parses variable levels and opens the newly created batch', async ({ page }) => {

@@ -235,11 +235,14 @@ def next_submission(batch_id: str, after: str | None = None, db: Session = Depen
         counts = BatchUseCases(db).counts(batch_id)
         return {
             "next_id": upcoming[0].id if upcoming else None,
+            "next_sid": upcoming[0].sid if upcoming else None,
             "remaining": {
                 "ready": counts["ready"],
                 "needs_manual": counts["needs_manual"],
                 "processing": counts["processing"],
                 "failed": counts["failed"],
+                "confirmed": counts["confirmed"],
+                "total": counts["total"],
             },
         }
     except Exception as exc:
@@ -256,12 +259,14 @@ async def events(batch_id: str, request: Request) -> StreamingResponse:
             batch = session.get(Batch, batch_id)
             if batch is None:
                 return None
-            counts = BatchUseCases(session).counts(batch_id)
+            service = BatchUseCases(session)
+            counts = service.counts(batch_id)
+            queue = service.queue_wait(batch, counts)
             return batch.version, {
                 "batch_id": batch_id,
                 "status": batch.status,
                 "counts": counts,
-                "eta_seconds": None,
+                "eta_seconds": service.estimate_eta(batch, counts, queue),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
 

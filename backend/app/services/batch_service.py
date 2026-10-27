@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -477,7 +478,9 @@ class BatchUseCases:
             ).all()
         )
         batch = self._batch(batch_id)
-        processing = sum(rows.get(state, 0) for state in PROCESSING_STATES)
+        queued = rows.get("queued", 0)
+        active = sum(rows.get(state, 0) for state in ("extracting", "ocr_running", "marking"))
+        processing = queued + active
         ready = rows.get("ai_done", 0) + rows.get("in_review", 0)
         low_confidence = (
             self.session.scalar(
@@ -499,6 +502,8 @@ class BatchUseCases:
             "low_confidence": low_confidence,
             "needs_manual": needs_manual,
             "processing": processing,
+            "active": active,
+            "queued": queued,
             "not_started": rows.get("uploaded", 0),
             "confirmed": rows.get("confirmed", 0),
             "adjusted": len(self.adjusted_submission_ids(batch_id)),
@@ -530,6 +535,7 @@ class BatchUseCases:
     def serialize(self, batch: Batch) -> dict[str, Any]:
         rubric_summary = None
         maximum = 0.0
+        criteria_count = 0
         if batch.rubric_library_id:
             rubric = self.session.get(Rubric, batch.rubric_library_id)
             if rubric:
@@ -573,6 +579,7 @@ class BatchUseCases:
                 }
         term = self.session.get(Term, batch.term_id)
         counts = self.counts(batch.id)
+        queue = self.queue_wait(batch, counts)
         return {
             "id": batch.id,
             "name": batch.name,
@@ -586,16 +593,143 @@ class BatchUseCases:
             "pinned_at": _iso(batch.pinned_at),
             "rubric": rubric_summary,
             "counts": counts,
+            "queue": queue,
             "insights": self._insights(batch.id, maximum),
             "model": {"provider": batch.model_provider, "name": batch.model_name}
             if batch.model_provider
             else None,
-            "eta_seconds": None,
+            "eta_seconds": self.estimate_eta(batch, counts, queue, criteria_count),
             "created_at": iso_utc(batch.created_at),
             "started_at": _iso(batch.started_at),
             "completed_at": _iso(batch.completed_at),
             "finalised_at": _iso(batch.finalised_at),
             "version": batch.version,
+        }
+
+    def estimate_eta(
+        self,
+        batch: Batch,
+        counts: dict[str, int],
+        queue: dict[str, Any] | None = None,
+        criteria_count: int = 0,
+    ) -> int | None:
+        """Estimate remaining AI preparation time from observed submission latency."""
+
+        remaining = int(counts.get("processing", 0))
+        if batch.status != BatchStatus.PROCESSING.value or remaining < 1:
+            return None
+
+        completed_states = [
+            SubmissionStatus.AI_DONE.value,
+            SubmissionStatus.IN_REVIEW.value,
+            SubmissionStatus.CONFIRMED.value,
+        ]
+        submission_latencies = (
+            select(func.sum(AIResult.latency_ms).label("latency_ms"))
+            .join(Submission, Submission.id == AIResult.submission_id)
+            .where(
+                Submission.batch_id == batch.id,
+                Submission.status.in_(completed_states),
+                AIResult.latency_ms > 0,
+            )
+            .group_by(AIResult.submission_id)
+            .subquery()
+        )
+        observed_ms = self.session.scalar(select(func.avg(submission_latencies.c.latency_ms)))
+        if observed_ms is None:
+            if criteria_count < 1 and batch.rubric_library_id:
+                criteria_count = int(
+                    self.session.scalar(
+                        select(func.count())
+                        .select_from(RubricCriterion)
+                        .where(
+                            RubricCriterion.rubric_id == batch.rubric_library_id,
+                            RubricCriterion.rubric_version == batch.rubric_version,
+                        )
+                    )
+                    or 0
+                )
+            observed_ms = max(criteria_count, 1) * 15_000
+
+        jobs_ahead = int((queue or {}).get("jobs_ahead", 0))
+        global_active = int(
+            self.session.scalar(
+                select(func.count()).select_from(Job).where(Job.status == "running")
+            )
+            or 0
+        )
+        worker_slots = max(int(counts.get("active", 0)), global_active, 1)
+        # Add modest extraction/persistence overhead to the provider latency.
+        seconds = ((remaining + jobs_ahead) * float(observed_ms) * 1.15) / (
+            worker_slots * 1000
+        )
+        return max(1, math.ceil(seconds))
+
+    def queue_wait(self, batch: Batch, counts: dict[str, int]) -> dict[str, Any] | None:
+        """Explain why a queued batch has not started yet.
+
+        Jobs are leased from one global FIFO queue. A running job occupies the
+        worker even when its batch has just been cancelled; older queued jobs
+        also remain ahead of this batch until they are handled or cancelled.
+        """
+
+        if (
+            batch.status != BatchStatus.PROCESSING.value
+            or counts.get("active", 0) > 0
+            or counts.get("queued", 0) < 1
+        ):
+            return None
+
+        first_job = self.session.scalar(
+            select(Job)
+            .where(Job.batch_id == batch.id, Job.status == "queued")
+            .order_by(Job.created_at, Job.id)
+            .limit(1)
+        )
+        if first_job is None:
+            return None
+
+        ahead_condition = and_(
+            Job.batch_id != batch.id,
+            or_(
+                Job.status == "running",
+                and_(Job.status == "queued", Job.created_at < first_job.created_at),
+            ),
+        )
+        jobs_ahead = int(
+            self.session.scalar(select(func.count()).select_from(Job).where(ahead_condition))
+            or 0
+        )
+        if jobs_ahead < 1:
+            return {"jobs_ahead": 0, "blocked_by": None}
+
+        blocker_job = self.session.scalar(
+            select(Job)
+            .where(ahead_condition)
+            .order_by(case((Job.status == "running", 0), else_=1), Job.created_at, Job.id)
+            .limit(1)
+        )
+        blocker = self.session.get(Batch, blocker_job.batch_id) if blocker_job else None
+        if blocker is None:
+            return {"jobs_ahead": jobs_ahead, "blocked_by": None}
+
+        blocker_jobs_ahead = int(
+            self.session.scalar(
+                select(func.count())
+                .select_from(Job)
+                .where(ahead_condition, Job.batch_id == blocker.id)
+            )
+            or 0
+        )
+        return {
+            "jobs_ahead": jobs_ahead,
+            "blocked_by": {
+                "id": blocker.id,
+                "name": blocker.name,
+                "status": blocker.status,
+                "jobs_ahead": blocker_jobs_ahead,
+                "created_at": iso_utc(blocker.created_at),
+            },
         }
 
     def _insights(self, batch_id: str, maximum: float) -> dict[str, Any]:

@@ -9,6 +9,12 @@
   function date(value) { var d = value ? new Date(value) : null; return d && !isNaN(d.getTime()) ? d : null; }
   function shortDate(value) { var d = date(value); return d ? d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }) : '—'; }
   function longDate(value) { var d = date(value); return d ? d.toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' }) : '—'; }
+  function etaText(seconds) {
+    var mins = Math.max(1, Math.ceil(Number(seconds || 0) / 60));
+    if (mins < 60) return '~' + mins + ' min remaining';
+    var hours = Math.floor(mins / 60), rest = mins % 60;
+    return '~' + hours + ' hr' + (hours === 1 ? '' : 's') + (rest ? ' ' + rest + ' min' : '') + ' remaining';
+  }
   function ago(value) {
     var d = date(value); if (!d) return '—';
     var m = Math.round((Date.now() - d.getTime()) / 6e4);
@@ -23,6 +29,24 @@
     draft: 'Draft', processing: 'Processing', completed: 'Complete', finalised: 'Finalised', failed_all: 'Failed'
   };
   function statusLabel(status) { return STATUS_LABELS[status] || String(status || '').replace(/_/g, ' '); }
+  function queueBlockerText(batch) {
+    var queue = batch && batch.queue, blocker = queue && queue.blocked_by;
+    if (!blocker) return '';
+    var started = date(blocker.created_at);
+    var at = started ? started.toLocaleTimeString('en-AU', { hour:'numeric', minute:'2-digit', timeZone:'Australia/Sydney' }) : '';
+    var lead = blocker.status === 'cancelled' ? 'Finishing cancelled batch' : 'Waiting behind';
+    return lead + ' “' + blocker.name + '”' + (at ? ' (started ' + at + ')' : '');
+  }
+  function queueActivityHtml(batch, counts) {
+    var active = Number(counts.active || 0), queued = Number(counts.queued || 0);
+    if (active > 0) return '<div class="live-work" role="status"><span class="live-bars" aria-hidden="true"><i></i><i></i><i></i></span><strong>' + active + ' actively processing</strong><span>· ' + queued + ' queued</span></div>';
+    var queue = batch.queue || {}, blocker = queue.blocked_by, jobs = Number(queue.jobs_ahead || 0);
+    if (blocker) {
+      var label = queueBlockerText(batch), suffix = jobs + ' job' + (jobs === 1 ? '' : 's') + ' ahead';
+      return '<div class="live-work queue-wait" role="status"><span class="queue-clock" aria-hidden="true">◷</span><strong><a href="02-batch-status.html?batch_id=' + encodeURIComponent(blocker.id) + '" title="Open the batch currently ahead in the queue">' + esc(label) + '</a></strong><span>· ' + suffix + '</span></div>';
+    }
+    return '<div class="live-work queue-wait" role="status"><span class="queue-clock" aria-hidden="true">◷</span><strong>Waiting for a worker</strong><span>· ' + queued + ' queued</span></div>';
+  }
   function pageName() { return (location.pathname.split('/').pop() || '00-home.html').toLowerCase(); }
   function reportError(error) {
     document.documentElement.dataset.apiState = 'error';
@@ -154,7 +178,7 @@
   /* -------------------------------------------------------- batch status */
   var FILTERS = [['all', 'All', 'total'], ['ready', 'Ready for review', 'ready'], ['low_confidence', 'Low confidence', 'low_confidence'], ['needs_manual', 'Needs manual marking', 'needs_manual'], ['processing', 'Processing', 'processing'], ['confirmed', 'Confirmed', 'confirmed'], ['failed', 'Failed', 'failed']];
   function wireBatchStatus() {
-    var params = new URLSearchParams(location.search), batchId = params.get('batch_id'), filter = params.get('filter') || 'all', page = Math.max(1, Number(params.get('page') || 1)), PAGE_SIZE = 100;
+    var params = new URLSearchParams(location.search), batchId = params.get('batch_id'), filter = params.get('filter') || 'all', page = Math.max(1, Number(params.get('page') || 1)), PAGE_SIZE = 30;
     if (!batchId) { location.replace('07-batches.html'); return Promise.resolve(null); }
     var timer = null;
     function load() {
@@ -164,9 +188,9 @@
         var maximum = Number(rubric.total_weight || 0), processed = Number(counts.processed || 0), all = Number(counts.total || 0), pct = all ? Math.round(processed / all * 100) : 0;
         var first = submissions.items.find(function (item) { return item.status === 'ai_done' || item.status === 'in_review'; }) || submissions.items.find(function (item) { return item.status === 'needs_ocr'; });
         var rows = submissions.items.map(function (item) {
-          var ready = item.status === 'ai_done' || item.status === 'in_review', failed = item.status === 'failed', manual = item.status === 'needs_ocr' || item.status === 'ocr_failed', confirmed = item.status === 'confirmed';
-          var label = failed ? 'Failed' : (ready || manual || confirmed) ? statusLabel(item.status) : (item.progress || statusLabel(item.status));
-          var stateClass = ready ? 'ready' : failed ? 'failed' : confirmed ? 'reviewed' : manual ? 'failed' : 'processing';
+          var ready = item.status === 'ai_done' || item.status === 'in_review', failed = item.status === 'failed', cancelled = item.status === 'cancelled', manual = item.status === 'needs_ocr' || item.status === 'ocr_failed', confirmed = item.status === 'confirmed', activeWork = ['extracting','ocr_running','marking'].indexOf(item.status) >= 0, queuedWork = item.status === 'queued';
+          var label = failed ? 'Failed' : (cancelled || ready || manual || confirmed) ? statusLabel(item.status) : (item.progress || statusLabel(item.status));
+          var stateClass = item.status === 'in_review' ? 'in-review' : ready ? 'ready' : (failed || cancelled) ? 'failed' : confirmed ? 'reviewed' : manual ? 'failed' : 'processing';
           var flags = [];
           if (item.confidence === 'low' && ready) flags.push('<span class="flag">⚑ low confidence</span>');
           if (manual) flags.push('<span class="flag">⚑ no text layer · mark by hand</span>');
@@ -174,7 +198,7 @@
           if (failed) { var message = item.error && item.error.message ? item.error.message : 'AI grading failed'; flags.push('<span class="flag">⚠ Processing failed</span><span class="error-msg" title="' + esc(message) + '">' + esc(message) + '</span><button type="button" class="retry-btn" data-retry="' + esc(item.id) + '" data-version="' + esc(item.version) + '">Retry remaining criteria</button>'); }
           var href = confirmed ? '05-mark-report.html?submission_id=' + encodeURIComponent(item.id) : (ready || manual) ? '03b-review-split.html?submission_id=' + encodeURIComponent(item.id) : '';
           var score = confirmed ? num(item.final_total) + ' / ' + num(maximum) + (item.ai_total != null && Math.abs(item.final_total - item.ai_total) > 0.001 ? ' <small style="color:var(--ink-soft)">AI ' + num(item.ai_total) + '</small>' : '') : item.ai_total == null ? '—' : num(item.ai_total) + ' / ' + num(maximum);
-          return '<tr' + (href ? ' data-href="' + href + '" style="cursor:pointer"' : '') + '><td class="sid">' + esc(item.sid || item.filename) + '</td><td><span class="status-pill ' + stateClass + '"><span class="dot"></span>' + esc(label) + '</span></td><td class="score ' + (item.ai_total == null && !confirmed ? 'pending' : '') + '">' + score + '</td><td>' + (flags.join(' ') || '—') + '</td><td>' + esc(item.marker ? item.marker.name : '—') + '</td></tr>';
+          return '<tr class="' + (activeWork?'active-work':queuedWork?'queued-work':'') + '"' + (href ? ' data-href="' + href + '" style="cursor:pointer"' : '') + '><td class="sid">' + esc(item.sid || item.filename) + '</td><td><span class="status-pill ' + stateClass + '"><span class="dot"></span>' + esc(label) + '</span></td><td class="score ' + (item.ai_total == null && !confirmed ? 'pending' : '') + '">' + score + '</td><td>' + (flags.join(' ') || '—') + '</td><td>' + esc(item.marker ? item.marker.name : '—') + '</td></tr>';
         }).join('');
         var done = batch.status === 'completed' || batch.status === 'finalised';
         var action = done ? '<a class="start-btn" href="04-batch-complete.html?batch_id=' + encodeURIComponent(batch.id) + '">View results →</a>'
@@ -184,8 +208,8 @@
         var chips = FILTERS.filter(function (f) { return f[0] === 'all' || counts[f[2]] || f[0] === filter; }).map(function (f) { return '<button type="button" class="chip' + (f[0] === filter ? ' active' : '') + '" data-filter="' + f[0] + '">' + f[1] + ' (' + Number(counts[f[2]] || 0) + ')</button>'; }).join('');
         document.getElementById('batchMain').innerHTML =
           '<div class="top"><div><h1>' + esc(batch.name) + (batch.is_sample ? ' <span class="status-pill reviewed" style="vertical-align:4px">Sample</span>' : '') + '</h1><p class="sub">' + all + ' submission' + (all === 1 ? '' : 's') + ' · ' + esc(rubric.criteria_count || 0) + ' criteria · ' + num(maximum) + ' marks' + (due ? ' · ' + due : '') + ' · ' + statusLabel(batch.status) + '</p></div><div class="top-actions">' + pin + ' ' + action + '</div></div>' +
-          '<div class="progress-card"><div class="progress-top"><span class="label">Batch progress</span><span class="val">' + processed + ' / ' + all + ' processed</span></div><div class="bar"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
-          '<div class="progress-stats"><span><b>' + Number(counts.ready || 0) + '</b> ready</span><span><b>' + Number(counts.confirmed || 0) + '</b> confirmed</span><span><b>' + Number(counts.needs_manual || 0) + '</b> manual</span><span><b>' + Number(counts.processing || 0) + '</b> processing</span>' + (counts.not_started ? '<span><b>' + counts.not_started + '</b> not started</span>' : '') + '<span><b>' + Number(counts.failed || 0) + '</b> failed</span></div></div>' +
+          '<div class="progress-card' + (Number(counts.active||0)>0?' is-live':'') + '"><div class="progress-top"><span class="label">Batch progress</span><span class="val">' + processed + ' / ' + all + ' processed</span></div><div class="bar"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
+          '<div class="progress-stats"><span><b>' + Number(counts.ready || 0) + '</b> ready</span><span><b>' + Number(counts.confirmed || 0) + '</b> confirmed</span><span><b>' + Number(counts.needs_manual || 0) + '</b> manual</span><span><b>' + Number(counts.processing || 0) + '</b> processing</span>' + (counts.not_started ? '<span><b>' + counts.not_started + '</b> not started</span>' : '') + '<span><b>' + Number(counts.failed || 0) + '</b> failed</span>' + (batch.eta_seconds != null && Number(counts.processing || 0) > 0 ? '<span class="eta" title="Estimate updates from this batch’s observed AI processing speed">' + etaText(batch.eta_seconds) + '</span>' : '') + '</div>' + (Number(counts.processing||0)>0?queueActivityHtml(batch, counts):'') + '</div>' +
           '<div class="filters">' + chips + '</div>' +
           '<table><thead><tr><th>Submission</th><th>Status</th><th>Mark</th><th>Flags</th><th>Tutor</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5" style="color:var(--ink-soft)">No submissions in this view.</td></tr>') + '</tbody></table>' + pager(submissions.total, page, PAGE_SIZE);
         document.querySelectorAll('#batchMain tr[data-href]').forEach(function (tr) { tr.addEventListener('click', function () { location.href = tr.dataset.href; }); });
@@ -219,7 +243,8 @@
         var rawStatus = batch.display_status || batch.status || 'draft';
         var state = rawStatus === 'in_review' ? 'review' : (rawStatus === 'completed' || rawStatus === 'finalised' ? 'complete' : rawStatus === 'failed_all' ? 'processing' : rawStatus);
         var pct = state === 'complete' ? 100 : (total ? Math.round(processed / total * 100) : 0);
-        var progress = state === 'draft' ? 'set-up not finished' : state === 'complete' ? (Number(counts.confirmed || 0) + ' / ' + total + ' confirmed' + (batch.status === 'finalised' ? ' · locked' : '')) : (processed + ' / ' + total + ' processed · ' + Number(counts.confirmed || 0) + ' confirmed');
+        var waitText = queueBlockerText(batch), jobsAhead = Number((batch.queue || {}).jobs_ahead || 0);
+        var progress = state === 'draft' ? 'set-up not finished' : state === 'complete' ? (Number(counts.confirmed || 0) + ' / ' + total + ' confirmed' + (batch.status === 'finalised' ? ' · locked' : '')) : state === 'processing' ? (waitText ? waitText + ' · ' + jobsAhead + ' job' + (jobsAhead === 1 ? '' : 's') + ' ahead' : processed + ' / ' + total + ' processed · ' + Number(counts.active || 0) + ' active · ' + Number(counts.queued || 0) + ' queued') : (processed + ' / ' + total + ' processed · ' + Number(counts.confirmed || 0) + ' confirmed');
         var termLabel = (batch.term && batch.term.label) || '', termMatch = termLabel.match(/Semester\s+(\d+),\s*(\d{4})/i);
         var term = termMatch ? (termMatch[2] + ' S' + termMatch[1]) : (termLabel || 'No term');
         var rubric = batch.rubric || {}, due = batch.due_at ? new Date(batch.due_at) : null;
@@ -229,7 +254,7 @@
           n: total + ' submission' + (total === 1 ? '' : 's'), crit: Number(rubric.criteria_count || 0),
           rubric: [rubric.title || 'No rubric', rubric.id || ''], date: when,
           prog: [pct, progress, state === 'complete' ? 'var(--ink-soft)' : state === 'review' ? 'var(--info)' : 'var(--primary)'],
-          href: batchHref(batch), home: batch.pinned, version: Number(batch.version || 0),
+          href: batchHref(batch), home: batch.pinned, version: Number(batch.version || 0), active:Number(counts.active || 0), queued:Number(counts.queued || 0),
           canCancel: batch.status === 'processing', canDelete: batch.status !== 'processing' && batch.status !== 'finalised'
         };
       });
@@ -425,12 +450,54 @@
       }, true);
     });
   }
+  var endPollTimer = null;
   function showEnd(result) {
     var card = document.getElementById('endCard'), body = document.getElementById('endBody'); if (!card || !body) return;
-    var resultsUrl = '04-batch-complete.html?batch_id=' + encodeURIComponent(result.batch_id || ''), statusUrl = '02-batch-status.html?batch_id=' + encodeURIComponent(result.batch_id || '');
-    if (result.batch_status === 'completed') body.innerHTML = '<div class="ec-icon ok">✓</div><div class="ec-kicker">Batch complete</div><h2 id="ecTitle">Everything is confirmed</h2><p class="ec-sub">Results stay editable until you finalise the batch.</p><div class="ec-actions"><a class="btn btn-primary" href="' + resultsUrl + '">View results →</a><a class="btn btn-ghost" href="05-mark-report.html?submission_id=' + encodeURIComponent(result.submission_id) + '">Mark report</a></div><div class="ec-links"><a href="00-home.html">Back to Home</a></div>';
-    else if (result.remaining.failed > 0) body.innerHTML = '<div class="ec-kicker">Failed items need attention</div><h2 id="ecTitle">Review is paused</h2><p class="ec-sub">Retry or exclude the failed submissions from the batch page.</p><div class="ec-actions"><a class="btn btn-primary" href="' + statusUrl + '">Back to batch</a></div>';
-    else body.innerHTML = '<div class="ec-icon wait"><span class="ec-spin"></span></div><div class="ec-kicker">Nothing ready right now</div><h2 id="ecTitle">All ready submissions reviewed</h2><p class="ec-sub">' + result.remaining.processing + ' still with the AI.</p><div class="ec-actions"><a class="btn btn-primary" href="' + statusUrl + '">Back to batch</a></div><div class="ec-links"><a href="00-home.html">Back to Home</a></div>';
+    var batchId = result.batch_id || '', submissionId = result.submission_id || '';
+    var resultsUrl = '04-batch-complete.html?batch_id=' + encodeURIComponent(batchId), statusUrl = '02-batch-status.html?batch_id=' + encodeURIComponent(batchId);
+    clearTimeout(endPollTimer);
+    body.setAttribute('aria-live', 'polite');
+    function statsHtml(remaining) {
+      if (remaining.confirmed == null || remaining.total == null) return '';
+      return '<div class="ec-stats"><span><b>' + Number(remaining.confirmed || 0) + '</b>reviewed</span><span><b>' + Number(remaining.processing || 0) + '</b>still with AI</span><span><b>' + Number(remaining.total || 0) + '</b>in batch</span></div>';
+    }
+    function linksHtml() { return '<div class="ec-links"><a href="00-home.html">Back to Home</a><button type="button" data-stay>Stay on this submission</button></div>'; }
+    function renderComplete() {
+      body.innerHTML = '<div class="ec-icon ok">✓</div><div class="ec-kicker">Batch complete</div><h2 id="ecTitle">Everything is confirmed</h2><p class="ec-sub">Results stay editable until you finalise the batch.</p><div class="ec-actions"><a class="btn btn-primary" href="' + resultsUrl + '">View results →</a><a class="btn btn-ghost" href="05-mark-report.html?submission_id=' + encodeURIComponent(submissionId) + '">Mark report</a></div><div class="ec-links"><a href="00-home.html">Back to Home</a></div>';
+    }
+    function renderFailed() {
+      body.innerHTML = '<div class="ec-kicker">Failed items need attention</div><h2 id="ecTitle">Review is paused</h2><p class="ec-sub">Retry or exclude the failed submissions from the batch page.</p><div class="ec-actions"><a class="btn btn-primary" href="' + statusUrl + '">Back to batch</a></div>';
+    }
+    function renderWaiting(remaining) {
+      body.innerHTML = '<div class="ec-icon wait"><span class="ec-spin"></span></div><div class="ec-kicker">Nothing ready right now</div><h2 id="ecTitle">All ready submissions reviewed</h2><p class="ec-sub">' + Number(remaining.processing || 0) + ' still with the AI. The next one appears here as soon as it is ready — no refresh needed.</p>' + statsHtml(remaining) + '<div class="ec-actions"><button class="btn btn-primary" type="button" disabled>Waiting for the AI…</button><a class="btn btn-ghost" href="' + statusUrl + '">Back to batch</a></div>' + linksHtml();
+    }
+    function renderReady(next, remaining) {
+      var sid = next.next_sid || 'next submission';
+      body.innerHTML = '<div class="ec-icon wait"><span class="ec-spin"></span></div><div class="ec-kicker">1 new submission ready</div><h2 id="ecTitle">Next submission is ready</h2><p class="ec-sub">The AI has finished preparing another submission for review.</p>' + statsHtml(remaining) + '<div class="ec-actions"><a class="btn btn-primary pulse" href="03b-review-split.html?submission_id=' + encodeURIComponent(next.next_id) + '">Open ' + esc(sid) + ' →</a><a class="btn btn-ghost" href="' + statusUrl + '">Back to batch</a></div>' + linksHtml();
+    }
+    function pollEnd() {
+      Promise.all([MarkerAPI.nextInQueue(batchId, submissionId), MarkerAPI.getBatch(batchId)]).then(function (values) {
+        var next = values[0], latestBatch = values[1].batch || {}, remaining = next.remaining || {};
+        if (latestBatch.status === 'completed' || latestBatch.status === 'finalised') { renderComplete(); return; }
+        if (next.next_id) { renderReady(next, remaining); return; }
+        if (Number(remaining.failed || 0) > 0) { renderFailed(); return; }
+        renderWaiting(remaining);
+        if (Number(remaining.processing || 0) > 0) endPollTimer = setTimeout(pollEnd, 3000);
+      }).catch(function (error) {
+        console.error('End-of-queue refresh failed', error);
+        endPollTimer = setTimeout(pollEnd, 5000);
+      });
+    }
+    if (!body.dataset.stayBound) {
+      body.dataset.stayBound = 'true';
+      body.addEventListener('click', function (event) {
+        if (!event.target.closest('[data-stay]')) return;
+        clearTimeout(endPollTimer); card.hidden = true;
+      });
+    }
+    if (result.batch_status === 'completed') renderComplete();
+    else if (Number((result.remaining || {}).failed || 0) > 0) renderFailed();
+    else { renderWaiting(result.remaining || {}); endPollTimer = setTimeout(pollEnd, 250); }
     card.hidden = false;
   }
 

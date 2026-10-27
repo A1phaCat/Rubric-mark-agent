@@ -58,9 +58,23 @@
   .progress-top .label{ color:var(--ink-soft); }
   .progress-top .val{ font-family:'IBM Plex Mono',monospace; color:var(--primary); }
   .bar{ height:8px; background:var(--track); border-radius:4px; overflow:hidden; }
-  .bar-fill{ height:100%; width:67%; background:var(--primary); border-radius:4px; }
+  .bar-fill{ position:relative; height:100%; width:67%; min-width:3px; background:var(--primary); border-radius:4px; overflow:hidden; }
+  .progress-card.is-live .bar-fill::after{ content:""; position:absolute; inset:0; width:28%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.78),transparent); transform:translateX(-120%); animation:work-flow 1.55s ease-in-out infinite; }
+  @keyframes work-flow{ to{ transform:translateX(460%); } }
   .progress-stats{ display:flex; gap:26px; margin-top:14px; font-size:12px; color:var(--ink-soft); }
   .progress-stats b{ color:var(--ink); font-family:'IBM Plex Mono',monospace; font-weight:500;}
+  .progress-stats .eta{ color:var(--ai); font-family:'IBM Plex Mono',monospace; }
+  .live-work{ display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); color:var(--ink-soft); font-size:12.5px; }
+  .live-work strong{ color:var(--ai); font-weight:500; }
+  .live-work a{ color:inherit; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(143,63,36,.35); }
+  .live-work a:hover{ color:var(--primary); text-decoration-color:var(--primary); }
+  .queue-wait{ padding:12px 14px; margin-left:-14px; margin-right:-14px; background:linear-gradient(180deg,transparent,var(--ai-bg)); border-radius:0 0 8px 8px; }
+  .queue-clock{ color:var(--primary); font-size:17px; line-height:1; }
+  .live-bars{ display:inline-flex; align-items:flex-end; gap:2px; width:18px; height:13px; }
+  .live-bars i{ width:3px; height:5px; border-radius:2px; background:var(--primary); animation:work-bars .85s ease-in-out infinite alternate; }
+  .live-bars i:nth-child(2){ height:10px; animation-delay:.14s; }
+  .live-bars i:nth-child(3){ height:7px; animation-delay:.28s; }
+  @keyframes work-bars{ to{ height:13px; opacity:.45; } }
 
   .filters{ display:flex; gap:8px; margin-bottom:14px; }
   .chip{
@@ -86,11 +100,17 @@
   .status-pill{
     display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 10px; border-radius:20px; font-weight:500;
   }
-  .status-pill.ready{ background:var(--info-bg); color:var(--info); }
+  .status-pill.ready{ background:var(--conf-high-bg); color:var(--conf-high); }
+  .status-pill.in-review{ background:var(--info-bg); color:var(--info); }
   .status-pill.reviewed{ background:var(--track); color:var(--ink-soft); }
   .status-pill.processing{ background:var(--ai-bg); color:var(--ai); }
   .status-pill.failed{ background:var(--risk-bg); color:var(--risk); }
   .status-pill .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+  tr.active-work .status-pill.processing{ animation:processing-breathe 1.65s ease-in-out infinite; }
+  tr.active-work .status-pill .dot{ animation:active-dot 1s ease-in-out infinite; box-shadow:0 0 0 0 rgba(143,63,36,.24); }
+  tr.queued-work .status-pill{ opacity:.78; }
+  @keyframes processing-breathe{ 50%{ background:#EED8C8; box-shadow:0 0 0 4px rgba(143,63,36,.08); } }
+  @keyframes active-dot{ 50%{ opacity:.35; box-shadow:0 0 0 4px rgba(143,63,36,0); } }
 
   .flag{ color:var(--risk); font-size:12px; display:inline-flex; align-items:center; gap:4px; }
   .error-msg{ display:block; max-width:360px; margin-top:4px; color:var(--risk); font-size:11px; line-height:1.35; }
@@ -109,6 +129,7 @@
     .progress-stats, .filters{ flex-wrap:wrap; }
     table{ display:block; overflow-x:auto; white-space:nowrap; }
   }
+  @media (prefers-reduced-motion:reduce){ .progress-card.is-live .bar-fill::after, .live-bars i, tr.active-work .status-pill, tr.active-work .status-pill .dot{ animation:none; } }
 
   /* ===== Shared top bar (logo · AI-assisted marker · Prototype · user) ===== */
   header.app-bar{ flex-wrap:nowrap; display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:20px; height:68px; min-height:68px; padding:0 28px; background:var(--chrome); }

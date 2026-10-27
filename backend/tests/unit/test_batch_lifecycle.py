@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
@@ -72,6 +72,91 @@ def test_cancel_batch_stops_queued_work_and_marks_submission() -> None:
     assert session.get(Submission, "sub_test").status == "cancelled"
     assert session.get(Job, "job_test").status == "cancelled"
     assert session.scalar(select(func.count()).select_from(AuditLog)) == 1
+
+
+def test_queue_wait_identifies_cancelled_batch_still_finishing() -> None:
+    session = _session()
+    blocker = _batch(session)
+    now = datetime.now(timezone.utc)
+    blocker.name = "Earlier validation batch"
+    blocker.status = "cancelled"
+    blocker.created_at = now - timedelta(minutes=10)
+    blocker_job = session.get(Job, "job_test")
+    blocker_job.status = "running"
+    blocker_job.created_at = now - timedelta(minutes=9)
+
+    target = Batch(
+        id="bat_target",
+        name="New validation batch",
+        term_id="term_test",
+        status="processing",
+        total_count=1,
+        created_by="usr_test",
+        created_at=now,
+        version=1,
+    )
+    session.add(target)
+    session.add(
+        Job(
+            id="job_target",
+            kind="grade",
+            submission_id=None,
+            batch_id=target.id,
+            payload_json="{}",
+            status="queued",
+            attempts=0,
+            run_after=now,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    session.flush()
+
+    queue = BatchUseCases(session).queue_wait(target, {"active": 0, "queued": 1})
+
+    assert queue is not None
+    assert queue["jobs_ahead"] == 1
+    assert queue["blocked_by"]["id"] == blocker.id
+    assert queue["blocked_by"]["name"] == "Earlier validation batch"
+    assert queue["blocked_by"]["status"] == "cancelled"
+
+
+def test_eta_uses_observed_submission_latency() -> None:
+    session = _session()
+    batch = _batch(session)
+    submission = session.get(Submission, "sub_test")
+    submission.status = "ai_done"
+    now = datetime.now(timezone.utc)
+    for index in range(3):
+        session.add(
+            AIResult(
+                id=f"air_eta_{index}",
+                submission_id=submission.id,
+                criterion_id=f"crt_eta_{index}",
+                level="Good",
+                score=2,
+                rationale="Rationale",
+                minor_json="[]",
+                coverage_json="[]",
+                sufficiency="sufficient",
+                confidence="high",
+                provider="test",
+                model="test",
+                prompt_version="test",
+                input_tokens=0,
+                output_tokens=0,
+                latency_ms=10_000,
+                created_at=now,
+            )
+        )
+    session.flush()
+
+    eta = BatchUseCases(session).estimate_eta(
+        batch,
+        {"processing": 9, "active": 1},
+    )
+
+    assert eta == 311
 
 
 def test_delete_batch_removes_dependent_records_and_returns_file_paths() -> None:

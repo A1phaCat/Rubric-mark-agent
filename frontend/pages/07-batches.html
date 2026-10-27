@@ -53,7 +53,7 @@
   .group h2{ font-family:'Source Serif 4',serif; font-weight:600; font-size:18px; margin:0 0 10px; display:flex; align-items:baseline; gap:10px; }
   .group h2 small{ font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:400; color:var(--ink-soft); }
   .list{ background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
-  .lhead, .brow{ display:grid; grid-template-columns:minmax(0,2fr) 116px minmax(0,1.1fr) minmax(0,1fr) 126px; gap:20px; align-items:center; padding:0 22px; }
+  .lhead, .brow{ display:grid; grid-template-columns:minmax(220px,2fr) 108px minmax(140px,1.1fr) minmax(0,.9fr) 170px; gap:16px; align-items:center; padding:0 22px; }
   .lhead{ height:40px; background:var(--tint); border-bottom:1px solid var(--border); font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); font-weight:500; }
   .brow{ min-height:76px; padding-top:14px; padding-bottom:14px; border-bottom:1px solid var(--border); color:var(--ink); text-decoration:none; transition:background .1s; }
   .brow:last-child{ border-bottom:0; }
@@ -69,19 +69,25 @@
   .pill{ display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 10px; border-radius:20px; font-weight:500; white-space:nowrap; }
   .pill .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
   .pill.processing{ background:var(--ai-bg); color:var(--ai); }
-  .pill.processing .dot{ animation:pulse 1.4s ease-in-out infinite; }
+  .brow.is-processing .pill.processing{ animation:batch-breathe 1.65s ease-in-out infinite; }
+  .brow.is-processing .pill.processing .dot{ animation:pulse 1.4s ease-in-out infinite; }
   .pill.reviewing{ background:var(--info-bg); color:var(--info); }
   .pill.done{ background:var(--track); color:var(--ink-soft); }
   .pill.draft{ background:transparent; color:var(--ink-soft); border:1px dashed var(--border-strong); }
   .pill.cancelled{ background:var(--risk-bg); color:var(--risk); }
   @keyframes pulse{ 50%{ opacity:.25; } }
+  @keyframes batch-breathe{ 50%{ background:#EED8C8; box-shadow:0 0 0 4px rgba(143,63,36,.07); } }
   .bar{ height:6px; background:var(--track); border-radius:3px; overflow:hidden; }
-  .bar span{ display:block; height:100%; border-radius:3px; }
+  .bar span{ position:relative; display:block; height:100%; min-width:3px; border-radius:3px; overflow:hidden; }
+  .brow.is-processing .bar span::after{ content:""; position:absolute; inset:0; width:42%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent); transform:translateX(-120%); animation:batch-flow 1.65s ease-in-out infinite; }
+  @keyframes batch-flow{ to{ transform:translateX(340%); } }
   .b-ptxt{ font-size:12px; color:var(--ink-soft); margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .b-rub{ min-width:0; }
   .rub-link{ font-size:13px; color:var(--ink); text-decoration:underline; text-decoration-color:var(--border-strong); text-underline-offset:3px; cursor:pointer; }
+  .b-rub .rub-link{ display:block; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .rub-link:hover{ color:var(--primary); text-decoration-color:var(--primary); }
   .b-go{ color:var(--ink-soft); font-size:16px; transition:transform .15s, color .15s; }
-  .batch-actions{ display:flex; justify-content:flex-end; gap:6px; }
+  .batch-actions{ min-width:0; display:flex; justify-content:flex-end; gap:6px; white-space:nowrap; }
   .row-action{ border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); color:var(--ink-soft); padding:6px 9px; font:500 12px 'Inter',sans-serif; cursor:pointer; }
   .row-action:hover{ border-color:var(--risk); color:var(--risk); background:var(--risk-bg); }
   .row-action:disabled{ opacity:.55; cursor:wait; }
@@ -93,9 +99,11 @@
     .brow{ grid-template-columns:minmax(0,1fr) auto; gap:8px 12px; padding:14px 16px; }
     .b-main{ grid-column:1 / 2; } .b-st{ grid-column:2; grid-row:1; align-self:start; }
     .b-prog, .b-rub{ grid-column:1 / -1; }
+    .batch-actions{ grid-column:1 / -1; justify-content:flex-start; }
     .b-go{ display:none; }
     .b-meta{ white-space:normal; }
   }
+  @media (prefers-reduced-motion:reduce){ .brow.is-processing .pill.processing, .brow.is-processing .pill.processing .dot, .brow.is-processing .bar span::after{ animation:none; } }
 
   /* ===== Shared top bar (logo · AI-assisted marker · Prototype · user) ===== */
   header.app-bar{ flex-wrap:nowrap; display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:20px; height:68px; min-height:68px; padding:0 28px; background:var(--chrome); }
@@ -217,11 +225,11 @@
   function row(b){
     var p = PILL[b.st] || PILL.draft;
     var actions='<button class="row-action" type="button" data-act="pin" data-id="'+b.id+'" data-pinned="'+(b.pinned?1:0)+'" title="'+(b.pinned?'Unpin':'Pin to Home (up to 3; pinning a fourth unpins the oldest)')+'">'+(b.pinned?'📌 Pinned':'Pin')+'</button>'+(b.canCancel?'<button class="row-action" type="button" data-act="cancel" data-id="'+b.id+'" data-version="'+b.version+'">Terminate</button>':'')+(b.canDelete?'<button class="row-action" type="button" data-act="delete" data-id="'+b.id+'" data-version="'+b.version+'">Delete</button>':'');
-    return '<div class="brow" data-href="' + b.href + '">' +
+    return '<div class="brow' + (b.st==='processing'&&b.active>0?' is-processing':'') + '" data-href="' + b.href + '">' +
       '<div class="b-main"><div class="b-name">' + esc(b.name) + (b.sample ? '<span class="on-home sample-tag" title="Pinned sample batch — reload with: python -m app.sample.seed">Sample</span>' : '') + (b.home && !b.sample ? '<span class="on-home" title="Shown on Home">On Home</span>' : '') + '</div>' +
       '<div class="b-meta mono">' + b.n + ' · ' + b.crit + ' criteria · ' + b.date + '</div></div>' +
       '<div class="b-st"><span class="pill ' + p[0] + '"><span class="dot"></span>' + p[1] + '</span></div>' +
-      '<div class="b-prog"><div class="bar"><span style="width:' + b.prog[0] + '%; background:' + b.prog[2] + '"></span></div><div class="b-ptxt">' + b.prog[1] + '</div></div>' +
+      '<div class="b-prog"><div class="bar"><span style="width:' + b.prog[0] + '%; background:' + b.prog[2] + '"></span></div><div class="b-ptxt" title="' + esc(b.prog[1]) + '">' + esc(b.prog[1]) + '</div></div>' +
       '<div class="b-rub"><span class="rub-link" data-rub="' + b.rubric[1] + '">' + esc(b.rubric[0]) + '</span></div>' +
       '<div class="batch-actions">'+actions+(actions?'':'<span class="b-go" aria-hidden="true">→</span>')+'</div></div>';
   }

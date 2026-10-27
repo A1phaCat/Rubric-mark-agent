@@ -505,7 +505,11 @@
     })};
   }
   function load(r, from){
-    R = r; R.criteria=(R.criteria||[]).map(normaliseCriterion); origin = from; dirty = false; openSet = {};
+    var nextCriteria=(r.criteria||[]).map(normaliseCriterion);
+    var currentShape=R&&JSON.stringify({title:R.title,criteria:R.criteria});
+    var nextShape=JSON.stringify({title:r.title,criteria:nextCriteria});
+    if(pendingBatch&&currentShape!==nextShape)invalidatePendingBatchForRubricChange();
+    R = r; R.criteria=nextCriteria; origin = from; dirty = false; openSet = {};
     R.criteria.forEach(function(c, i){ if (c.flag) openSet[i] = true; });
     $('boxLib').classList.toggle('active', from === 'library');
     $('boxPaste').classList.toggle('active', from === 'paste');
@@ -584,7 +588,7 @@
   }
   $('crits').addEventListener('input', function(e){
     var el = e.target, row = el.closest('.crit'); if (!row) return;
-    var i = Number(row.dataset.i), c = R.criteria[i]; dirty = true;
+    var i = Number(row.dataset.i), c = R.criteria[i]; invalidatePendingBatchForRubricChange(); dirty = true;
     if (el.dataset.f === 'name'){c.name=el.value;c.prov.name='edited';}
     if (el.dataset.f === 'description'){c.description=el.value;c.prov.description='edited';}
     if (el.dataset.f === 'weight'){c.weight=el.value===''?'':Number(el.value);c.prov.weight='edited';}
@@ -600,10 +604,12 @@
     var i = Number(row.dataset.i);
     var removeLevel=e.target.closest('[data-rm-level]');
     if(removeLevel){
+      invalidatePendingBatchForRubricChange();
       var levelIndex=Number(removeLevel.dataset.rmLevel);
       R.criteria[i].levels.splice(levelIndex,1); dirty=true; openSet[i]=true; drawEditor(); update(); return;
     }
     if(e.target.closest('[data-add-level]')){
+      invalidatePendingBatchForRubricChange();
       R.criteria[i].levels.push({id:'level-'+(R.criteria[i].levels.length+1),label:'',points:'',min_score:null,max_score:null,min_inclusive:true,max_inclusive:true,description:'',prov:{label:'edited',points:'edited',description:'missing'},source_text:{}});
       dirty=true; openSet[i]=true; drawEditor(); update();
       var addedBands=document.querySelectorAll('.crit[data-i="'+i+'"] .band'), added=addedBands[addedBands.length-1]&&addedBands[addedBands.length-1].querySelector('[data-f="level-label"]'); if(added)added.focus(); return;
@@ -611,6 +617,7 @@
     if (e.target.closest('.fold')){ openSet[i] = !openSet[i]; row.classList.toggle('open', !!openSet[i]); e.target.closest('.fold').setAttribute('aria-expanded', !!openSet[i]); return; }
     if (e.target.closest('[data-rm]')){
       if (!confirm('Remove “' + (R.criteria[i].name || 'this criterion') + '”?')) return;
+      invalidatePendingBatchForRubricChange();
       R.criteria.splice(i, 1); var o = {}; Object.keys(openSet).forEach(function(k){ k = Number(k); if (k < i) o[k] = openSet[k]; if (k > i) o[k - 1] = openSet[k]; }); openSet = o;
       dirty = true; drawEditor(); update();
     }
@@ -634,6 +641,7 @@
     if(target)setTimeout(function(){target.focus();},250);
   });
   $('addCrit').addEventListener('click', function(){
+    invalidatePendingBatchForRubricChange();
     R.criteria.push({ name:'', weight:3, levels:[{id:'3',label:'3',points:3,description:''},{id:'2',label:'2',points:2,description:''},{id:'1',label:'1',points:1,description:''},{id:'0',label:'0',points:0,description:''}] }); openSet[R.criteria.length - 1] = true; dirty = true; drawEditor(); update();
     var last = document.querySelector('.crit:last-of-type .c-name'); if (last) last.focus();
   });
@@ -641,14 +649,21 @@
     var all = R.criteria.every(function(_, i){ return openSet[i]; });
     R.criteria.forEach(function(_, i){ openSet[i] = !all; }); drawEditor();
   });
-  $('rTitle').addEventListener('input', function(){ R.title = this.value; dirty = true; drawHead(); update(); });
+  $('rTitle').addEventListener('input', function(){ invalidatePendingBatchForRubricChange(); R.title = this.value; dirty = true; drawHead(); update(); });
 
   /* ---------- 2. Submissions ---------- */
   var ASSN = {};
   var pendingBatch = null;
   function discardPendingBatch(){
-    if(pendingBatch&&pendingBatch.batch)MarkerAPI.deleteBatch(pendingBatch.batch.id,pendingBatch.batch.version).catch(function(){});
+    var discarded=pendingBatch;
     pendingBatch=null;
+    if(discarded&&discarded.batch)MarkerAPI.deleteBatch(discarded.batch.id,discarded.batch.version).catch(function(){});
+  }
+  function invalidatePendingBatchForRubricChange(){
+    if(!pendingBatch)return;
+    var selectedRows=S&&S.kind==='zip'&&S.rows?S.rows.slice():null;
+    discardPendingBatch();
+    if(selectedRows&&selectedRows.length)zipLoaded(selectedRows.map(function(row){return row.file;}),selectedRows);
   }
   function fmt(n){ return n.toLocaleString('en-AU'); }
   function canonicalSid(value){var match=String(value||'').trim().match(/^(?:SID[-_ ]?)?(\d{5,12})$/i);return match?('SID-'+match[1]):null;}
@@ -689,9 +704,9 @@
     setSubs({ kind:'canvas', label:a.label, count:a.count, scanned:a.scanned });
     $('assnSel').value = this.value; $('assnInfo').classList.add('show');
   });
-  function zipLoaded(files){
+  function zipLoaded(files,preservedRows){
     discardPendingBatch();
-    var rows=files.map(function(file,i){var m=file.name.match(/SID[-_ ]?(\d+)/i),sid=m?('SID-'+m[1]):'',archive=/\.zip$/i.test(file.name);return {file:file,sid:sid,index:i,archive:archive};}),matched=rows.filter(function(row){return !row.archive&&row.sid;}),unmatched=rows.filter(function(row){return !row.archive&&!row.sid;}),archives=rows.filter(function(row){return row.archive;});
+    var rows=preservedRows||files.map(function(file,i){var m=file.name.match(/SID[-_ ]?(\d+)/i),sid=m?('SID-'+m[1]):'',archive=/\.zip$/i.test(file.name);return {file:file,sid:sid,index:i,archive:archive};}),matched=rows.filter(function(row){return !row.archive&&row.sid;}),unmatched=rows.filter(function(row){return !row.archive&&!row.sid;}),archives=rows.filter(function(row){return row.archive;});
     function fileRow(row,warning){return '<div class="file'+(warning?' warn':'')+'"><span class="nm">'+esc(row.file.name)+'</span>'+(row.archive?'<span class="mt">Will unpack and match SIDs</span>':sidField(row,'data-sid-index="'+row.index+'"'))+'</div>';}
     var matchedRows=matched.map(function(row){return fileRow(row,false);}).join('');
     $('zipFiles').innerHTML = '<div class="upload-summary"><span><b>'+fmt(rows.length)+'</b> file'+(rows.length===1?'':'s')+' selected</span>'+(matched.length?'<span><b>'+fmt(matched.length)+'</b> SIDs found</span>':'')+(unmatched.length?'<span><b>'+fmt(unmatched.length)+'</b> need attention</span>':'')+(archives.length?'<span><b>'+fmt(archives.length)+'</b> ZIP'+(archives.length===1?'':'s')+' to unpack</span>':'')+'</div>'+
@@ -699,7 +714,8 @@
       (matched.length>8?'<details class="file-details"><summary>View all '+fmt(matched.length)+' matched files</summary><div class="file-list-scroll">'+matchedRows+'</div></details>':matchedRows)+
       '<div class="row-btns"><button class="linkbtn" type="button" id="clearZip">Remove</button></div>';
     $('assnSel').value = ''; $('assnInfo').classList.remove('show');
-    S = { kind:'zip', label:files.length===1?files[0].name:(files.length+' files'), count:files.length, scanned:0, rows:rows };
+    S = { kind:'zip', label:files.length===1?files[0].name:(files.length+' files'), count:files.length, countKnown:!archives.length, archiveCount:archives.length, scanned:0, rows:rows };
+    $('startBtn').textContent='Start batch →';
     $('boxCanvas').classList.remove('active'); $('boxZip').classList.add('active'); update();
     $('clearZip').addEventListener('click', function(){ setSubs(null); });
     wireSidQueue($('zipFiles').querySelector('.fix-details'),'[data-sid-index]',function(input,value){S.rows[Number(input.dataset.sidIndex)].sid=value;});
@@ -727,7 +743,7 @@
     return '~'+formatMinutes(low)+(high>low?'–'+formatMinutes(high):'');
   }
   function estimateAiPrep(r,submissions){
-    if(!r||!submissions||!submissions.count)return null;
+    if(!r||!submissions||!submissions.count||submissions.countKnown===false)return null;
     var criteria=Math.max(1,r.criteria.length),count=submissions.count;
     // Rubric setup is reused once per batch. Document analysis and grading are
     // still paid for per submission; the current processing request uses one worker.
@@ -741,7 +757,7 @@
     return value||String(title||'Untitled rubric');
   }
   function update(){
-    var rOK = rubricOK(), sOK = !!S && S.count > 0 && (!S.rows||S.rows.every(function(row){return row.archive||!!canonicalSid(row.sid);}));
+    var rOK = rubricOK(), sOK = !!S && (S.count > 0||(S.rows&&S.rows.length>0)) && (!S.rows||S.rows.every(function(row){return row.archive||!!canonicalSid(row.sid);}));
     if(pendingBatch){var unresolved=(pendingBatch.upload.files||[]).filter(function(item){return item.status==='accepted'&&!item.sid_guess;});sOK=pendingBatch.upload.summary.accepted>0&&unresolved.every(function(item){return !!canonicalSid(item.manual_sid||'');});}
     $('dRub').className = 'sb-dot ' + (R ? (rOK ? 'ok' : 'bad') : '');
     $('vRub').textContent = R ? compactRubricTitle(R.title) : 'Not chosen';
@@ -749,11 +765,12 @@
     $('vRub').classList.toggle('muted', !R);
     $('vCrit').innerHTML = R ? '<span class="mono">' + R.criteria.length + '</span> · ' + L.total(R) + ' marks' : '—';
     $('dSub').className = 'sb-dot ' + (S ? (sOK ? 'ok' : 'bad') : '');
-    $('vSub').innerHTML = S ? '<span class="mono">' + fmt(S.count) + '</span>' + (S.scanned ? ' · ' + S.scanned + ' need OCR' : '') : '—';
+    var archiveOnly=S&&S.countKnown===false&&S.rows&&S.rows.every(function(row){return row.archive;});
+    $('vSub').innerHTML = S ? (S.countKnown===false?(archiveOnly?'<span class="mono">'+fmt(S.archiveCount)+' ZIP'+(S.archiveCount===1?'':'s')+'</span> · count after upload':'<span class="mono">'+fmt(S.count)+' files</span> · final count after ZIP unpacking'):'<span class="mono">' + fmt(S.count) + '</span>' + (S.scanned ? ' · ' + S.scanned + ' need OCR' : '')) : '—';
     $('vSub').classList.toggle('muted', !S);
     var estimate=estimateAiPrep(R,S),estimateBox=$('aiPrepEstimate');
     $('vTime').textContent=estimate?estimate.text:'—';
-    estimateBox.title=estimate?'Rough estimate: rubric setup is reused once, then '+estimate.count+' submission'+(estimate.count===1?' is':'s are')+' analysed independently across '+estimate.criteria+' '+(estimate.criteria===1?'criterion':'criteria')+'. Assumes one processing worker; document length and provider speed can vary.':'Select a rubric and submissions to estimate AI preparation time.';
+    estimateBox.title=estimate?'Rough estimate: rubric setup is reused once, then '+estimate.count+' submission'+(estimate.count===1?' is':'s are')+' analysed independently across '+estimate.criteria+' '+(estimate.criteria===1?'criterion':'criteria')+'. Assumes one processing worker; document length and provider speed can vary.':S&&S.countKnown===false?'The submission count and AI preparation estimate will appear after the ZIP is unpacked.':'Select a rubric and submissions to estimate AI preparation time.';
     var why = !R ? 'Choose or paste a rubric' : !rOK ? 'Fix the rubric checks' : !S ? 'Add submissions' : !sOK ? 'Fix the highlighted files before continuing' : '';
     $('why').textContent = why; $('startBtn').disabled = !!why;
     $('n1').classList.toggle('ok', rOK); $('n2').classList.toggle('ok', sOK);
@@ -761,7 +778,7 @@
   function showUploadManifest(context){
     pendingBatch=context;
     var upload=context.upload,summary=upload.summary,unresolved=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}),problems=upload.files.filter(function(item){return item.status==='rejected'||item.status==='unsupported';});summary.needs_sid=unresolved.length;
-    S.count=summary.accepted;
+    S.count=summary.accepted;S.countKnown=true;S.archiveCount=0;
     $('zipFiles').innerHTML='<div class="upload-summary"><span><b>'+fmt(summary.accepted)+'</b> accepted</span><span><b>'+fmt(summary.accepted-summary.needs_sid)+'</b> matched</span>'+(summary.duplicates?'<span><b>'+fmt(summary.duplicates)+'</b> duplicates skipped</span>':'')+(summary.skipped?'<span><b>'+fmt(summary.skipped)+'</b> skipped</span>':'')+(summary.needs_sid?'<span><b>'+fmt(summary.needs_sid)+'</b> need attention</span>':'')+'</div>'+
       (unresolved.length?'<details class="file-details fix-details" open><summary></summary><div class="sid-format">Enter 5–12 digits or <code>SID-123456</code></div><div class="file-list-scroll">'+unresolved.map(function(item,index){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span>'+sidField({sid:''},'data-fix-index="'+index+'"')+'</div>';}).join('')+'</div></details>':'')+
       problems.map(function(item){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span><span class="mt">'+esc(item.message||'Skipped')+'</span></div>';}).join('')+
@@ -777,7 +794,7 @@
     var modal=$('externalConsent'); if(modal.hidden)return;
     modal.hidden=true; document.removeEventListener('keydown',consentKeydown);
     var resolve=consentResolve; consentResolve=null;
-    if(consentPreviousFocus&&consentPreviousFocus.focus)consentPreviousFocus.focus();
+    if(consentPreviousFocus&&consentPreviousFocus.focus&&!consentPreviousFocus.disabled)consentPreviousFocus.focus();
     if(resolve)resolve(confirmed);
   }
   function consentKeydown(event){
@@ -806,7 +823,8 @@
       var ai=config.ai||{}, provider=ai.provider||'university', external=['fake','university'].indexOf(provider)<0;
       return (external?confirmExternalProcessing(provider):Promise.resolve(true)).then(function(acknowledged){
         if(!acknowledged){var cancelled=new Error('Processing cancelled');cancelled.cancelled=true;throw cancelled;}
-        button.textContent='Retrieving evidence…';$('why').textContent='AI is grading '+R.criteria.length+' criteria — this can take 1–3 minutes';
+        var estimate=estimateAiPrep(R,S);
+        button.textContent='Retrieving evidence…';$('why').textContent='AI is grading '+R.criteria.length+' '+(R.criteria.length===1?'criterion':'criteria')+(estimate?' · estimated '+estimate.text.replace(/^~/,''):'');
         return MarkerAPI.startBatch(context.batch.id,{provider:provider,model:ai.model,concurrency:1,external_processing_acknowledged:external,estimated_cost_acknowledged:true}).then(function(){location.href='02-batch-status.html?batch_id='+encodeURIComponent(context.batch.id);});
       });
     });
@@ -816,6 +834,7 @@
     if(error&&error.cancelled){
       if(pendingBatch)showUploadManifest(pendingBatch);
       else {button.textContent=fallbackLabel;update();}
+      setTimeout(function(){button.focus();},0);
       return;
     }
     button.textContent=fallbackLabel;$('why').textContent=error.message;toast(error.message);
@@ -831,7 +850,14 @@
       return;
     }
     var rubricPayload={title:R.title,source:R.source||'Uploaded / AI parsed',parser:R.parser||null,save_to_library:$('saveLib').checked,criteria:R.criteria.map(function(c){return {name:c.name,weight:Number(c.weight),description:c.description||'',stated_percent:c.stated_percent,grading_mode:c.grading_mode,scoring_mode:c.scoring_mode,score_mapping:c.score_mapping,granularity:c.granularity,aspects:c.aspects||[],prov:c.prov||{},source_text:c.source_text||{},levels:c.levels.map(function(level,j){return {id:level.id||('level-'+(j+1)),label:level.label,points:Number(level.points),min_score:level.min_score==null?Number(level.points):Number(level.min_score),max_score:level.max_score==null?Number(level.points):Number(level.max_score),min_inclusive:level.min_inclusive!==false,max_inclusive:level.max_inclusive!==false,description:level.description,prov:level.prov||{},source_text:level.source_text||{}};})};})};
-    var rubricPromise=R.libId?MarkerAPI.getRubric(R.libId):MarkerAPI.createRubric(rubricPayload);
+    var rubricPromise;
+    if(R.libId&&dirty){
+      rubricPromise=$('saveLib').checked
+        ? MarkerAPI.getRubric(R.libId).then(function(current){rubricPayload.version=current.rubric.version;return MarkerAPI.updateRubric(R.libId,rubricPayload);})
+        : MarkerAPI.createRubric(Object.assign({},rubricPayload,{save_to_library:false}));
+    }else{
+      rubricPromise=R.libId?MarkerAPI.getRubric(R.libId):MarkerAPI.createRubric(rubricPayload);
+    }
     rubricPromise.then(function(saved){var rubric=saved.rubric;return MarkerAPI.createBatch({name:R.title+' — validation batch',unit:null,rubric_id:rubric.id,rubric_version:rubric.version});}).then(function(created){
       var batch=created.batch;return MarkerAPI.uploadFiles(batch.id,S.rows.map(function(row){return row.file;})).then(function(upload){var directRows=S.rows.filter(function(row){return !row.archive;}),used={};return Promise.all(upload.files.filter(function(item){return item.status==='accepted'&&!item.source_archive;}).map(function(item){var matchIndex=-1;directRows.some(function(row,index){if(!used[index]&&row.file.name===item.name){matchIndex=index;return true;}return false;});if(matchIndex<0)return Promise.resolve();used[matchIndex]=true;var sid=S.rows[directRows[matchIndex].index].sid;if(!sid||item.sid_guess===sid)return Promise.resolve();return MarkerAPI.patchSubmission(batch.id,item.submission_id,{student_id:sid,version:item.version||1}).then(function(saved){item.sid_guess=sid;item.version=saved.submission.version;});})).then(function(){upload.summary.needs_sid=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}).length;return {batch:batch,upload:upload};});});
     }).then(function(context){
