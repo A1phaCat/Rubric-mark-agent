@@ -66,7 +66,7 @@ Useful commands:
 make migrate        # Alembic upgrade
 make seed           # reset the sample batches and reload rubrics from backend/app/sample/rubrics/
 make api            # API/static server only
-make worker         # one DB-queue worker
+make worker         # one DB-queue worker process with bounded concurrent slots
 make test           # unit + contract + architecture
 make lint           # Ruff + strict mypy scope
 make screenshots    # one-time frozen baseline capture
@@ -96,5 +96,5 @@ data and keep the saved AI provider settings, stop the dev server and run:
 
 The local MVP includes deterministic structure-aware rubric parsing, page-aware PDF/DOCX/TXT extraction, and criterion-level hybrid vector/BM25 RAG with verbatim evidence verification. Submission chunks are embedded locally with `BAAI/bge-small-en-v1.5` and cached under `data/index/`. An independent Evidence Gate reads every retrieved candidate, maps zero to five non-redundant passages to the rubric's fixed aspects, and builds a persisted coverage matrix before the grader sees the evidence. Evidence count is never treated as sufficiency. OpenAI-compatible grading is supported; the FakeLLM exists for tests only. Production OCR, FTS5 and production report composition remain post-MVP.
 
-The first real grading run downloads the local embedding model into `data/cache/fastembed`; later runs reuse it. Optional settings are `MARKER_EMBEDDING_MODEL`, `MARKER_EMBEDDING_THREADS`, `MARKER_RETRIEVAL_CANDIDATE_LIMIT`, and `MARKER_EVIDENCE_TOP_K`.
+The first real grading run downloads the local embedding model into `data/cache/fastembed`; later runs reuse it. The worker processes three submissions concurrently by default; set `MARKER_WORKER_CONCURRENCY` from 1–8 to match the provider rate limit and local machine. Each slot atomically leases a distinct job and renews its lease during long model calls. Other optional settings are `MARKER_EMBEDDING_MODEL`, `MARKER_EMBEDDING_THREADS`, `MARKER_RETRIEVAL_CANDIDATE_LIMIT`, and `MARKER_EVIDENCE_TOP_K`.
 

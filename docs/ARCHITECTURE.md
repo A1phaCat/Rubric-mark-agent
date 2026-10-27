@@ -11,7 +11,7 @@ flowchart LR
   S --> D[domain rules]
   S --> DB[(SQLite WAL)]
   S --> Q[(jobs + leases)]
-  W[one worker] --> Q
+  W[one worker process<br/>bounded concurrent slots] --> Q
   W --> I[ingest]
   I --> X[extract]
   X --> R[retrieval]

@@ -825,7 +825,7 @@
         if(!acknowledged){var cancelled=new Error('Processing cancelled');cancelled.cancelled=true;throw cancelled;}
         var estimate=estimateAiPrep(R,S);
         button.textContent='Retrieving evidence…';$('why').textContent='AI is grading '+R.criteria.length+' '+(R.criteria.length===1?'criterion':'criteria')+(estimate?' · estimated '+estimate.text.replace(/^~/,''):'');
-        return MarkerAPI.startBatch(context.batch.id,{provider:provider,model:ai.model,concurrency:1,external_processing_acknowledged:external,estimated_cost_acknowledged:true}).then(function(){location.href='02-batch-status.html?batch_id='+encodeURIComponent(context.batch.id);});
+        return MarkerAPI.startBatch(context.batch.id,{provider:provider,model:ai.model,external_processing_acknowledged:external,estimated_cost_acknowledged:true}).then(function(){location.href='02-batch-status.html?batch_id='+encodeURIComponent(context.batch.id);});
       });
     });
   }

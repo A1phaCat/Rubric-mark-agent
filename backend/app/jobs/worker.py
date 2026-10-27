@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
 
@@ -142,29 +143,56 @@ def _mark_terminal_failure(payload: dict[str, object], error: str) -> None:
             BatchUseCases(session).refresh_status(batch_id)
 
 
-def run_once() -> bool:
+def _renew_lease(job_id: str, owner: str, stop: threading.Event) -> None:
+    interval = max(1.0, settings.job_lease_seconds / 3)
+    while not stop.wait(interval):
+        try:
+            with SessionLocal.begin() as session:
+                job = session.get(Job, job_id)
+                if job is None or job.status != "running" or job.lease_owner != owner:
+                    return
+                JobQueue(session).heartbeat(job, owner, settings.job_lease_seconds)
+        except Exception as exc:  # keep the grading call alive through transient SQLite locks
+            print(f"worker {owner} could not renew {job_id}: {exc}", flush=True)
+
+
+def run_once(owner: str | None = None) -> bool:
+    owner = owner or settings.worker_id
     leased: tuple[str, str, dict[str, object], int] | None = None
     with SessionLocal.begin() as session:
         queue = JobQueue(session)
-        job = queue.lease(settings.worker_id, settings.job_lease_seconds)
+        job = queue.lease(owner, settings.job_lease_seconds)
         if job is None:
             return False
         leased = (job.id, job.kind, json.loads(job.payload_json), job.attempts)
     job_id, kind, payload, attempts = leased
     error: str | None = None
+    lease_stop = threading.Event()
+    lease_thread = threading.Thread(
+        target=_renew_lease,
+        args=(job_id, owner, lease_stop),
+        name=f"lease-{owner}",
+        daemon=True,
+    )
+    lease_thread.start()
     try:
         handle(kind, payload)
     except Exception as exc:  # worker boundary must persist all failures
         error = str(exc).strip() or type(exc).__name__
+    finally:
+        lease_stop.set()
+        lease_thread.join(timeout=1)
     with SessionLocal.begin() as session:
         job = session.get(Job, job_id)
         if job is None:
             return True
+        if job.status != "running" or job.lease_owner != owner:
+            return True
         queue = JobQueue(session)
         if error is None:
-            queue.done(job, settings.worker_id)
+            queue.done(job, owner)
         else:
-            queue.fail(job, settings.worker_id, error, settings.job_max_attempts)
+            queue.fail(job, owner, error, settings.job_max_attempts)
     if error is not None and attempts >= settings.job_max_attempts:
         _mark_terminal_failure(payload, error)
     return True
@@ -174,18 +202,44 @@ def write_heartbeat() -> None:
     target = settings.runtime_paths()["cache"] / "worker-heartbeat.json"
     target.write_text(
         json.dumps(
-            {"worker_id": settings.worker_id, "last_seen": datetime.now(timezone.utc).isoformat()}
+            {
+                "worker_id": settings.worker_id,
+                "concurrency": settings.worker_concurrency,
+                "last_seen": datetime.now(timezone.utc).isoformat(),
+            }
         ),
         encoding="utf-8",
     )
 
 
+def _slot_loop(slot: int, stop: threading.Event) -> None:
+    owner = f"{settings.worker_id}:{slot + 1}"
+    while not stop.is_set():
+        try:
+            worked = run_once(owner)
+        except Exception as exc:  # isolate one slot from queue/database failures
+            print(f"worker {owner} error: {exc}", flush=True)
+            stop.wait(1)
+            continue
+        if not worked:
+            stop.wait(0.5)
+
+
 def main() -> None:
-    print(f"worker {settings.worker_id} started", flush=True)
-    while True:
-        write_heartbeat()
-        if not run_once():
-            time.sleep(0.5)
+    concurrency = settings.worker_concurrency
+    stop = threading.Event()
+    print(f"worker {settings.worker_id} started with {concurrency} slots", flush=True)
+    with ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix="marker-worker") as pool:
+        futures = [pool.submit(_slot_loop, slot, stop) for slot in range(concurrency)]
+        try:
+            while not stop.wait(1):
+                write_heartbeat()
+        except KeyboardInterrupt:
+            stop.set()
+        finally:
+            stop.set()
+            for future in futures:
+                future.result()
 
 
 if __name__ == "__main__":

@@ -238,6 +238,7 @@ class BatchUseCases:
                 "job_id": None,
                 "sample_size": sample,
                 "queued": 0,
+                "concurrency": runtime_settings.worker_concurrency,
                 "counts": self.counts(batch.id),
             }
         provider = payload.get("provider") or runtime_settings.llm
@@ -317,6 +318,7 @@ class BatchUseCases:
             "job_ids": [item.id for item in grade_jobs],
             "sample_size": sample,
             "queued": len(submissions),
+            "concurrency": runtime_settings.worker_concurrency,
             "counts": self.counts(batch.id),
         }
 

@@ -190,7 +190,11 @@ test('large processing batches show compact live activity without overlapping ac
 
   const waitingBatch = JSON.parse(JSON.stringify(batch));
   waitingBatch.counts.active = 0;
-  waitingBatch.counts.queued = 107;
+  waitingBatch.counts.processed = 15;
+  waitingBatch.counts.ready = 10;
+  waitingBatch.counts.confirmed = 5;
+  waitingBatch.counts.processing = 93;
+  waitingBatch.counts.queued = 93;
   waitingBatch.eta_seconds = 1080;
   waitingBatch.queue = {
     jobs_ahead:93,
@@ -208,6 +212,9 @@ test('large processing batches show compact live activity without overlapping ac
     ],
   })}));
   await page.goto('/02-batch-status.html?batch_id=bat_ui_activity');
+  await expect(page.locator('.progress-layers')).toHaveAttribute('aria-label', '5 confirmed; 15 processed; 108 total');
+  await expect(page.locator('.bar-ready')).toHaveAttribute('style', 'width:14%');
+  await expect(page.locator('.bar-confirmed')).toHaveAttribute('style', 'width:5%');
   await expect(page.locator('.live-work')).toHaveText(/Waiting behind.*Earlier validation batch.*93 jobs ahead/);
   await expect(page.locator('.live-work a')).toHaveAttribute('href', /batch_id=bat_earlier/);
   await expect(page.locator('.progress-stats .eta')).toHaveText('~18 min remaining');

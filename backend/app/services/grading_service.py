@@ -96,6 +96,8 @@ async def grade_submission(
                 )
                 _require_active_batch(session, batch)
                 break
+            except BatchCancelled:
+                raise
             except Exception as exc:  # provider and schema failures are retryable here
                 last_error = exc
                 if attempt < 3:

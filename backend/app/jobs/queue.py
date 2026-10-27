@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from app.db.models.job import Job
@@ -43,7 +43,7 @@ class JobQueue:
 
     def lease(self, owner: str, lease_seconds: int) -> Job | None:
         now = utcnow()
-        job = self.session.scalar(
+        candidate_id = (
             select(Job)
             .where(
                 Job.run_after <= now,
@@ -51,17 +51,25 @@ class JobQueue:
             )
             .order_by(Job.created_at)
             .limit(1)
+            .with_only_columns(Job.id)
+            .scalar_subquery()
         )
-        if job is None:
+        job_id = self.session.scalar(
+            update(Job)
+            .where(Job.id == candidate_id)
+            .values(
+                status="running",
+                lease_owner=owner,
+                lease_until=now + timedelta(seconds=lease_seconds),
+                heartbeat_at=now,
+                attempts=Job.attempts + 1,
+                updated_at=now,
+            )
+            .returning(Job.id)
+        )
+        if job_id is None:
             return None
-        job.status = "running"
-        job.lease_owner = owner
-        job.lease_until = now + timedelta(seconds=lease_seconds)
-        job.heartbeat_at = now
-        job.attempts += 1
-        job.updated_at = now
-        self.session.flush()
-        return job
+        return self.session.get(Job, job_id)
 
     def heartbeat(self, job: Job, owner: str, lease_seconds: int) -> None:
         if job.lease_owner != owner or job.status != "running":

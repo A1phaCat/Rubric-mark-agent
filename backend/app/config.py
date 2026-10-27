@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     llm: str = "university"
     timezone: str = "Australia/Sydney"
     worker_id: str = "local-worker-1"
+    worker_concurrency: int = Field(default=3, ge=1, le=8)
     local_user_id: str = "usr_jalvarez"
     # Reload the sample batches on every API start so they can be marked again.
     reset_samples_on_start: bool = True

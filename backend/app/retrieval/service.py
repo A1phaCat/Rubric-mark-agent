@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import re
+import threading
 from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -18,6 +19,7 @@ _STOP = {
     "criterion", "criteria", "marks", "mark", "points", "level", "evidence", "submission",
 }
 _EMBEDDERS: dict[tuple[str, str], Any] = {}
+_EMBEDDER_LOCK = threading.Lock()
 _CHUNK_WORDS = 220
 _CHUNK_OVERLAP_WORDS = 40
 
@@ -141,17 +143,19 @@ def _fastembed(settings: Settings) -> Any:
     cache_dir = str(settings.runtime_paths()["cache"] / "fastembed")
     key = (settings.embedding_model, cache_dir)
     if key not in _EMBEDDERS:
-        try:
-            from fastembed import TextEmbedding
-        except ImportError as exc:  # pragma: no cover
-            raise RuntimeError(
-                "Vector RAG requires fastembed; run pip install -e backend"
-            ) from exc
-        _EMBEDDERS[key] = TextEmbedding(
-            model_name=settings.embedding_model,
-            cache_dir=cache_dir,
-            threads=settings.embedding_threads,
-        )
+        with _EMBEDDER_LOCK:
+            if key not in _EMBEDDERS:
+                try:
+                    from fastembed import TextEmbedding
+                except ImportError as exc:  # pragma: no cover
+                    raise RuntimeError(
+                        "Vector RAG requires fastembed; run pip install -e backend"
+                    ) from exc
+                _EMBEDDERS[key] = TextEmbedding(
+                    model_name=settings.embedding_model,
+                    cache_dir=cache_dir,
+                    threads=settings.embedding_threads,
+                )
     return _EMBEDDERS[key]
 
 

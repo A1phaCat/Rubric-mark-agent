@@ -73,6 +73,15 @@ def test_manual_marking_submission_opens_with_empty_criteria(client: TestClient)
     assert all(item["ai_score"] is None and item["score"] is None for item in review["rubric"]["criteria"])
 
 
+def test_confirmed_submissions_are_at_the_end_of_the_all_view(client: TestClient) -> None:
+    rows = client.get("/api/v1/batches/bat_sample_asgn2/submissions?filter=all").json()["items"]
+    first_confirmed = next(index for index, item in enumerate(rows) if item["status"] == "confirmed")
+    assert all(item["status"] == "confirmed" for item in rows[first_confirmed:])
+    assert [item["sid"] for item in rows[:first_confirmed]] == sorted(
+        item["sid"] for item in rows[:first_confirmed]
+    )
+
+
 def test_at_most_three_batches_are_pinned_and_new_ones_go_on_top(client: TestClient) -> None:
     body = {"name": "Demo batch", "unit": None, "term_id": "term_2026s2", "rubric_id": "rub_shortanswer", "rubric_version": 1}
     created = client.post("/api/v1/batches", json=body).json()

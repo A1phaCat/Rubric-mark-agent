@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app.api.common import translate_error
@@ -91,11 +91,12 @@ def list_submissions(
         if db.get(Batch, batch_id) is None:
             raise KeyError(batch_id)
         service = BatchUseCases(db)
+        completed_rank = case((Submission.status == "confirmed", 1), else_=0)
         records = list(
             db.scalars(
                 select(Submission)
                 .where(Submission.batch_id == batch_id)
-                .order_by(Submission.sid, Submission.id)
+                .order_by(completed_rank, Submission.sid, Submission.id)
             )
         )
         adjusted = service.adjusted_submission_ids(batch_id)

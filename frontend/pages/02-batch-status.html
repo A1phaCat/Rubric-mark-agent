@@ -58,8 +58,11 @@
   .progress-top .label{ color:var(--ink-soft); }
   .progress-top .val{ font-family:'IBM Plex Mono',monospace; color:var(--primary); }
   .bar{ height:8px; background:var(--track); border-radius:4px; overflow:hidden; }
-  .bar-fill{ position:relative; height:100%; width:67%; min-width:3px; background:var(--primary); border-radius:4px; overflow:hidden; }
-  .progress-card.is-live .bar-fill::after{ content:""; position:absolute; inset:0; width:28%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.78),transparent); transform:translateX(-120%); animation:work-flow 1.55s ease-in-out infinite; }
+  .progress-layers{ position:relative; }
+  .bar-ready, .bar-confirmed{ position:absolute; inset:0 auto 0 0; border-radius:4px; transition:width .35s ease; }
+  .bar-ready{ z-index:1; background:rgba(230,70,38,.34); overflow:hidden; }
+  .bar-confirmed{ z-index:2; background:var(--primary); }
+  .progress-card.is-live .bar-ready::after{ content:""; position:absolute; inset:0; width:28%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.78),transparent); transform:translateX(-120%); animation:work-flow 1.55s ease-in-out infinite; }
   @keyframes work-flow{ to{ transform:translateX(460%); } }
   .progress-stats{ display:flex; gap:26px; margin-top:14px; font-size:12px; color:var(--ink-soft); }
   .progress-stats b{ color:var(--ink); font-family:'IBM Plex Mono',monospace; font-weight:500;}
@@ -129,7 +132,7 @@
     .progress-stats, .filters{ flex-wrap:wrap; }
     table{ display:block; overflow-x:auto; white-space:nowrap; }
   }
-  @media (prefers-reduced-motion:reduce){ .progress-card.is-live .bar-fill::after, .live-bars i, tr.active-work .status-pill, tr.active-work .status-pill .dot{ animation:none; } }
+  @media (prefers-reduced-motion:reduce){ .progress-card.is-live .bar-ready::after, .live-bars i, tr.active-work .status-pill, tr.active-work .status-pill .dot{ animation:none; } }
 
   /* ===== Shared top bar (logo · AI-assisted marker · Prototype · user) ===== */
   header.app-bar{ flex-wrap:nowrap; display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:20px; height:68px; min-height:68px; padding:0 28px; background:var(--chrome); }

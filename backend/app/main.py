@@ -103,7 +103,11 @@ def create_app() -> FastAPI:
         heartbeat = (
             json.loads(heartbeat_path.read_text(encoding="utf-8"))
             if heartbeat_path.exists()
-            else {"worker_id": settings.worker_id, "last_seen": None}
+            else {
+                "worker_id": settings.worker_id,
+                "concurrency": settings.worker_concurrency,
+                "last_seen": None,
+            }
         )
         return {
             "status": "ok",
