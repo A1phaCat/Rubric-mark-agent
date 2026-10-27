@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
@@ -18,9 +19,25 @@ from app.db.session import SessionLocal
 from app.domain.states import BatchStatus, SubmissionStatus
 from app.jobs.queue import JobQueue
 from app.services.batch_service import BatchUseCases
-from app.services.grading_service import BatchCancelled, grade_submission
+from app.services.grading_service import BatchCancelled, LeaseLost, grade_submission
 from app.services.settings_service import load_ai_settings
 from app.services.submission_service import apply_extraction
+
+
+class _Lease:
+    """Whether this slot still owns its job, as seen by the lease-renewal thread."""
+
+    def __init__(self) -> None:
+        self.lost = threading.Event()
+        self.renewed_at = time.monotonic()
+
+    def owned(self) -> bool:
+        return not self.lost.is_set()
+
+
+# The lease of the job this slot thread is running (each slot is one thread, and the
+# grading coroutine runs on that thread's own event loop).
+_CURRENT = threading.local()
 
 
 def handle(kind: str, payload: dict[str, object]) -> None:
@@ -105,8 +122,11 @@ async def handle_grade(payload: dict[str, object]) -> None:
                 criterion_payloads,
                 force=force,
                 commit_progress=True,
+                still_owned=getattr(_CURRENT, "owned", None),
             )
-        except BatchCancelled:
+        except (BatchCancelled, LeaseLost):
+            # Cancelled: nothing more to do. Lease lost: the slot that now owns the job
+            # carries on from the criteria already committed.
             session.rollback()
             return
         submission.status = SubmissionStatus.AI_DONE.value
@@ -143,17 +163,29 @@ def _mark_terminal_failure(payload: dict[str, object], error: str) -> None:
             BatchUseCases(session).refresh_status(batch_id)
 
 
-def _renew_lease(job_id: str, owner: str, stop: threading.Event) -> None:
+def _renew_lease(
+    job_id: str, owner: str, stop: threading.Event, lease: _Lease | None = None
+) -> None:
+    lease = lease or _Lease()
     interval = max(1.0, settings.job_lease_seconds / 3)
     while not stop.wait(interval):
         try:
             with SessionLocal.begin() as session:
                 job = session.get(Job, job_id)
                 if job is None or job.status != "running" or job.lease_owner != owner:
+                    lease.lost.set()
+                    print(f"worker {owner} no longer owns {job_id}; stopping it", flush=True)
                     return
                 JobQueue(session).heartbeat(job, owner, settings.job_lease_seconds)
+            lease.renewed_at = time.monotonic()
         except Exception as exc:  # keep the grading call alive through transient SQLite locks
             print(f"worker {owner} could not renew {job_id}: {exc}", flush=True)
+            # Stop before the lease can expire: after that another slot may take the job
+            # and both would write the same criteria.
+            if time.monotonic() - lease.renewed_at > settings.job_lease_seconds * 0.75:
+                lease.lost.set()
+                print(f"worker {owner} gave up {job_id}: lease could not be renewed", flush=True)
+                return
 
 
 def run_once(owner: str | None = None) -> bool:
@@ -167,19 +199,25 @@ def run_once(owner: str | None = None) -> bool:
         leased = (job.id, job.kind, json.loads(job.payload_json), job.attempts)
     job_id, kind, payload, attempts = leased
     error: str | None = None
+    final = False
+    lease = _Lease()
     lease_stop = threading.Event()
     lease_thread = threading.Thread(
         target=_renew_lease,
-        args=(job_id, owner, lease_stop),
+        args=(job_id, owner, lease_stop, lease),
         name=f"lease-{owner}",
         daemon=True,
     )
     lease_thread.start()
+    _CURRENT.owned = lease.owned
     try:
         handle(kind, payload)
     except Exception as exc:  # worker boundary must persist all failures
         error = str(exc).strip() or type(exc).__name__
+        # Provider and model-output failures were already retried where they happened.
+        final = bool(getattr(exc, "final", False))
     finally:
+        _CURRENT.owned = None
         lease_stop.set()
         lease_thread.join(timeout=1)
     with SessionLocal.begin() as session:
@@ -192,8 +230,8 @@ def run_once(owner: str | None = None) -> bool:
         if error is None:
             queue.done(job, owner)
         else:
-            queue.fail(job, owner, error, settings.job_max_attempts)
-    if error is not None and attempts >= settings.job_max_attempts:
+            queue.fail(job, owner, error, 1 if final else settings.job_max_attempts)
+    if error is not None and (final or attempts >= settings.job_max_attempts):
         _mark_terminal_failure(payload, error)
     return True
 

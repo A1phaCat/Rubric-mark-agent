@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -57,6 +57,10 @@ class Submission(Base):
 
 class AIResult(Base):
     __tablename__ = "ai_results"
+    # One AI result per criterion of a submission: two worker slots can never both store one.
+    __table_args__ = (
+        Index("uq_ai_results_submission_criterion", "submission_id", "criterion_id", unique=True),
+    )
     id: Mapped[str] = mapped_column(String, primary_key=True)
     submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.id"), nullable=False)
     criterion_id: Mapped[str] = mapped_column(String, nullable=False)

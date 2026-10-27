@@ -347,8 +347,13 @@ test('local-fake API completes a new single-file batch', async ({ request, page 
   expect(upload.ok()).toBeTruthy();
   const started = await request.post(`/api/v1/batches/${batch.id}/start?sample=3`, { data: { provider:'fake', model:'fake-marker-v1', concurrency:1, external_processing_acknowledged:false, estimated_cost_acknowledged:true } });
   expect(started.ok()).toBeTruthy();
-  const listing = await request.get(`/api/v1/batches/${batch.id}/submissions`);
-  const submission = (await listing.json()).items[0];
+  // Wait for the AI result: confirming while the worker still writes it is a version conflict.
+  let submission = null;
+  await expect.poll(async () => {
+    const listing = await request.get(`/api/v1/batches/${batch.id}/submissions`);
+    submission = (await listing.json()).items[0];
+    return submission && submission.status;
+  }, { timeout: 15000 }).toBe('ai_done');
   const allBatches = await request.get('/api/v1/batches');
   expect((await allBatches.json()).items.some((item) => item.id === batch.id)).toBeTruthy();
   await page.goto(`/03b-review-split.html?submission_id=${submission.id}`);

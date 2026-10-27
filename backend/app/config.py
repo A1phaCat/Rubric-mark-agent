@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     ai_api_key: str | None = Field(default=None, repr=False)
     ai_model: str = "gpt-4.1"
     ai_timeout_seconds: float = 120.0
+    # Provider calls in flight across all worker slots and criteria (one shared limit).
+    llm_max_in_flight: int = Field(default=6, ge=1, le=32)
+    # Retries inside the LLM client for 429 / 5xx / timeouts; Retry-After is honoured.
+    llm_max_retries: int = Field(default=5, ge=0, le=10)
+    llm_max_backoff_seconds: float = Field(default=60.0, ge=1, le=600)
+    # Criteria of one submission graded at the same time (still bounded by llm_max_in_flight).
+    criterion_concurrency: int = Field(default=3, ge=1, le=8)
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_threads: int = 2
     retrieval_candidate_limit: int = 12

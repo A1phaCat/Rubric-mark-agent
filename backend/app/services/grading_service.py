@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -14,11 +14,61 @@ from app.db.models.review import Review
 from app.db.models.submission import AIResult, Evidence, Submission
 from app.domain.ids import new_id
 from app.grading import grade_criterion
+from app.llm.protocol import ProviderError
 from app.retrieval import retrieve_passages
 
 
 class BatchCancelled(RuntimeError):
     pass
+
+
+class LeaseLost(RuntimeError):
+    """The worker no longer owns this job; another slot may be grading it."""
+
+
+class CriterionFailed(RuntimeError):
+    """A criterion could not be graded. ``final``: running the job again will not help."""
+
+    def __init__(self, message: str, *, final: bool) -> None:
+        super().__init__(message)
+        self.final = final
+
+
+# Retries happen in one place per kind of failure:
+#   provider (429 / 5xx / timeout) → the LLM client, honouring Retry-After
+#   invalid or unverifiable model output → here, once more
+#   worker crash / lost lease → the job queue
+_OUTPUT_ATTEMPTS = 2
+
+
+async def _grade_with_retry(
+    settings: Settings,
+    criterion: dict[str, Any],
+    passages: list[Any],
+    submission_id: str,
+    position: int,
+) -> dict[str, Any]:
+    criterion_id = str(criterion["id"])
+    name = criterion.get("name", criterion_id)
+    for attempt in range(1, _OUTPUT_ATTEMPTS + 1):
+        try:
+            return await grade_criterion(
+                settings,
+                criterion,
+                passages,
+                {"submission_id": submission_id, "criterion_id": criterion_id, "attempt": str(attempt)},
+            )
+        except (ProviderError, NotImplementedError) as exc:
+            # The client already waited and retried; a wrong key or model will not fix itself.
+            raise CriterionFailed(f"C{position} {name}: {exc}", final=True) from exc
+        except ValueError as exc:  # model output that is not valid JSON or does not match the text
+            if attempt == _OUTPUT_ATTEMPTS:
+                detail = str(exc).strip() or type(exc).__name__
+                raise CriterionFailed(
+                    f"C{position} {name}: model output rejected after {attempt} attempts: {detail}",
+                    final=True,
+                ) from exc
+    raise AssertionError("unreachable")
 
 
 def _require_active_batch(session: Session, batch: Batch) -> None:
@@ -36,8 +86,13 @@ async def grade_submission(
     *,
     force: bool = False,
     commit_progress: bool = False,
+    still_owned: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
-    """Retrieve, grade, verify, and persist one submission's criterion evidence."""
+    """Retrieve, grade, verify, and persist one submission's criterion evidence.
+
+    ``still_owned`` is the job lease check from the worker: when it turns false another
+    worker slot may have taken the job, so grading stops before writing anything more.
+    """
 
     if not submission.document_json:
         raise ValueError("submission_not_extracted")
@@ -63,58 +118,21 @@ async def grade_submission(
     evidence_count = 0
     now = datetime.now(timezone.utc)
 
-    for position, criterion in enumerate(criteria, 1):
-        _require_active_batch(session, batch)
-        criterion_id = str(criterion["id"])
-        completed = existing.get(criterion_id)
-        if completed is not None and not force:
-            total += float(completed.score)
-            confidence_values.append(completed.confidence)
-            evidence_count += evidence_counts.get(completed.id, 0)
-            continue
-        passages = retrieve_passages(
-            document,
-            criterion,
-            limit=settings.retrieval_candidate_limit,
-            settings=settings,
-            submission_id=submission.id,
-            document_version=submission.document_version,
-        )
-        result: dict[str, Any] | None = None
-        last_error: Exception | None = None
-        for attempt in range(1, 4):
-            try:
-                result = await grade_criterion(
-                    settings,
-                    criterion,
-                    passages,
-                    {
-                        "submission_id": submission.id,
-                        "criterion_id": criterion_id,
-                        "attempt": str(attempt),
-                    },
-                )
-                _require_active_batch(session, batch)
-                break
-            except BatchCancelled:
-                raise
-            except Exception as exc:  # provider and schema failures are retryable here
-                last_error = exc
-                if attempt < 3:
-                    await asyncio.sleep(0.75 * (2 ** (attempt - 1)))
-        if result is None:
-            detail = str(last_error).strip() if last_error else "unknown grading error"
-            detail = detail or type(last_error).__name__
-            raise RuntimeError(
-                f"C{position} {criterion.get('name', criterion_id)} failed after 3 attempts: {detail}"
-            ) from last_error
+    def persist(
+        position: int,
+        criterion: dict[str, Any],
+        criterion_id: str,
+        completed: AIResult | None,
+        passages: list[Any],
+        result: dict[str, Any],
+    ) -> tuple[float, str, int]:
+        """Write one criterion's result; called on the event-loop thread, one at a time."""
+
         maximum = float(criterion.get("weight") or 0)
         score = max(0.0, min(maximum, float(result.get("score", 0))))
         confidence = str(result.get("confidence", "low")).lower()
         if confidence not in {"high", "medium", "low", "none"}:
             confidence = "low"
-        confidence_values.append(confidence)
-        total += score
 
         if force and completed is not None:
             session.execute(delete(Evidence).where(Evidence.ai_result_id == completed.id))
@@ -153,6 +171,7 @@ async def grade_submission(
         passage_by_id = {item.id: item for item in passages}
         selected = result.get("evidence") if isinstance(result.get("evidence"), list) else []
         persisted_quotes: set[str] = set()
+        added = 0
         evidence_ids_by_passage: dict[str, list[str]] = {}
         for raw in selected[: settings.evidence_top_k]:
             if not isinstance(raw, dict):
@@ -187,7 +206,7 @@ async def grade_submission(
                 )
             )
             evidence_ids_by_passage.setdefault(passage.id, []).append(evidence_id)
-            evidence_count += 1
+            added += 1
 
         stored_coverage = []
         for coverage_item in result.get("coverage", []):
@@ -233,12 +252,81 @@ async def grade_submission(
             review.updated_at = now
             review.version += 1
 
-        submission.ai_summary = f"{position}/{len(criteria)} criteria processed"
+        processed[0] += 1
+        submission.ai_summary = f"{processed[0]}/{len(criteria)} criteria processed"
         submission.version += 1
         session.flush()
         if commit_progress:
             # Never hold SQLite's single-writer lock while the next provider call runs.
             session.commit()
+        return score, confidence, added
+
+    # 1. Retrieval for every criterion still to grade (local and quick: document vectors
+    #    are cached, only the query is embedded).
+    pending: list[tuple[int, dict[str, Any], str, AIResult | None, list[Any]]] = []
+    for position, criterion in enumerate(criteria, 1):
+        criterion_id = str(criterion["id"])
+        completed = existing.get(criterion_id)
+        if completed is not None and not force:
+            total += float(completed.score)
+            confidence_values.append(completed.confidence)
+            evidence_count += evidence_counts.get(completed.id, 0)
+            continue
+        passages = retrieve_passages(
+            document,
+            criterion,
+            limit=settings.retrieval_candidate_limit,
+            settings=settings,
+            submission_id=submission.id,
+            document_version=submission.document_version,
+        )
+        pending.append((position, criterion, criterion_id, completed, passages))
+
+    # 2. Model calls for those criteria run concurrently (criterion_concurrency per
+    #    submission, and the provider gate caps calls across all worker slots).
+    # 3. Each result is written and committed as soon as it arrives, in this thread.
+    processed = [len(criteria) - len(pending)]
+    limit = asyncio.Semaphore(max(1, int(settings.criterion_concurrency)))
+
+    def check_still_running() -> None:
+        if still_owned is not None and not still_owned():
+            raise LeaseLost("job_lease_lost")
+        _require_active_batch(session, batch)
+
+    async def run(item: tuple[int, dict[str, Any], str, AIResult | None, list[Any]]) -> tuple[Any, dict[str, Any]]:
+        position, criterion, criterion_id, _completed, passages = item
+        async with limit:
+            check_still_running()
+            result = await _grade_with_retry(settings, criterion, passages, submission.id, position)
+            return item, result
+
+    check_still_running()
+    tasks = [asyncio.ensure_future(run(item)) for item in pending]
+    failure: BaseException | None = None
+    try:
+        for next_done in asyncio.as_completed(tasks):
+            try:
+                item, result = await next_done
+            except (BatchCancelled, LeaseLost):
+                raise
+            except Exception as exc:  # keep the other criteria's results; fail afterwards
+                failure = failure or exc
+                continue
+            check_still_running()
+            position, criterion, criterion_id, completed, passages = item
+            score, confidence, added = persist(position, criterion, criterion_id, completed, passages, result)
+            total += score
+            confidence_values.append(confidence)
+            evidence_count += added
+            if commit_progress:
+                # Never hold SQLite's single-writer lock while provider calls run.
+                session.commit()
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+    if failure is not None:
+        raise failure
 
     confidence_order = {"none": 0, "low": 1, "medium": 2, "high": 3}
     submission.ai_total = round(total, 2)

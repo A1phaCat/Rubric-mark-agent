@@ -1,10 +1,55 @@
 from __future__ import annotations
 
+import asyncio
+import random
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Mapping, Sequence
 
 import httpx
 
-from app.llm.protocol import LLMResponse, ProviderError
+from app.llm.protocol import FatalProviderError, LLMResponse, ProviderError, RetryableProviderError
+from app.llm.ratelimit import ProviderGate, provider_gate
+
+# 408 timeout, 409 conflict, 425 too early, 429 rate limit, 5xx overload; 529 = "overloaded".
+_RETRYABLE_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504, 529})
+_GLOBAL_PAUSE_STATUS = frozenset({429, 503, 529})
+_MAX_RETRY_AFTER_SECONDS = 300.0
+
+
+def retry_after_seconds(headers: Mapping[str, str], now: datetime | None = None) -> float | None:
+    """Seconds to wait from ``Retry-After`` (seconds or HTTP date) or ``retry-after-ms``."""
+
+    lowered = {str(key).lower(): str(value) for key, value in headers.items()}
+    if lowered.get("retry-after-ms"):
+        try:
+            return max(0.0, float(lowered["retry-after-ms"]) / 1000)
+        except ValueError:
+            pass
+    value = lowered.get("retry-after")
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+    try:
+        moment = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return max(0.0, (moment - (now or datetime.now(timezone.utc))).total_seconds())
+
+
+def _status_error(response: httpx.Response) -> ProviderError:
+    detail = response.text[:300].strip()
+    message = f"HTTP {response.status_code}" + (f": {detail}" if detail else "")
+    if response.status_code in _RETRYABLE_STATUS:
+        return RetryableProviderError(
+            message, retry_after=retry_after_seconds(response.headers), status=response.status_code
+        )
+    return FatalProviderError(message, status=response.status_code)
 
 
 def response_text(choice: Mapping[str, object]) -> str:
@@ -37,12 +82,26 @@ class OpenAICompatibleLLM:
     reasoning_effort: str | None = None
 
     def __init__(
-        self, base_url: str, api_key: str, model: str, timeout_seconds: float = 120.0
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        timeout_seconds: float = 120.0,
+        *,
+        max_retries: int = 5,
+        max_backoff_seconds: float = 60.0,
+        gate: ProviderGate | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
         self.timeout_seconds = timeout_seconds
+        self.max_retries = max(0, int(max_retries))
+        self.max_backoff_seconds = float(max_backoff_seconds)
+        self.gate = gate or provider_gate(6)
+        self.retries = 0  # retries made by this client, for tests and diagnostics
+        self._transport = transport  # tests only
 
     @property
     def _headers(self) -> dict[str, str]:
@@ -50,10 +109,13 @@ class OpenAICompatibleLLM:
 
     async def list_models(self) -> Sequence[str]:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with httpx.AsyncClient(timeout=10, transport=self._transport) as client:
                 response = await client.get(f"{self.base_url}/models", headers=self._headers)
-                response.raise_for_status()
+                if response.status_code >= 400:
+                    raise _status_error(response)
                 return [item["id"] for item in response.json().get("data", [])]
+        except ProviderError:
+            raise
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
             message = str(exc).strip() or "request failed"
             raise ProviderError(f"{type(exc).__name__}: {message}") from exc
@@ -78,27 +140,67 @@ class OpenAICompatibleLLM:
         }
         if self.reasoning_effort:
             payload["reasoning_effort"] = self.reasoning_effort
+        attempt = 0
+        while True:
+            try:
+                async with self.gate.slot():
+                    return await self._post(payload)
+            except RetryableProviderError as exc:
+                if attempt >= self.max_retries:
+                    raise RetryableProviderError(
+                        f"{exc} (gave up after {attempt + 1} attempts)",
+                        retry_after=exc.retry_after,
+                        status=exc.status,
+                    ) from exc
+                wait = self._backoff(attempt, exc.retry_after)
+                if exc.retry_after is not None and exc.retry_after > _MAX_RETRY_AFTER_SECONDS:
+                    raise RetryableProviderError(
+                        f"{exc} (provider asked to wait {exc.retry_after:.0f} s)",
+                        retry_after=exc.retry_after,
+                        status=exc.status,
+                    ) from exc
+                if exc.status in _GLOBAL_PAUSE_STATUS:
+                    self.gate.cool_down(wait)  # every slot waits, not only this call
+                attempt += 1
+                self.retries += 1
+                await asyncio.sleep(wait)
+
+    def _backoff(self, attempt: int, retry_after: float | None) -> float:
+        if retry_after is not None:
+            return min(retry_after, _MAX_RETRY_AFTER_SECONDS)
+        base = min(self.max_backoff_seconds, 2.0 ** attempt)
+        return base * random.uniform(0.5, 1.0)
+
+    async def _post(self, payload: dict[str, object]) -> LLMResponse:
         try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            async with httpx.AsyncClient(timeout=self.timeout_seconds, transport=self._transport) as client:
                 response = await client.post(
                     f"{self.base_url}/chat/completions", headers=self._headers, json=payload
                 )
-                response.raise_for_status()
+                if response.status_code >= 400:
+                    raise _status_error(response)
                 data = response.json()
                 usage = data.get("usage", {})
                 choice = data["choices"][0]
                 content = response_text(choice)
                 if not content:
                     finish_reason = choice.get("finish_reason") or "unknown"
-                    raise ProviderError(
-                        f"Provider returned no text content (finish_reason={finish_reason})"
-                    )
+                    message = f"Provider returned no text content (finish_reason={finish_reason})"
+                    if finish_reason == "length":
+                        # Deterministic at temperature 0: the output budget is too small.
+                        raise FatalProviderError(message)
+                    raise RetryableProviderError(message)
                 return LLMResponse(
                     text=content,
                     model=data.get("model", self.model),
                     input_tokens=int(usage.get("prompt_tokens", 0)),
                     output_tokens=int(usage.get("completion_tokens", 0)),
                 )
+        except ProviderError:
+            raise
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            message = str(exc).strip() or "request failed"
+            raise RetryableProviderError(f"{type(exc).__name__}: {message}") from exc
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
             message = str(exc).strip() or "request failed"
             raise ProviderError(f"{type(exc).__name__}: {message}") from exc

@@ -6,6 +6,15 @@ from app.llm.providers.azure import AzureLLM
 from app.llm.providers.minimax import MiniMaxLLM
 from app.llm.providers.openai import OpenAILLM
 from app.llm.providers.university import UniversityLLM
+from app.llm.ratelimit import provider_gate
+
+
+def _retry_policy(settings: Settings) -> dict:
+    return {
+        "max_retries": settings.llm_max_retries,
+        "max_backoff_seconds": settings.llm_max_backoff_seconds,
+        "gate": provider_gate(settings.llm_max_in_flight),
+    }
 
 
 def build_llm(settings: Settings) -> LLM:
@@ -21,6 +30,7 @@ def build_llm(settings: Settings) -> LLM:
             settings.ai_api_key,
             settings.ai_model,
             settings.ai_timeout_seconds,
+            **_retry_policy(settings),
         )
     if settings.llm in {"azure", "minimax", "openai"}:
         if not settings.ai_base_url or not settings.ai_api_key:
@@ -31,6 +41,7 @@ def build_llm(settings: Settings) -> LLM:
             settings.ai_api_key,
             settings.ai_model,
             settings.ai_timeout_seconds,
+            **_retry_policy(settings),
         )
     if settings.llm == "anthropic":
         return AnthropicLLM()
