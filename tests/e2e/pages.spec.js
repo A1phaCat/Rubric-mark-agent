@@ -403,6 +403,27 @@ test('external AI consent uses the in-app modal and supports keyboard cancellati
   await expect.poll(() => page.evaluate(() => window.__externalConsentResult)).toBe(true);
 });
 
+test('provider model discovery exposes every model in a real select control', async ({ page }) => {
+  const models = Array.from({length:9}, (_, index) => `MiniMax-model-${index + 1}`);
+  models[0] = 'MiniMax-M3.1-Flash';
+  await page.route('**/api/v1/settings/ai/test', async route => route.fulfill({
+    contentType:'application/json', body:JSON.stringify({ok:true,models,latency_ms:12})
+  }));
+  await page.route('**/api/v1/settings/ai', async route => route.fulfill({
+    contentType:'application/json', body:JSON.stringify({provider:'minimax',model:models[0],base_url:'https://api.minimaxi.com/v1',has_api_key:true})
+  }));
+  await page.route('**/api/v1/settings/canvas', async route => route.fulfill({contentType:'application/json',body:'{}'}));
+
+  await page.goto('/00-home.html');
+  await page.locator('.ab-user').click();
+  await page.locator('.am-sum').click();
+  await page.getByRole('button', {name:'Test'}).click();
+  await expect(page.locator('#amAiMsg')).toContainText('9 models available');
+  await expect(page.locator('select#amModel option')).toHaveCount(9);
+  await page.locator('select#amModel').selectOption(models[8]);
+  await expect(page.locator('select#amModel')).toHaveValue(models[8]);
+});
+
 test('cancelling external processing restores focus and rubric edits discard the pending batch', async ({ page }) => {
   let deletedBatch = false;
   await page.route('**/api/v1/rubrics', async route => {

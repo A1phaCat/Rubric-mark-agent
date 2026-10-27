@@ -89,9 +89,26 @@
   }
   function ago(t) { var m = Math.round((Date.now() - t) / 6e4); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; }
   function fillModels(input, list, keep) {
-    var options = document.getElementById('amModelList');
-    if (options) options.innerHTML = list.map(function (m) { return '<option value="' + esc(m) + '"></option>'; }).join('');
-    if (keep != null) input.value = keep;
+    var next=input;
+    if(list.length){
+      if(input.tagName!=='SELECT'){
+        next=document.createElement('select');next.id='amModel';next.className='mono';input.replaceWith(next);
+      }
+      next.innerHTML=list.map(function(m){return '<option value="'+esc(m)+'">'+esc(m)+'</option>';}).join('');
+      next.value=list.indexOf(keep)>=0?keep:list[0];
+    }else{
+      if(input.tagName==='SELECT'){
+        next=document.createElement('input');next.type='text';next.id='amModel';next.className='mono';next.setAttribute('list','amModelList');next.placeholder='model or deployment name';next.autocomplete='off';next.spellcheck=false;input.replaceWith(next);
+      }
+      if(keep!=null)next.value=keep;
+      var options=document.getElementById('amModelList');if(options)options.innerHTML='';
+    }
+    return next;
+  }
+
+  function modelControl(value,list){
+    if(list.length)return '<select class="mono" id="amModel">'+list.map(function(m){return '<option value="'+esc(m)+'"'+(m===value?' selected':'')+'>'+esc(m)+'</option>';}).join('')+'</select><datalist id="amModelList"></datalist>';
+    return '<input type="text" class="mono" id="amModel" list="amModelList" value="'+esc(value)+'" placeholder="model or deployment name" autocomplete="off" spellcheck="false"><datalist id="amModelList"></datalist>';
   }
 
   /* GET {base}/models — resolves to { ok, status, models[], err, raw } */
@@ -154,7 +171,7 @@
               '<label class="am-f" id="amBaseWrap"' + (p.base ? '' : ' hidden') + '><span>Base URL</span><input type="text" class="mono" id="amBase" value="' + esc(S.ai.base || p.base || '') + '" spellcheck="false"></label>' +
               '<label class="am-f"><span>API key</span><span class="am-key"><input type="password" class="mono" id="amKey" placeholder="' + p.ph + '" value="' + esc(S.ai.key) + '" autocomplete="off" spellcheck="false"><button class="am-eye" type="button" data-eye="amKey" aria-label="Show key">Show</button></span></label>' +
             '</div>' +
-            '<label class="am-f"><span>Model</span><input type="text" class="mono" id="amModel" list="amModelList" value="' + esc(S.ai.model) + '" placeholder="model or deployment name" autocomplete="off" spellcheck="false"><datalist id="amModelList">' + (S.ai.useUni ? [] : mf.list).map(function (m) { return '<option value="' + esc(m) + '"></option>'; }).join('') + '</datalist><small class="am-note' + (mf.live ? ' live' : '') + '" id="amModelNote">' + esc(S.ai.useUni ? 'The deployment name configured on the university gateway' : modelNote(mf)) + '</small></label>' +
+            '<label class="am-f"><span>Model</span>' + modelControl(S.ai.model,S.ai.useUni?[]:mf.list) + '<small class="am-note' + (mf.live ? ' live' : '') + '" id="amModelNote">' + esc(S.ai.useUni ? 'The deployment name configured on the university gateway' : modelNote(mf)) + '</small></label>' +
             '<div class="am-act"><span class="msg" id="amAiMsg"></span><button class="am-btn" type="button" data-test="ai">Test</button><button class="am-btn pri" type="button" data-save="ai">Save</button></div>' +
           '</div>' +
         '</div>' +
