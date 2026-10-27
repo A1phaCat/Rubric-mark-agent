@@ -181,7 +181,7 @@ def test_criteria_of_one_submission_are_graded_concurrently(graded, monkeypatch)
     factory, settings, criteria = graded
     active, peak = [0], [0]
 
-    async def fake_grade(_settings, criterion, _passages, _meta):
+    async def fake_grade(_settings, criterion, _passages, _meta, **_kwargs):
         active[0] += 1
         peak[0] = max(peak[0], active[0])
         await asyncio.sleep(0.05)
@@ -200,7 +200,7 @@ def test_provider_failure_is_not_retried_again_and_other_criteria_are_kept(grade
     factory, settings, criteria = graded
     calls: dict[str, int] = {}
 
-    async def fake_grade(_settings, criterion, _passages, _meta):
+    async def fake_grade(_settings, criterion, _passages, _meta, **_kwargs):
         calls[criterion["id"]] = calls.get(criterion["id"], 0) + 1
         if criterion["id"] == "crt_2":
             raise FatalProviderError("HTTP 401: invalid api key")
@@ -219,7 +219,7 @@ def test_invalid_model_output_is_retried_once(graded, monkeypatch) -> None:
     factory, settings, criteria = graded
     calls = [0]
 
-    async def fake_grade(_settings, criterion, _passages, _meta):
+    async def fake_grade(_settings, criterion, _passages, _meta, **_kwargs):
         calls[0] += 1
         raise ValueError("The grading model did not return a JSON object")
 
@@ -232,7 +232,7 @@ def test_invalid_model_output_is_retried_once(graded, monkeypatch) -> None:
 def test_lost_lease_stops_grading_before_anything_is_written(graded, monkeypatch) -> None:
     factory, settings, criteria = graded
 
-    async def fake_grade(*_args):
+    async def fake_grade(*_args, **_kwargs):
         return _result()
 
     monkeypatch.setattr(grading_service, "grade_criterion", fake_grade)

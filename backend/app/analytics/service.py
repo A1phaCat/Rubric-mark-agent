@@ -114,6 +114,11 @@ class AnalyticsUseCases:
                     "sid": item.sid,
                     "batch_id": item.batch_id,
                     "batch_name": batch.name if batch else item.batch_id,
+                    "manual_reason": (
+                        "too_long" if "too_long" in json.loads(item.flags_json or "[]") else "no_text_layer"
+                    )
+                    if manual
+                    else None,
                     "reason": "needs_manual"
                     if manual
                     else "low_confidence"

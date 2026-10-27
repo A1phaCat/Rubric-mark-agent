@@ -46,8 +46,12 @@ class RetryableProviderError(ProviderError):
 
 
 class FatalProviderError(ProviderError):
-    """Wrong key, unknown model, request too large… — the same call will fail again."""
+    """Wrong key, unknown model, request too large… — the same call will fail again.
 
-    def __init__(self, message: str, *, status: int | None = None) -> None:
+    ``reason`` is ``"context_length"`` when the prompt is longer than the model accepts.
+    """
+
+    def __init__(self, message: str, *, status: int | None = None, reason: str | None = None) -> None:
         super().__init__(message)
         self.status = status
+        self.reason = reason

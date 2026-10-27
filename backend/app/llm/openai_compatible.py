@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import re
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Mapping, Sequence
@@ -15,6 +16,11 @@ from app.llm.ratelimit import ProviderGate, provider_gate
 _RETRYABLE_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504, 529})
 _GLOBAL_PAUSE_STATUS = frozenset({429, 503, 529})
 _MAX_RETRY_AFTER_SECONDS = 300.0
+_CONTEXT_LENGTH = re.compile(
+    r"context[_ ]length|maximum context|too many tokens|prompt is too long|input is too long|"
+    r"exceeds? the (?:model'?s )?(?:context|token limit)",
+    re.IGNORECASE,
+)
 
 
 def retry_after_seconds(headers: Mapping[str, str], now: datetime | None = None) -> float | None:
@@ -49,7 +55,8 @@ def _status_error(response: httpx.Response) -> ProviderError:
         return RetryableProviderError(
             message, retry_after=retry_after_seconds(response.headers), status=response.status_code
         )
-    return FatalProviderError(message, status=response.status_code)
+    reason = "context_length" if _CONTEXT_LENGTH.search(detail) else None
+    return FatalProviderError(message, status=response.status_code, reason=reason)
 
 
 def response_text(choice: Mapping[str, object]) -> str:

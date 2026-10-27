@@ -46,7 +46,7 @@
 
   function queueItem(ui, item) {
     var manual = item.reason === 'needs_manual';
-    var why = manual ? 'No text layer · mark by hand' : (item.criterion_name ? item.criterion_name + ' · ' : 'All criteria · ') + (item.confidence || 'unknown') + ' confidence';
+    var why = manual ? (item.manual_reason === 'too_long' ? 'Too long for AI · mark by hand' : 'No text layer · mark by hand') : (item.criterion_name ? item.criterion_name + ' · ' : 'All criteria · ') + (item.confidence || 'unknown') + ' confidence';
     var tag = manual ? '<span class="tag manual">Manual</span>' : '<span class="tag ' + item.confidence + '"><span class="dot"></span>' + ({ low: 'Low', medium: 'Med', high: 'High' }[item.confidence] || '—') + '</span>';
     return '<a class="q-item" href="03b-review-split.html?submission_id=' + encodeURIComponent(item.submission_id) + '"><div class="q-main"><div class="q-sid">' + ui.esc(item.sid || item.submission_id) + '</div><div class="q-why">' + ui.esc(item.batch_name) + ' · ' + ui.esc(why) + '</div></div>' + tag + '<span class="q-score">' + (item.ai_total == null ? '—' : ui.num(item.ai_total)) + '</span></a>';
   }
@@ -71,7 +71,7 @@
       stats.innerHTML =
         '<a class="stat accent" href="' + nextHref + '"><span class="k">Ready for your review</span><span class="v">' + ready.count + ' <small>submission' + (ready.count === 1 ? '' : 's') + '</small></span><span class="s">' + (first ? ui.esc(first.batch_name) + (ready.by_batch.length > 1 ? ' + ' + (ready.by_batch.length - 1) + ' more' : '') : 'all caught up') + '</span></a>' +
         '<a class="stat" href="' + (lowBatch ? '02-batch-status.html?batch_id=' + encodeURIComponent(lowBatch.batch_id) + '&filter=low_confidence' : '07-batches.html') + '"><span class="k"><span class="dot" style="background:var(--conf-low)"></span>Low confidence to check</span><span class="v">' + low.count + '</span><span class="s">flagged for a closer look</span></a>' +
-        '<a class="stat" href="' + (manualBatch ? '02-batch-status.html?batch_id=' + encodeURIComponent(manualBatch.batch_id) + '&filter=needs_manual' : '07-batches.html') + '"><span class="k"><span class="dot" style="background:var(--conf-none)"></span>Need manual marking</span><span class="v">' + manual.count + '</span><span class="s">no readable text found</span></a>' +
+        '<a class="stat" href="' + (manualBatch ? '02-batch-status.html?batch_id=' + encodeURIComponent(manualBatch.batch_id) + '&filter=needs_manual' : '07-batches.html') + '"><span class="k"><span class="dot" style="background:var(--conf-none)"></span>Need manual marking</span><span class="v">' + manual.count + '</span><span class="s">no readable text, or too long for AI</span></a>' +
         '<div class="stat"><span class="k"><span class="dot" style="background:var(--info)"></span>Confirmed this week</span><span class="v">' + week.count + '</span><span class="s">' + week.by_me + ' by you</span></div>';
 
       /* Home shows at most three batches: the (at most three) pinned ones, then the newest. */

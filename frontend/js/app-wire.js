@@ -193,7 +193,9 @@
           var stateClass = item.status === 'in_review' ? 'in-review' : ready ? 'ready' : (failed || cancelled) ? 'failed' : confirmed ? 'reviewed' : manual ? 'failed' : 'processing';
           var flags = [];
           if (item.confidence === 'low' && ready) flags.push('<span class="flag">⚑ low confidence</span>');
-          if (manual) flags.push('<span class="flag">⚑ no text layer · mark by hand</span>');
+          if (manual) flags.push(item.flags.indexOf('too_long') >= 0
+            ? '<span class="flag" title="' + esc(item.progress || '') + '">⚑ too long for AI · mark by hand</span>'
+            : '<span class="flag">⚑ no text layer · mark by hand</span>');
           if (item.flags.indexOf('adjusted') >= 0) flags.push('<span class="flag" style="color:var(--ink-soft)">adjusted from AI</span>');
           if (failed) { var message = item.error && item.error.message ? item.error.message : 'AI grading failed'; flags.push('<span class="flag">⚠ Processing failed</span><span class="error-msg" title="' + esc(message) + '">' + esc(message) + '</span><button type="button" class="retry-btn" data-retry="' + esc(item.id) + '" data-version="' + esc(item.version) + '">Retry remaining criteria</button>'); }
           var href = confirmed ? '05-mark-report.html?submission_id=' + encodeURIComponent(item.id) : (ready || manual) ? '03b-review-split.html?submission_id=' + encodeURIComponent(item.id) : '';
@@ -381,7 +383,7 @@
         regradeButton.addEventListener('click', function () { regradeControl.classList.add('running'); regradeButton.disabled = true; regradeButton.textContent = 'Queueing…'; regradeFill.style.width = '3%'; MarkerAPI.regrade(submissionId).then(startRegrade).catch(function (error) { console.error('Regrade request failed', error); stopRegrade(error.message); }); });
         if (submission.status === 'queued' || submission.status === 'marking') startRegrade();
       }
-      var hint = document.querySelector('.actionbar .hint'); if (hint) hint.textContent = locked ? 'Batch finalised · marks are read-only' : manual ? 'No AI suggestion · enter a score and comment for every criterion' : hasEvidence ? 'Hover evidence to highlight · click to jump · Show all controls every retrieved passage' : 'No verified criterion evidence was returned for this submission';
+      var hint = document.querySelector('.actionbar .hint'); if (hint) hint.textContent = locked ? 'Batch finalised · marks are read-only' : manual ? 'No AI suggestion · enter a score and comment for every criterion' : hasEvidence ? 'Hover evidence to highlight · click to jump · the evidence toggle shows every cited passage' : 'No verified criterion evidence was returned for this submission';
 
       Array.prototype.forEach.call(cards, function (card, index) {
         var item = criteria[index];

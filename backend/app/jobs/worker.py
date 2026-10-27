@@ -19,7 +19,12 @@ from app.db.session import SessionLocal
 from app.domain.states import BatchStatus, SubmissionStatus
 from app.jobs.queue import JobQueue
 from app.services.batch_service import BatchUseCases
-from app.services.grading_service import BatchCancelled, LeaseLost, grade_submission
+from app.services.grading_service import (
+    BatchCancelled,
+    DocumentTooLong,
+    LeaseLost,
+    grade_submission,
+)
 from app.services.settings_service import load_ai_settings
 from app.services.submission_service import apply_extraction
 
@@ -129,6 +134,11 @@ async def handle_grade(payload: dict[str, object]) -> None:
             # carries on from the criteria already committed.
             session.rollback()
             return
+        except DocumentTooLong as exc:
+            # Never truncate: a submission the model cannot read whole is marked by a tutor.
+            session.rollback()
+            _route_to_manual(session, submission, batch_id, "too_long", str(exc))
+            return
         submission.status = SubmissionStatus.AI_DONE.value
         submission.ai_summary = (
             f"{len(criteria)}/{len(criteria)} criteria processed · {submission.ai_summary}"
@@ -145,6 +155,21 @@ async def handle_grade(payload: dict[str, object]) -> None:
         raise
     finally:
         session.close()
+
+
+def _route_to_manual(
+    session: Any, submission: Submission, batch_id: str, reason: str, message: str
+) -> None:
+    flags = set(json.loads(submission.flags_json or "[]")) | {"needs_manual", reason}
+    submission.flags_json = json.dumps(sorted(flags))
+    # needs_ocr is the existing "mark by hand" state; the flag says why.
+    submission.status = SubmissionStatus.NEEDS_OCR.value
+    submission.ai_summary = message
+    submission.error_reason = None
+    submission.version += 1
+    session.flush()
+    BatchUseCases(session).refresh_status(batch_id)
+    session.commit()
 
 
 def _mark_terminal_failure(payload: dict[str, object], error: str) -> None:

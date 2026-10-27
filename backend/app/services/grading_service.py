@@ -14,8 +14,8 @@ from app.db.models.review import Review
 from app.db.models.submission import AIResult, Evidence, Submission
 from app.domain.ids import new_id
 from app.grading import grade_criterion
-from app.llm.protocol import ProviderError
-from app.retrieval import retrieve_passages
+from app.llm.protocol import FatalProviderError, ProviderError
+from app.retrieval import FullDocument, full_document, retrieve_passages
 
 
 class BatchCancelled(RuntimeError):
@@ -24,6 +24,28 @@ class BatchCancelled(RuntimeError):
 
 class LeaseLost(RuntimeError):
     """The worker no longer owns this job; another slot may be grading it."""
+
+
+class DocumentTooLong(RuntimeError):
+    """The submission does not fit the model's context window; a tutor marks it by hand."""
+
+    final = True
+
+    def __init__(self, estimated_tokens: int | None, limit: int | None) -> None:
+        if estimated_tokens and limit:
+            message = (
+                f"Too long for the AI model to read whole (about {estimated_tokens:,} tokens; "
+                f"the model reads up to {limit:,}). Mark by hand."
+            )
+        else:
+            message = "Too long for the AI model to read whole. Mark by hand."
+        super().__init__(message)
+        self.estimated_tokens = estimated_tokens
+        self.limit = limit
+
+
+# Room left in the context window for the rubric, instructions and the model's answer.
+_PROMPT_RESERVE_TOKENS = 12_000
 
 
 class CriterionFailed(RuntimeError):
@@ -47,6 +69,9 @@ async def _grade_with_retry(
     passages: list[Any],
     submission_id: str,
     position: int,
+    *,
+    full: FullDocument | None = None,
+    after_gate: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     criterion_id = str(criterion["id"])
     name = criterion.get("name", criterion_id)
@@ -57,7 +82,13 @@ async def _grade_with_retry(
                 criterion,
                 passages,
                 {"submission_id": submission_id, "criterion_id": criterion_id, "attempt": str(attempt)},
+                full=full,
+                after_gate=after_gate,
             )
+        except FatalProviderError as exc:
+            if exc.reason == "context_length":
+                raise DocumentTooLong(full.estimated_tokens if full else None, None) from exc
+            raise CriterionFailed(f"C{position} {name}: {exc}", final=True) from exc
         except (ProviderError, NotImplementedError) as exc:
             # The client already waited and retried; a wrong key or model will not fix itself.
             raise CriterionFailed(f"C{position} {name}: {exc}", final=True) from exc
@@ -150,6 +181,7 @@ async def grade_submission(
                     "grading_mode": result.get("grading_mode", criterion.get("grading_mode")),
                     "coverage_ratio": result.get("coverage_ratio", 0),
                     "missing_aspects": result.get("missing_aspects", []),
+                    "context": "full" if full else "retrieval",
                 },
                 ensure_ascii=False,
             ),
@@ -159,7 +191,7 @@ async def grade_submission(
             self_confidence=None,
             provider=settings.llm,
             model=str(result.get("model") or settings.ai_model),
-            prompt_version="criterion-grade-coverage-v3",
+            prompt_version="criterion-grade-fulltext-v1" if full else "criterion-grade-coverage-v3",
             input_tokens=int(result.get("input_tokens") or 0),
             output_tokens=int(result.get("output_tokens") or 0),
             latency_ms=int(result.get("latency_ms") or 0),
@@ -173,7 +205,7 @@ async def grade_submission(
         persisted_quotes: set[str] = set()
         added = 0
         evidence_ids_by_passage: dict[str, list[str]] = {}
-        for raw in selected[: settings.evidence_top_k]:
+        for raw in selected[: 12 if full else settings.evidence_top_k]:
             if not isinstance(raw, dict):
                 continue
             passage = passage_by_id.get(str(raw.get("passage_id", "")))
@@ -261,8 +293,15 @@ async def grade_submission(
             session.commit()
         return score, confidence, added
 
-    # 1. Retrieval for every criterion still to grade (local and quick: document vectors
-    #    are cached, only the query is embedded).
+    # 1. What the evidence step reads. Full: every paragraph of the submission, once for
+    #    all criteria — never truncated; a submission that cannot fit goes to a tutor.
+    #    Retrieval: the passages retrieved for each criterion (evaluation comparison only).
+    full: FullDocument | None = None
+    if settings.grading_context == "full":
+        full = full_document(document)
+        limit_tokens = int(settings.ai_context_tokens) - _PROMPT_RESERVE_TOKENS
+        if full.estimated_tokens > limit_tokens:
+            raise DocumentTooLong(full.estimated_tokens, limit_tokens)
     pending: list[tuple[int, dict[str, Any], str, AIResult | None, list[Any]]] = []
     for position, criterion in enumerate(criteria, 1):
         criterion_id = str(criterion["id"])
@@ -272,13 +311,17 @@ async def grade_submission(
             confidence_values.append(completed.confidence)
             evidence_count += evidence_counts.get(completed.id, 0)
             continue
-        passages = retrieve_passages(
-            document,
-            criterion,
-            limit=settings.retrieval_candidate_limit,
-            settings=settings,
-            submission_id=submission.id,
-            document_version=submission.document_version,
+        passages = (
+            full.passages
+            if full is not None
+            else retrieve_passages(
+                document,
+                criterion,
+                limit=settings.retrieval_candidate_limit,
+                settings=settings,
+                submission_id=submission.id,
+                document_version=submission.document_version,
+            )
         )
         pending.append((position, criterion, criterion_id, completed, passages))
 
@@ -293,11 +336,26 @@ async def grade_submission(
             raise LeaseLost("job_lease_lost")
         _require_active_batch(session, batch)
 
+    # In full mode the first criterion goes alone until its evidence call has returned:
+    # the provider has then cached the submission text, and the others reuse it.
+    warm = asyncio.Event()
+    if full is None or len(pending) <= 1:
+        warm.set()
+    first = pending[0][0] if pending else None
+
     async def run(item: tuple[int, dict[str, Any], str, AIResult | None, list[Any]]) -> tuple[Any, dict[str, Any]]:
         position, criterion, criterion_id, _completed, passages = item
+        if position != first:
+            await warm.wait()
         async with limit:
             check_still_running()
-            result = await _grade_with_retry(settings, criterion, passages, submission.id, position)
+            try:
+                result = await _grade_with_retry(
+                    settings, criterion, passages, submission.id, position,
+                    full=full, after_gate=warm.set if position == first else None,
+                )
+            finally:
+                warm.set()  # never leave the others waiting if the first one fails
             return item, result
 
     check_still_running()
@@ -307,7 +365,7 @@ async def grade_submission(
         for next_done in asyncio.as_completed(tasks):
             try:
                 item, result = await next_done
-            except (BatchCancelled, LeaseLost):
+            except (BatchCancelled, LeaseLost, DocumentTooLong):
                 raise
             except Exception as exc:  # keep the other criteria's results; fail afterwards
                 failure = failure or exc
@@ -333,7 +391,7 @@ async def grade_submission(
     submission.min_confidence = (
         min(confidence_values, key=confidence_order.get) if confidence_values else "none"
     )
-    submission.ai_summary = f"{evidence_count} verified evidence passage(s) retrieved"
+    submission.ai_summary = f"{evidence_count} verified evidence passage(s) found"
     submission.error_reason = None
     submission.version += 1
     session.flush()

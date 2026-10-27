@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # Retries inside the LLM client for 429 / 5xx / timeouts; Retry-After is honoured.
     llm_max_retries: int = Field(default=5, ge=0, le=10)
     llm_max_backoff_seconds: float = Field(default=60.0, ge=1, le=600)
+    # "full": the evidence step reads the whole submission (default). "retrieval": only the
+    # passages retrieved for each criterion — kept for evaluation comparisons.
+    grading_context: Literal["full", "retrieval"] = "full"
+    # Model context window. A submission that cannot fit is routed to manual marking,
+    # never truncated.
+    ai_context_tokens: int = Field(default=128_000, ge=8_000)
     # Criteria of one submission graded at the same time (still bounded by llm_max_in_flight).
     criterion_concurrency: int = Field(default=3, ge=1, le=8)
     embedding_model: str = "BAAI/bge-small-en-v1.5"

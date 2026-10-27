@@ -41,7 +41,7 @@ def _tokens(value: str) -> list[str]:
     return [token.lower() for token in _TOKEN.findall(value) if token.lower() not in _STOP]
 
 
-def _passages(document: dict[str, Any]) -> list[RetrievedPassage]:
+def _passages(document: dict[str, Any], chunk_words: int = _CHUNK_WORDS) -> list[RetrievedPassage]:
     passages: list[RetrievedPassage] = []
     running_offset = 0
     current_section = ""
@@ -60,19 +60,19 @@ def _passages(document: dict[str, Any]) -> list[RetrievedPassage]:
         chunk_starts = range(
             0,
             max(len(word_matches), 1),
-            _CHUNK_WORDS - _CHUNK_OVERLAP_WORDS,
+            max(1, chunk_words - _CHUNK_OVERLAP_WORDS),
         )
         for chunk_index, word_start in enumerate(chunk_starts, 1):
             if not word_matches:
                 break
-            word_end = min(word_start + _CHUNK_WORDS, len(word_matches))
+            word_end = min(word_start + chunk_words, len(word_matches))
             char_start = word_matches[word_start].start()
             char_end = word_matches[word_end - 1].end()
             passages.append(
                 RetrievedPassage(
                     id=(
                         f"p{paragraph_index}"
-                        if len(word_matches) <= _CHUNK_WORDS
+                        if len(word_matches) <= chunk_words
                         else f"p{paragraph_index}c{chunk_index}"
                     ),
                     page=int(block.get("page") or 1),
