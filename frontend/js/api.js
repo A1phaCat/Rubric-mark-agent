@@ -35,6 +35,8 @@
     createBatch: function (value) { return request('/batches', { method: 'POST', body: JSON.stringify(value) }); },
     getBatch: function (batchId) { return request('/batches/' + id(batchId)); },
     pinBatch: function (batchId, pinned) { return request('/batches/' + id(batchId) + '/pin', { method: 'PUT', body: JSON.stringify({ pinned: pinned }) }); },
+    pauseBatch: function (batchId, version) { return request('/batches/' + id(batchId) + '/pause', { method: 'POST', body: JSON.stringify({ version: version }) }); },
+    resumeBatch: function (batchId, version) { return request('/batches/' + id(batchId) + '/resume', { method: 'POST', body: JSON.stringify({ version: version }) }); },
     cancelBatch: function (batchId, version, reason) { return request('/batches/' + id(batchId) + '/cancel', { method: 'POST', body: JSON.stringify({ version: version, reason: reason || 'Batch terminated by user' }) }); },
     deleteBatch: function (batchId, version) { return request('/batches/' + id(batchId) + '?version=' + id(version), { method: 'DELETE' }); },
     finaliseBatch: function (batchId, version) { return request('/batches/' + id(batchId) + '/finalise', { method: 'POST', body: JSON.stringify({ version: version }) }); },

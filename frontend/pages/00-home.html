@@ -127,6 +127,7 @@
   .pill.processing{ background:var(--ai-bg); color:var(--ai); }
   .pill.reviewing{ background:var(--info-bg); color:var(--info); }
   .pill.done{ background:var(--track); color:var(--ink-soft); }
+  .pill.paused{ background:#FFF3CC; color:#7A5A00; }
   .pill.final{ background:var(--conf-high-bg); color:var(--conf-high); }
   .sample-tag{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--primary); border:1px solid var(--primary); border-radius:4px; padding:1px 5px; margin-left:8px; vertical-align:2px; font-weight:400; }
   .pin-mark{ font-size:11px; margin-left:6px; vertical-align:2px; }
@@ -324,6 +325,7 @@
   <p class="note"><span class="dot"></span> The AI marker only suggests evidence and scores. Nothing becomes a final mark until a tutor confirms it, and every adjustment is kept in the record.</p>
 </main>
 
+<script src="/js/dialog.js"></script>
 <script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/render-home.js"></script><script src="/js/app-wire.js"></script>
 </body>

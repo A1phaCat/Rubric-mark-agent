@@ -167,7 +167,7 @@
         requestFinaliseConfirmation().then(function (confirmed) {
           if (!confirmed) return;
           finalise.disabled = true;
-          MarkerAPI.finaliseBatch(batch.id, batch.version).then(function () { location.reload(); }).catch(function (error) { finalise.disabled = false; alert(error.message); });
+          MarkerAPI.finaliseBatch(batch.id, batch.version).then(function () { location.reload(); }).catch(function (error) { finalise.disabled = false; MarkerDialog.alert(ui.actionError('Could not finalise the batch', error)); });
         });
       });
       var reopen = document.getElementById('reopenBtn');
@@ -175,7 +175,7 @@
         requestReopenReason().then(function (reason) {
           if (!reason) return;
           reopen.disabled = true;
-          MarkerAPI.reopenBatch(batch.id, batch.version, reason).then(function () { location.reload(); }).catch(function (error) { reopen.disabled = false; alert(error.message); });
+          MarkerAPI.reopenBatch(batch.id, batch.version, reason).then(function () { location.reload(); }).catch(function (error) { reopen.disabled = false; MarkerDialog.alert(ui.actionError('Could not reopen the batch', error)); });
         });
       });
       ui.setCrumb(batch.name);

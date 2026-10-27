@@ -22,6 +22,10 @@ class BatchCancelled(RuntimeError):
     pass
 
 
+class BatchPaused(RuntimeError):
+    """The batch was paused: criteria already sent are kept, the rest wait for resume."""
+
+
 class LeaseLost(RuntimeError):
     """The worker no longer owns this job; another slot may be grading it."""
 
@@ -102,10 +106,13 @@ async def _grade_with_retry(
     raise AssertionError("unreachable")
 
 
-def _require_active_batch(session: Session, batch: Batch) -> None:
+def _require_active_batch(session: Session, batch: Batch, *, starting: bool = False) -> None:
     session.refresh(batch, attribute_names=["status"])
     if batch.status == "cancelled":
         raise BatchCancelled("batch_cancelled")
+    if starting and batch.status == "paused":
+        # Only new work is held back; a criterion already with the provider finishes.
+        raise BatchPaused("batch_paused")
 
 
 async def grade_submission(
@@ -331,10 +338,10 @@ async def grade_submission(
     processed = [len(criteria) - len(pending)]
     limit = asyncio.Semaphore(max(1, int(settings.criterion_concurrency)))
 
-    def check_still_running() -> None:
+    def check_still_running(starting: bool = False) -> None:
         if still_owned is not None and not still_owned():
             raise LeaseLost("job_lease_lost")
-        _require_active_batch(session, batch)
+        _require_active_batch(session, batch, starting=starting)
 
     # In full mode the first criterion goes alone until its evidence call has returned:
     # the provider has then cached the submission text, and the others reuse it.
@@ -345,28 +352,33 @@ async def grade_submission(
 
     async def run(item: tuple[int, dict[str, Any], str, AIResult | None, list[Any]]) -> tuple[Any, dict[str, Any]]:
         position, criterion, criterion_id, _completed, passages = item
-        if position != first:
-            await warm.wait()
-        async with limit:
-            check_still_running()
-            try:
+        try:
+            if position != first:
+                await warm.wait()
+            async with limit:
+                check_still_running(starting=True)
                 result = await _grade_with_retry(
                     settings, criterion, passages, submission.id, position,
                     full=full, after_gate=warm.set if position == first else None,
                 )
-            finally:
-                warm.set()  # never leave the others waiting if the first one fails
-            return item, result
+                return item, result
+        finally:
+            if position == first:
+                warm.set()  # never leave the others waiting if the first one fails or pauses
 
-    check_still_running()
+    check_still_running(starting=True)
     tasks = [asyncio.ensure_future(run(item)) for item in pending]
     failure: BaseException | None = None
+    paused = False
     try:
         for next_done in asyncio.as_completed(tasks):
             try:
                 item, result = await next_done
             except (BatchCancelled, LeaseLost, DocumentTooLong):
                 raise
+            except BatchPaused:
+                paused = True  # this criterion was never sent; keep saving the ones that were
+                continue
             except Exception as exc:  # keep the other criteria's results; fail afterwards
                 failure = failure or exc
                 continue
@@ -385,6 +397,8 @@ async def grade_submission(
         await asyncio.gather(*tasks, return_exceptions=True)
     if failure is not None:
         raise failure
+    if paused:
+        raise BatchPaused("batch_paused")
 
     confidence_order = {"none": 0, "low": 1, "medium": 2, "high": 3}
     submission.ai_total = round(total, 2)

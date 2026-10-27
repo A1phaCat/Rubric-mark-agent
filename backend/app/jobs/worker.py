@@ -21,6 +21,7 @@ from app.jobs.queue import JobQueue
 from app.services.batch_service import BatchUseCases
 from app.services.grading_service import (
     BatchCancelled,
+    BatchPaused,
     DocumentTooLong,
     LeaseLost,
     grade_submission,
@@ -65,6 +66,8 @@ async def handle_grade(payload: dict[str, object]) -> None:
             raise KeyError(submission_id)
         if batch.status == BatchStatus.CANCELLED.value:
             return
+        if batch.status == BatchStatus.PAUSED.value:
+            raise BatchPaused("batch_paused")  # the slot sets this job aside until resume
         criteria = list(
             session.scalars(
                 select(RubricCriterion)
@@ -134,6 +137,22 @@ async def handle_grade(payload: dict[str, object]) -> None:
             # carries on from the criteria already committed.
             session.rollback()
             return
+        except BatchPaused:
+            # Criteria finished before the pause are committed; the rest wait for resume.
+            session.rollback()
+            done = int(
+                session.scalar(
+                    select(func.count(func.distinct(AIResult.criterion_id))).where(
+                        AIResult.submission_id == submission.id
+                    )
+                )
+                or 0
+            )
+            submission.status = SubmissionStatus.QUEUED.value
+            submission.ai_summary = f"Paused · {done}/{len(criteria)} criteria done"
+            submission.version += 1
+            session.commit()
+            raise
         except DocumentTooLong as exc:
             # Never truncate: a submission the model cannot read whole is marked by a tutor.
             session.rollback()
@@ -235,8 +254,11 @@ def run_once(owner: str | None = None) -> bool:
     )
     lease_thread.start()
     _CURRENT.owned = lease.owned
+    parked = False
     try:
         handle(kind, payload)
+    except BatchPaused:
+        parked = True
     except Exception as exc:  # worker boundary must persist all failures
         error = str(exc).strip() or type(exc).__name__
         # Provider and model-output failures were already retried where they happened.
@@ -252,7 +274,9 @@ def run_once(owner: str | None = None) -> bool:
         if job.status != "running" or job.lease_owner != owner:
             return True
         queue = JobQueue(session)
-        if error is None:
+        if parked:
+            queue.park(job, owner)
+        elif error is None:
             queue.done(job, owner)
         else:
             queue.fail(job, owner, error, 1 if final else settings.job_max_attempts)

@@ -71,6 +71,11 @@
   .live-work strong{ color:var(--ai); font-weight:500; }
   .live-work a{ color:inherit; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(143,63,36,.35); }
   .live-work a:hover{ color:var(--primary); text-decoration-color:var(--primary); }
+  .chip.resume-chip{ border-color:var(--primary); color:var(--primary); }
+  .chip.resume-chip:hover{ background:var(--primary); color:#fff; }
+  .queue-wait.paused-work{ background:linear-gradient(180deg,transparent,#FFF3CC); }
+  .queue-wait.paused-work strong{ color:#7A5A00; }
+  .queue-wait.paused-work .queue-clock{ color:#D88D00; font-size:11px; letter-spacing:-1px; }
   .queue-wait{ padding:12px 14px; margin-left:-14px; margin-right:-14px; background:linear-gradient(180deg,transparent,var(--ai-bg)); border-radius:0 0 8px 8px; }
   .queue-clock{ color:var(--primary); font-size:17px; line-height:1; }
   .live-bars{ display:inline-flex; align-items:flex-end; gap:2px; width:18px; height:13px; }
@@ -254,6 +259,7 @@
 </footer>
 
 
+<script src="/js/dialog.js"></script>
 <script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>

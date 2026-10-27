@@ -191,6 +191,8 @@ class BatchUseCases:
         self.session.flush()
         counts = self.counts(batch_id)
         remaining = counts["total"] - counts["excluded"]
+        if counts["processing"] and batch.status == BatchStatus.PAUSED.value:
+            return  # stays paused while work is held back
         if counts["processing"]:
             status = BatchStatus.PROCESSING.value
         elif remaining and counts["failed"] == remaining:
@@ -368,6 +370,7 @@ class BatchUseCases:
         if batch.status not in {
             BatchStatus.DRAFT.value,
             BatchStatus.PROCESSING.value,
+            BatchStatus.PAUSED.value,
             BatchStatus.FAILED_ALL.value,
         }:
             raise RuntimeError("invalid_transition")
@@ -397,7 +400,7 @@ class BatchUseCases:
             submission.version += 1
         self.session.execute(
             update(Job)
-            .where(Job.batch_id == batch.id, Job.status == "queued")
+            .where(Job.batch_id == batch.id, Job.status.in_(["queued", "paused"]))
             .values(
                 status="cancelled",
                 last_error=reason or "Batch terminated by user",
@@ -417,13 +420,75 @@ class BatchUseCases:
             "version": batch.version,
         }
 
+    def pause(self, batch_id: str, actor_id: str, version: int) -> dict[str, Any]:
+        """Hold back this batch's queued work. Resumable, unlike cancel.
+
+        Submissions already with the AI finish the criterion calls in flight, keep every
+        criterion completed so far and wait with the rest; nothing new is sent.
+        """
+
+        batch = self._batch(batch_id)
+        if batch.version != version:
+            raise RuntimeError("version_conflict")
+        if batch.status != BatchStatus.PROCESSING.value:
+            raise RuntimeError("invalid_transition")
+        now = datetime.now(timezone.utc)
+        held = self.session.execute(
+            update(Job)
+            .where(Job.batch_id == batch.id, Job.status == "queued")
+            .values(status="paused", updated_at=now)
+        ).rowcount
+        running = int(
+            self.session.scalar(
+                select(func.count()).select_from(Job).where(
+                    Job.batch_id == batch.id, Job.status == "running"
+                )
+            )
+            or 0
+        )
+        batch.status = BatchStatus.PAUSED.value
+        batch.version += 1
+        self._audit(actor_id, "batch.pause", batch, {"held_jobs": held, "running_jobs": running})
+        return {
+            "batch_id": batch.id,
+            "status": batch.status,
+            "held": int(held or 0),
+            "finishing": running,
+            "version": batch.version,
+        }
+
+    def resume(self, batch_id: str, actor_id: str, version: int) -> dict[str, Any]:
+        """Put a paused batch's work back in the queue; completed criteria are not redone."""
+
+        batch = self._batch(batch_id)
+        if batch.version != version:
+            raise RuntimeError("version_conflict")
+        if batch.status != BatchStatus.PAUSED.value:
+            raise RuntimeError("invalid_transition")
+        now = datetime.now(timezone.utc)
+        released = self.session.execute(
+            update(Job)
+            .where(Job.batch_id == batch.id, Job.status == "paused")
+            .values(status="queued", run_after=now, updated_at=now)
+        ).rowcount
+        batch.status = BatchStatus.PROCESSING.value
+        batch.version += 1
+        self._audit(actor_id, "batch.resume", batch, {"released_jobs": released})
+        self.refresh_status(batch.id)  # nothing left to do → straight to review
+        return {
+            "batch_id": batch.id,
+            "status": batch.status,
+            "released": int(released or 0),
+            "version": batch.version,
+        }
+
     def delete(self, batch_id: str, actor_id: str, version: int) -> dict[str, Any]:
         batch = self._batch(batch_id)
         if batch.version != version:
             raise RuntimeError("version_conflict")
         if batch.status == BatchStatus.FINALISED.value:
             raise RuntimeError("finalised_batch_locked")
-        if batch.status == BatchStatus.PROCESSING.value:
+        if batch.status in {BatchStatus.PROCESSING.value, BatchStatus.PAUSED.value}:
             raise RuntimeError("batch_must_be_cancelled")
 
         submissions = list(
@@ -589,7 +654,13 @@ class BatchUseCases:
             "term": {"id": batch.term_id, "label": term.label if term else batch.term_id},
             "due_at": batch.due_at.isoformat() if batch.due_at else None,
             "status": batch.status,
-            "display_status": "processing" if counts["processing"] > 0 else batch.status,
+            "display_status": (
+                batch.status
+                if batch.status == BatchStatus.PAUSED.value
+                else "processing"
+                if counts["processing"] > 0
+                else batch.status
+            ),
             "is_sample": bool(batch.is_sample),
             "pinned": bool(batch.pinned),
             "pinned_at": _iso(batch.pinned_at),

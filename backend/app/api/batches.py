@@ -181,6 +181,34 @@ def reopen_batch(
         raise translate_error(exc) from exc
 
 
+@router.post("/{batch_id}/pause")
+def pause_batch(
+    batch_id: str,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    try:
+        with db.begin():
+            return BatchUseCases(db).pause(batch_id, user["id"], int(payload["version"]))
+    except Exception as exc:
+        raise translate_error(exc) from exc
+
+
+@router.post("/{batch_id}/resume")
+def resume_batch(
+    batch_id: str,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    try:
+        with db.begin():
+            return BatchUseCases(db).resume(batch_id, user["id"], int(payload["version"]))
+    except Exception as exc:
+        raise translate_error(exc) from exc
+
+
 @router.post("/{batch_id}/cancel")
 def cancel_batch(
     batch_id: str,

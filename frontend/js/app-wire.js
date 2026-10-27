@@ -26,7 +26,7 @@
   var STATUS_LABELS = {
     uploaded: 'Not started', queued: 'Queued', extracting: 'Extracting text', marking: 'With the AI', ai_done: 'Ready for review', in_review: 'In review',
     needs_ocr: 'Needs manual marking', ocr_failed: 'Needs manual marking', confirmed: 'Confirmed', failed: 'Failed', excluded: 'Excluded', cancelled: 'Cancelled',
-    draft: 'Draft', processing: 'Processing', completed: 'Complete', finalised: 'Finalised', failed_all: 'Failed'
+    draft: 'Draft', processing: 'Processing', paused: 'Paused', completed: 'Complete', finalised: 'Finalised', failed_all: 'Failed'
   };
   function statusLabel(status) { return STATUS_LABELS[status] || String(status || '').replace(/_/g, ' '); }
   function queueBlockerText(batch) {
@@ -39,6 +39,10 @@
   }
   function queueActivityHtml(batch, counts) {
     var active = Number(counts.active || 0), queued = Number(counts.queued || 0);
+    if (batch.status === 'paused') {
+      return '<div class="live-work queue-wait paused-work" role="status"><span class="queue-clock" aria-hidden="true">❚❚</span><strong>' +
+        (active > 0 ? 'Pausing — ' + active + ' finishing the criteria already sent' : 'Paused') + '</strong><span>· ' + queued + ' on hold · resume to continue</span></div>';
+    }
     if (active > 0) return '<div class="live-work" role="status"><span class="live-bars" aria-hidden="true"><i></i><i></i><i></i></span><strong>' + active + ' actively processing</strong><span>· ' + queued + ' queued</span></div>';
     var queue = batch.queue || {}, blocker = queue.blocked_by, jobs = Number(queue.jobs_ahead || 0);
     if (blocker) {
@@ -46,6 +50,55 @@
       return '<div class="live-work queue-wait" role="status"><span class="queue-clock" aria-hidden="true">◷</span><strong><a href="02-batch-status.html?batch_id=' + encodeURIComponent(blocker.id) + '" title="Open the batch currently ahead in the queue">' + esc(label) + '</a></strong><span>· ' + suffix + '</span></div>';
     }
     return '<div class="live-work queue-wait" role="status"><span class="queue-clock" aria-hidden="true">◷</span><strong>Waiting for a worker</strong><span>· ' + queued + ' queued</span></div>';
+  }
+  /* Shared wording for batch actions; used by the batch list and the batch page. */
+  var FLOW = {
+    pause: { title: 'Pause this batch?', icon: 'pause', confirmLabel: 'Pause batch', cancelLabel: 'Keep running', busy: 'Pausing…',
+      message: 'Work not yet sent to the AI is held back. Submissions already with the AI finish the criteria in flight, and every finished criterion is kept.',
+      note: 'Nothing is lost — resume any time and it carries on from where it stopped.' },
+    resume: { title: 'Resume this batch?', icon: 'play', confirmLabel: 'Resume batch', cancelLabel: 'Stay paused', busy: 'Resuming…',
+      message: 'The held submissions go back into the queue. Criteria already marked are not sent again.' },
+    cancel: { title: 'Terminate this batch?', icon: 'stop', tone: 'danger', confirmLabel: 'Terminate', cancelLabel: 'Keep batch', busy: 'Terminating…',
+      message: 'Queued work stops for good and the remaining submissions are cancelled. Marks already produced are kept.',
+      note: 'To stop only for now, use Pause instead — it can be resumed.' },
+    delete: { title: 'Delete this batch?', icon: 'trash', tone: 'danger', confirmLabel: 'Delete permanently', cancelLabel: 'Keep batch', busy: 'Deleting…',
+      message: 'The batch, its marks and its uploaded files are removed permanently. This cannot be undone.' }
+  };
+  var ERRORS = {
+    version_conflict: 'This batch changed in another tab. Reload the page and try again.',
+    invalid_transition: 'This batch is no longer in a state that allows that. Reload to see its current status.',
+    batch_terminated: 'This batch was terminated, so its submissions cannot be retried.',
+    database_busy: 'The local database is briefly busy. Try again in a moment.'
+  };
+  function actionError(title, error) {
+    var code = error && (error.code || error.message);
+    var message = ERRORS[code] || (error && error.message) || String(error);
+    if (error && error.status === 404 && !error.code) {
+      // The page is newer than the running server: the action exists in the code on disk
+      // but not in the API process that was started before the update.
+      message = 'The local server does not know this action yet — it is still running an older version. Restart it (make dev, or restart the API and the worker) and try again.';
+    }
+    return { title: title, message: message, icon: 'warn', tone: 'danger', okLabel: 'Close' };
+  }
+  function pinnedNotice(unpinned) {
+    return { title: 'Pinned to Home', icon: 'info', message: 'Up to 3 batches can be pinned to Home, so the oldest pin was removed: ' + unpinned.map(function (x) { return x.name; }).join(', ') + '.' };
+  }
+  /* Ask, then run a batch action. Resolves true when it succeeded. */
+  function batchFlow(kind, batch, button) {
+    var copy = FLOW[kind];
+    return MarkerDialog.confirm(Object.assign({ kicker: batch.name }, copy)).then(function (yes) {
+      if (!yes) return false;
+      var label = button ? button.textContent : '';
+      if (button) { button.disabled = true; button.textContent = copy.busy; }
+      var call = kind === 'pause' ? MarkerAPI.pauseBatch(batch.id, batch.version)
+        : kind === 'resume' ? MarkerAPI.resumeBatch(batch.id, batch.version)
+        : kind === 'cancel' ? MarkerAPI.cancelBatch(batch.id, batch.version, 'Terminated by tutor')
+        : MarkerAPI.deleteBatch(batch.id, batch.version);
+      return call.then(function () { return true; }).catch(function (error) {
+        if (button) { button.disabled = false; button.textContent = label; }
+        return MarkerDialog.alert(actionError('Could not ' + (kind === 'cancel' ? 'terminate' : kind) + ' the batch', error)).then(function () { return false; });
+      });
+    });
   }
   function pageName() { return (location.pathname.split('/').pop() || '00-home.html').toLowerCase(); }
   function reportError(error) {
@@ -75,7 +128,7 @@
   function stepTrack(status) {
     var node = document.getElementById('stepTrack'); if (!node) return;
     var steps = ['1. Set up batch', '2. Processing', '3. Review', '4. Finalised'];
-    var current = { draft: 0, processing: 1, in_review: 2, completed: 2, finalised: 3 }[status];
+    var current = { draft: 0, processing: 1, paused: 1, in_review: 2, completed: 2, finalised: 3 }[status];
     if (current == null) current = 2;
     node.innerHTML = steps.map(function (label, index) { return index < current ? '<span class="ok">✓</span> ' + label : index === current ? '<span class="current">' + label + '</span>' : label; }).join(' — ');
   }
@@ -94,6 +147,7 @@
       var dot = document.getElementById('bpDot'), status = document.getElementById('bpStatus'), counts = batch.counts || {};
       if (dot) dot.className = 'bp-dot ' + (batch.status === 'completed' || batch.status === 'finalised' ? 'done' : batch.status === 'in_review' ? 'review' : '');
       if (status) status.innerHTML = counts.failed ? '<b>' + counts.failed + '</b> failed — retry needed'
+        : batch.status === 'paused' ? 'Paused · <b>' + (counts.processing || 0) + '</b> on hold'
         : counts.processing ? '<b>' + counts.processing + '</b> still with AI'
         : batch.status === 'finalised' ? 'Finalised · marks locked'
         : batch.status === 'completed' ? 'Complete · editable'
@@ -134,7 +188,7 @@
     }
     return me;
   }
-  var ui = { pager: pager, esc: esc, num: num, shortDate: shortDate, longDate: longDate, ago: ago, statusLabel: statusLabel, setCrumb: setCrumb, stepTrack: stepTrack, batchNav: batchNav, batchHref: batchHref, reportError: reportError, applyUser: applyUser };
+  var ui = { pager: pager, esc: esc, num: num, shortDate: shortDate, longDate: longDate, ago: ago, statusLabel: statusLabel, setCrumb: setCrumb, stepTrack: stepTrack, batchNav: batchNav, batchHref: batchHref, reportError: reportError, applyUser: applyUser, batchFlow: batchFlow, actionError: actionError, pinnedNotice: pinnedNotice };
   window.MarkerUI = ui;
 
   /* ------------------------------------------------------------- rubrics */
@@ -189,7 +243,7 @@
         var first = submissions.items.find(function (item) { return item.status === 'ai_done' || item.status === 'in_review'; }) || submissions.items.find(function (item) { return item.status === 'needs_ocr'; });
         var rows = submissions.items.map(function (item) {
           var ready = item.status === 'ai_done' || item.status === 'in_review', failed = item.status === 'failed', cancelled = item.status === 'cancelled', manual = item.status === 'needs_ocr' || item.status === 'ocr_failed', confirmed = item.status === 'confirmed', activeWork = ['extracting','ocr_running','marking'].indexOf(item.status) >= 0, queuedWork = item.status === 'queued';
-          var label = failed ? 'Failed' : (cancelled || ready || manual || confirmed) ? statusLabel(item.status) : (item.progress || statusLabel(item.status));
+          var label = failed ? 'Failed' : (cancelled || ready || manual || confirmed) ? statusLabel(item.status) : batch.status === 'paused' && queuedWork ? 'On hold' + (/^Paused · /.test(item.progress || '') ? ' · ' + item.progress.replace(/^Paused · /, '') : '') : (item.progress || statusLabel(item.status));
           var stateClass = item.status === 'in_review' ? 'in-review' : ready ? 'ready' : (failed || cancelled) ? 'failed' : confirmed ? 'reviewed' : manual ? 'failed' : 'processing';
           var flags = [];
           if (item.confidence === 'low' && ready) flags.push('<span class="flag">⚑ low confidence</span>');
@@ -205,13 +259,15 @@
         var done = batch.status === 'completed' || batch.status === 'finalised';
         var action = done ? '<a class="start-btn" href="04-batch-complete.html?batch_id=' + encodeURIComponent(batch.id) + '">View results →</a>'
           : first ? '<a class="start-btn" href="03b-review-split.html?submission_id=' + encodeURIComponent(first.id) + '">' + (counts.confirmed ? 'Continue reviewing →' : 'Start reviewing →') + '</a>' : '';
+        var flow = batch.status === 'processing' ? '<button type="button" class="chip" id="pauseBatch" title="Hold back the work not yet sent to the AI. Nothing is lost; resume any time.">❚❚ Pause</button>'
+          : batch.status === 'paused' ? '<button type="button" class="chip resume-chip" id="resumeBatch" title="Continue from where it stopped">▶ Resume</button>' : '';
         var pin = '<button type="button" class="chip" id="pinBatch" title="Up to 3 pinned batches are shown on Home; pinning a fourth unpins the oldest">' + (batch.pinned ? '📌 Pinned' : 'Pin to top') + '</button>';
         var due = batch.due_at ? (new Date(batch.due_at) < new Date() ? 'closed ' : 'due ') + shortDate(batch.due_at) : null;
         var chips = FILTERS.filter(function (f) { return f[0] === 'all' || counts[f[2]] || f[0] === filter; }).map(function (f) { return '<button type="button" class="chip' + (f[0] === filter ? ' active' : '') + '" data-filter="' + f[0] + '">' + f[1] + ' (' + Number(counts[f[2]] || 0) + ')</button>'; }).join('');
         document.getElementById('batchMain').innerHTML =
-          '<div class="top"><div><h1>' + esc(batch.name) + (batch.is_sample ? ' <span class="status-pill reviewed" style="vertical-align:4px">Sample</span>' : '') + '</h1><p class="sub">' + all + ' submission' + (all === 1 ? '' : 's') + ' · ' + esc(rubric.criteria_count || 0) + ' criteria · ' + num(maximum) + ' marks' + (due ? ' · ' + due : '') + ' · ' + statusLabel(batch.status) + '</p></div><div class="top-actions">' + pin + ' ' + action + '</div></div>' +
+          '<div class="top"><div><h1>' + esc(batch.name) + (batch.is_sample ? ' <span class="status-pill reviewed" style="vertical-align:4px">Sample</span>' : '') + '</h1><p class="sub">' + all + ' submission' + (all === 1 ? '' : 's') + ' · ' + esc(rubric.criteria_count || 0) + ' criteria · ' + num(maximum) + ' marks' + (due ? ' · ' + due : '') + ' · ' + statusLabel(batch.status) + '</p></div><div class="top-actions">' + flow + ' ' + pin + ' ' + action + '</div></div>' +
           '<div class="progress-card' + (Number(counts.active||0)>0?' is-live':'') + '"><div class="progress-top"><span class="label">Batch progress</span><span class="val">' + processed + ' / ' + all + ' processed</span></div><div class="bar progress-layers" role="progressbar" aria-label="' + confirmed + ' confirmed; ' + processed + ' processed; ' + all + ' total" aria-valuemin="0" aria-valuemax="' + all + '" aria-valuenow="' + confirmed + '"><div class="bar-ready" style="width:' + pct + '%"></div><div class="bar-confirmed" style="width:' + confirmedPct + '%"></div></div>' +
-          '<div class="progress-stats"><span><b>' + Number(counts.ready || 0) + '</b> ready</span><span><b>' + Number(counts.confirmed || 0) + '</b> confirmed</span><span><b>' + Number(counts.needs_manual || 0) + '</b> manual</span><span><b>' + Number(counts.processing || 0) + '</b> processing</span>' + (counts.not_started ? '<span><b>' + counts.not_started + '</b> not started</span>' : '') + '<span><b>' + Number(counts.failed || 0) + '</b> failed</span>' + (batch.eta_seconds != null && Number(counts.processing || 0) > 0 ? '<span class="eta" title="Estimate updates from this batch’s observed AI processing speed">' + etaText(batch.eta_seconds) + '</span>' : '') + '</div>' + (Number(counts.processing||0)>0?queueActivityHtml(batch, counts):'') + '</div>' +
+          '<div class="progress-stats"><span><b>' + Number(counts.ready || 0) + '</b> ready</span><span><b>' + Number(counts.confirmed || 0) + '</b> confirmed</span><span><b>' + Number(counts.needs_manual || 0) + '</b> manual</span><span><b>' + Number(counts.processing || 0) + '</b> ' + (batch.status === 'paused' ? 'on hold' : 'processing') + '</span>' + (counts.not_started ? '<span><b>' + counts.not_started + '</b> not started</span>' : '') + '<span><b>' + Number(counts.failed || 0) + '</b> failed</span>' + (batch.eta_seconds != null && Number(counts.processing || 0) > 0 ? '<span class="eta" title="Estimate updates from this batch’s observed AI processing speed">' + etaText(batch.eta_seconds) + '</span>' : '') + '</div>' + (Number(counts.processing||0)>0||batch.status==='paused'?queueActivityHtml(batch, counts):'') + '</div>' +
           '<div class="filters">' + chips + '</div>' +
           '<table><thead><tr><th>Submission</th><th>Status</th><th>Mark</th><th>Flags</th><th>Tutor</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5" style="color:var(--ink-soft)">No submissions in this view.</td></tr>') + '</tbody></table>' + pager(submissions.total, page, PAGE_SIZE);
         document.querySelectorAll('#batchMain tr[data-href]').forEach(function (tr) { tr.addEventListener('click', function () { location.href = tr.dataset.href; }); });
@@ -224,12 +280,15 @@
         }
         document.querySelectorAll('#batchMain [data-filter]').forEach(function (button) { button.addEventListener('click', function () { go(button.dataset.filter, 1); }); });
         document.querySelectorAll('#batchMain [data-page]').forEach(function (button) { button.addEventListener('click', function () { go(filter, Number(button.dataset.page)); window.scrollTo(0, 0); }); });
-        document.getElementById('pinBatch').addEventListener('click', function () { MarkerAPI.pinBatch(batch.id, !batch.pinned).then(function (r) { if (r.unpinned && r.unpinned.length) alert('Up to 3 batches can be pinned to Home. Unpinned: ' + r.unpinned.map(function (x) { return x.name; }).join(', ')); load(); }).catch(reportError); });
-        document.querySelectorAll('[data-retry]').forEach(function (button) { button.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); button.disabled = true; button.textContent = 'Retrying…'; MarkerAPI.retrySubmission(button.dataset.retry, Number(button.dataset.version)).then(function () { load(); }).catch(function (error) { button.disabled = false; button.textContent = 'Retry remaining criteria'; alert(error.message); }); }); });
+        document.getElementById('pinBatch').addEventListener('click', function () { MarkerAPI.pinBatch(batch.id, !batch.pinned).then(function (r) { if (r.unpinned && r.unpinned.length) return MarkerDialog.alert(pinnedNotice(r.unpinned)); }).then(load).catch(reportError); });
+        var pauseButton = document.getElementById('pauseBatch'), resumeButton = document.getElementById('resumeBatch');
+        if (pauseButton) pauseButton.addEventListener('click', function () { batchFlow('pause', batch, pauseButton).then(function (done) { if (done) load(); }); });
+        if (resumeButton) resumeButton.addEventListener('click', function () { batchFlow('resume', batch, resumeButton).then(function (done) { if (done) load(); }); });
+        document.querySelectorAll('[data-retry]').forEach(function (button) { button.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); button.disabled = true; button.textContent = 'Retrying…'; MarkerAPI.retrySubmission(button.dataset.retry, Number(button.dataset.version)).then(function () { load(); }).catch(function (error) { button.disabled = false; button.textContent = 'Retry remaining criteria'; MarkerDialog.alert(actionError('Could not retry this submission', error)); }); }); });
         setCrumb(batch.name); stepTrack(batch.status);
         document.title = batch.name + ' — AI-assisted marker';
         clearTimeout(timer);
-        if (Number(counts.processing || 0) > 0) timer = setTimeout(function () { load().catch(reportError); }, 3000);
+        if ((Number(counts.processing || 0) > 0 && batch.status !== 'paused') || Number(counts.active || 0) > 0) timer = setTimeout(function () { load().catch(reportError); }, 3000);
         return batchNav(batch).then(function () { return window.__MARKER_PAGE_DATA; });
       });
     }
@@ -244,9 +303,10 @@
         var counts = batch.counts || {}, total = Number(counts.total || 0), processed = Number(counts.processed || 0);
         var rawStatus = batch.display_status || batch.status || 'draft';
         var state = rawStatus === 'in_review' ? 'review' : (rawStatus === 'completed' || rawStatus === 'finalised' ? 'complete' : rawStatus === 'failed_all' ? 'processing' : rawStatus);
+        var held = Number(counts.queued || 0), finishing = Number(counts.active || 0);
         var pct = state === 'complete' ? 100 : (total ? Math.round(processed / total * 100) : 0);
         var waitText = queueBlockerText(batch), jobsAhead = Number((batch.queue || {}).jobs_ahead || 0);
-        var progress = state === 'draft' ? 'set-up not finished' : state === 'complete' ? (Number(counts.confirmed || 0) + ' / ' + total + ' confirmed' + (batch.status === 'finalised' ? ' · locked' : '')) : state === 'processing' ? (waitText ? waitText + ' · ' + jobsAhead + ' job' + (jobsAhead === 1 ? '' : 's') + ' ahead' : processed + ' / ' + total + ' processed · ' + Number(counts.active || 0) + ' active · ' + Number(counts.queued || 0) + ' queued') : (processed + ' / ' + total + ' processed · ' + Number(counts.confirmed || 0) + ' confirmed');
+        var progress = state === 'draft' ? 'set-up not finished' : state === 'complete' ? (Number(counts.confirmed || 0) + ' / ' + total + ' confirmed' + (batch.status === 'finalised' ? ' · locked' : '')) : state === 'paused' ? (processed + ' / ' + total + ' processed · paused · ' + held + ' on hold' + (finishing ? ' · ' + finishing + ' finishing' : '')) : state === 'processing' ? (waitText ? waitText + ' · ' + jobsAhead + ' job' + (jobsAhead === 1 ? '' : 's') + ' ahead' : processed + ' / ' + total + ' processed · ' + Number(counts.active || 0) + ' active · ' + Number(counts.queued || 0) + ' queued') : (processed + ' / ' + total + ' processed · ' + Number(counts.confirmed || 0) + ' confirmed');
         var termLabel = (batch.term && batch.term.label) || '', termMatch = termLabel.match(/Semester\s+(\d+),\s*(\d{4})/i);
         var term = termMatch ? (termMatch[2] + ' S' + termMatch[1]) : (termLabel || 'No term');
         var rubric = batch.rubric || {}, due = batch.due_at ? new Date(batch.due_at) : null;
@@ -257,7 +317,8 @@
           rubric: [rubric.title || 'No rubric', rubric.id || ''], date: when,
           prog: [pct, progress, state === 'complete' ? 'var(--ink-soft)' : state === 'review' ? 'var(--info)' : 'var(--primary)'],
           href: batchHref(batch), home: batch.pinned, version: Number(batch.version || 0), active:Number(counts.active || 0), queued:Number(counts.queued || 0),
-          canCancel: batch.status === 'processing', canDelete: batch.status !== 'processing' && batch.status !== 'finalised'
+          canPause: batch.status === 'processing', canResume: batch.status === 'paused',
+          canCancel: batch.status === 'processing' || batch.status === 'paused', canDelete: ['processing', 'paused', 'finalised'].indexOf(batch.status) < 0
         };
       });
       if (window.BatchListUI) window.BatchListUI.setItems(items);
@@ -435,7 +496,7 @@
         var button = event.target.closest('#btnNext'); if (!button || locked) return;
         event.preventDefault(); event.stopImmediatePropagation();
         var missing = criteria.filter(function (item, index) { var input = cards[index] && cards[index].querySelector('.score-input'); return !input || input.value === '' || isNaN(Number(input.value)) || Number(input.value) < 0 || Number(input.value) > Number(item.definition.weight); });
-        if (missing.length) { alert('Enter a score between 0 and the maximum for: ' + missing.map(function (item) { return item.definition.name; }).join(', ')); return; }
+        if (missing.length) { MarkerDialog.alert({ title: 'Some scores are missing', message: 'Enter a score between 0 and the maximum for: ' + missing.map(function (item) { return item.definition.name; }).join(', '), icon: 'warn' }); return; }
         button.disabled = true; button.textContent = 'Saving…';
         var chain = Promise.resolve();
         criteria.forEach(function (item, index) {
@@ -448,7 +509,7 @@
         chain.then(function () { button.textContent = 'Confirming…'; return MarkerAPI.confirm(submissionId, submissionVersion); }).then(function (result) {
           if (result.next_id) { location.href = '03b-review-split.html?submission_id=' + encodeURIComponent(result.next_id); return; }
           result.batch_id = batch.id; showEnd(result); button.textContent = 'Confirmed';
-        }).catch(function (error) { button.disabled = false; button.textContent = 'Confirm & next →'; reportError(error); alert(error.message); });
+        }).catch(function (error) { button.disabled = false; button.textContent = 'Confirm & next →'; reportError(error); MarkerDialog.alert(actionError('Could not confirm this submission', error)); });
       }, true);
     });
   }

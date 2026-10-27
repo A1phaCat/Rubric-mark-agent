@@ -455,7 +455,7 @@
   }
   $('libList').addEventListener('click', function(e){
     var b = e.target.closest('.lib-row'); if (!b) return;
-    if (dirty && !confirm('Replace the rubric you are editing?')) return;
+    if (dirty && !b.dataset.replaceOk){ MarkerDialog.confirm({ title: 'Replace the rubric you are editing?', icon: 'warn', confirmLabel: 'Replace it', cancelLabel: 'Keep editing', message: 'Your unsaved changes to the current rubric will be lost.' }).then(function(ok){ if (ok){ b.dataset.replaceOk = '1'; b.click(); delete b.dataset.replaceOk; } }); return; }
     var r = L.get(b.dataset.id);
     load({ libId:r.id, title:r.title, source:'From your rubric library · ' + r.source, criteria:clone(r.criteria) }, 'library');
     setTimeout(function(){ $('critBox').scrollIntoView({ behavior:'smooth', block:'start' }); }, 60);
@@ -465,8 +465,9 @@
   $('pasteText').addEventListener('input', function(){ $('parseBtn').disabled = !this.value.trim(); });
   $('parseBtn').addEventListener('click', function(){
     var text = $('pasteText').value; if (!text.trim()) return;
-    if (dirty && !confirm('Replace the rubric you are editing?')) return;
-    var btn = this; btn.disabled = true;
+    var btn = this;
+    if (dirty && !btn.dataset.replaceOk){ MarkerDialog.confirm({ title: 'Replace the rubric you are editing?', icon: 'warn', confirmLabel: 'Replace it', cancelLabel: 'Keep editing', message: 'Your unsaved changes to the current rubric will be lost.' }).then(function(ok){ if (ok){ btn.dataset.replaceOk = '1'; btn.click(); delete btn.dataset.replaceOk; } }); return; }
+    btn.disabled = true;
     $('parseState').innerHTML = '<span class="spin"></span>Reading rubric structure…';
     MarkerAPI.parseRubric(text,'pasted-rubric.txt').then(function(result){
       var p = result.rubric; btn.disabled = false;
@@ -616,7 +617,8 @@
     }
     if (e.target.closest('.fold')){ openSet[i] = !openSet[i]; row.classList.toggle('open', !!openSet[i]); e.target.closest('.fold').setAttribute('aria-expanded', !!openSet[i]); return; }
     if (e.target.closest('[data-rm]')){
-      if (!confirm('Remove “' + (R.criteria[i].name || 'this criterion') + '”?')) return;
+      var rm = e.target.closest('[data-rm]');
+      if (!rm.dataset.removeOk){ MarkerDialog.confirm({ title: 'Remove this criterion?', icon: 'trash', tone: 'danger', confirmLabel: 'Remove', cancelLabel: 'Keep it', message: '“' + (R.criteria[i].name || 'this criterion') + '” and its levels will be removed from this rubric.' }).then(function(ok){ if (ok){ rm.dataset.removeOk = '1'; rm.click(); delete rm.dataset.removeOk; } }); return; }
       invalidatePendingBatchForRubricChange();
       R.criteria.splice(i, 1); var o = {}; Object.keys(openSet).forEach(function(k){ k = Number(k); if (k < i) o[k] = openSet[k]; if (k > i) o[k - 1] = openSet[k]; }); openSet = o;
       dirty = true; drawEditor(); update();
@@ -890,6 +892,7 @@
 })();
 </script>
 
+<script src="/js/dialog.js"></script>
 <script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>

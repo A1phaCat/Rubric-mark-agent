@@ -596,8 +596,8 @@
       .catch(function(error){ state.busy = false; render(); document.getElementById('statusText').textContent = 'Could not parse: ' + error.message; });
   }
   document.getElementById('file').addEventListener('change', function(){
-    var file = this.files[0]; if (!file) return;
-    if (state.dirty && !confirm('Replace the rubric you are editing?')) { this.value = ''; return; }
+    var input = this, file = this.files[0]; if (!file) return;
+    if (state.dirty && !input.dataset.replaceOk){ MarkerDialog.confirm({ title: 'Replace the rubric you are editing?', icon: 'warn', confirmLabel: 'Replace it', cancelLabel: 'Keep editing', message: 'Your unsaved changes to the current rubric will be lost.' }).then(function(ok){ if (!ok){ input.value = ''; return; } input.dataset.replaceOk = '1'; input.dispatchEvent(new Event('change')); delete input.dataset.replaceOk; }); return; }
     document.getElementById('fileRow').hidden = false;
     document.getElementById('fileName').textContent = file.name;
     document.getElementById('fileMeta').textContent = Math.max(1, Math.round(file.size / 1024)) + ' KB';
@@ -608,7 +608,7 @@
   paste.addEventListener('input', function(){ pasteBtn.disabled = !paste.value.trim(); });
   pasteBtn.addEventListener('click', function(){
     if (!paste.value.trim()) return;
-    if (state.dirty && !confirm('Replace the rubric you are editing?')) return;
+    if (state.dirty && !pasteBtn.dataset.replaceOk){ MarkerDialog.confirm({ title: 'Replace the rubric you are editing?', icon: 'warn', confirmLabel: 'Replace it', cancelLabel: 'Keep editing', message: 'Your unsaved changes to the current rubric will be lost.' }).then(function(ok){ if (ok){ pasteBtn.dataset.replaceOk = '1'; pasteBtn.click(); delete pasteBtn.dataset.replaceOk; } }); return; }
     pasteBtn.disabled = true;
     parse(MarkerAPI.parseRubric(paste.value, 'pasted-rubric.txt'), 'Parsed from pasted text').then(function(){ pasteBtn.disabled = false; });
   });
@@ -653,7 +653,7 @@
       rc.labels.splice(rj,1); rc.levels.splice(rj,1); rc.text.splice(rj,1); rc.levelMeta.splice(rj,1); FLAGS={}; EDITED={}; touch(); render(); return;
     }
     var removeCriterion=e.target.closest('[data-remove-criterion]');
-    if(removeCriterion){ var ci=Number(removeCriterion.dataset.removeCriterion); if(!confirm('Remove “'+(R.criteria[ci].name||'this criterion')+'”?'))return; R.criteria.splice(ci,1); FLAGS={}; EDITED={}; state.open=Math.min(state.open,R.criteria.length-1); touch(); render(); }
+    if(removeCriterion){ var ci=Number(removeCriterion.dataset.removeCriterion); if(!removeCriterion.dataset.removeOk){ MarkerDialog.confirm({ title:'Remove this criterion?', icon:'trash', tone:'danger', confirmLabel:'Remove', cancelLabel:'Keep it', message:'“'+(R.criteria[ci].name||'this criterion')+'” and its levels will be removed from this rubric.' }).then(function(ok){ if(ok){ removeCriterion.dataset.removeOk='1'; removeCriterion.click(); delete removeCriterion.dataset.removeOk; } }); return; } R.criteria.splice(ci,1); FLAGS={}; EDITED={}; state.open=Math.min(state.open,R.criteria.length-1); touch(); render(); }
   });
   document.getElementById('addCriterion').addEventListener('click',function(){
     var i=R.criteria.length, points=[3,2,1,0];
@@ -697,7 +697,7 @@
     }).catch(function(error){ btn.disabled = false; document.getElementById('saveNote').textContent = 'Save failed: ' + error.message; });
   });
   document.getElementById('closeX').addEventListener('click', function(){
-    if (state.dirty && !confirm('Close without saving? Your edits to this rubric will be lost.')) return;
+    if (state.dirty){ MarkerDialog.confirm({ title: 'Close without saving?', icon: 'warn', tone: 'danger', confirmLabel: 'Discard changes', cancelLabel: 'Keep editing', message: 'Your edits to this rubric will be lost.' }).then(function(ok){ if (ok) location.href = LIB; }); return; }
     location.href = LIB;
   });
   document.addEventListener('keydown', function(e){
@@ -745,6 +745,7 @@
   if(FROM_SETUP){ document.getElementById('saveRubric').textContent='Save & use in batch'; document.getElementById('step3').textContent='Save & use in batch'; }
 
 </script>
+<script src="/js/dialog.js"></script>
 <script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>

@@ -126,6 +126,20 @@ paths:
       operationId: finaliseBatch
       requestBody: {$ref: '#/components/requestBodies/Version'}
       responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/pause:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    post:
+      operationId: pauseBatch
+      description: Hold back a processing batch's queued work (resumable). Criteria already sent finish and are kept.
+      requestBody: {$ref: '#/components/requestBodies/Version'}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/resume:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    post:
+      operationId: resumeBatch
+      description: Put a paused batch's work back in the queue; completed criteria are not redone.
+      requestBody: {$ref: '#/components/requestBodies/Version'}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
   /api/v1/batches/{batch_id}/reopen:
     parameters: [{$ref: '#/components/parameters/BatchId'}]
     post:
@@ -231,7 +245,7 @@ components:
     JsonObject: {description: JSON response, content: {application/json: {schema: {type: object}}}}
     Error: {description: Stable error envelope, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
   schemas:
-    BatchStatus: {type: string, enum: [draft, processing, in_review, completed, finalised, failed_all]}
+    BatchStatus: {type: string, enum: [draft, processing, paused, in_review, completed, finalised, failed_all, cancelled]}
     SubmissionStatus: {type: string, enum: [uploaded, extracting, needs_ocr, ocr_running, ocr_failed, queued, marking, ai_done, in_review, confirmed, failed, excluded]}
     Confidence: {type: [string, 'null'], enum: [high, medium, low, none, null]}
     Level: {type: string, enum: [HD, DI, CR, PS, FL]}

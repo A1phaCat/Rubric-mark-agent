@@ -625,3 +625,18 @@ test('setup UI locates and repairs a criterion with only one scoring level', asy
   await expect(page.locator('#aiPrepEstimate')).toHaveAttribute('title', /rubric setup is reused once.*10 submissions are analysed independently.*one processing worker/i);
 });
 
+
+test('confirmations use the in-app dialog, never the browser one', async ({ page }) => {
+  const native = [];
+  page.on('dialog', (dialog) => { native.push(dialog.message()); dialog.dismiss(); });
+  await page.goto('/00-home.html');
+  await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
+  await page.locator('#resetSamples').click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Reset the sample batches?');
+  await expect(dialog.getByRole('button', { name: 'Keep as is' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.md-scrim')).toHaveCount(0);
+  await expect(page.locator('#resetSamples')).toBeEnabled();  // nothing was reset
+  expect(native).toEqual([]);
+});

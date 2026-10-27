@@ -2,7 +2,7 @@
 (function () {
   var GRADE_COLORS = { HD: '#8F3F24', DI: '#B85A35', CR: '#D9895F', PS: '#EDB999', FL: '#E9E2DA' };
   var STATE = {
-    draft: ['done', 'Draft'], processing: ['processing', 'Processing'], in_review: ['reviewing', 'In review'],
+    draft: ['done', 'Draft'], processing: ['processing', 'Processing'], paused: ['paused', 'Paused'], in_review: ['reviewing', 'In review'],
     completed: ['done', 'Complete'], finalised: ['final', 'Finalised'], failed_all: ['processing', 'Failed'], cancelled: ['done', 'Cancelled']
   };
 
@@ -80,9 +80,12 @@
       if (reset && !reset.dataset.wired) {
         reset.dataset.wired = '1';
         reset.addEventListener('click', function () {
-          if (!confirm('Reset the sample batches? Their marks, comments and confirmations go back to the starting state. Your own batches and rubrics are kept.')) return;
-          reset.disabled = true; reset.textContent = 'Resetting…';
-          MarkerAPI.resetSamples().then(function () { location.reload(); }).catch(function (error) { reset.disabled = false; reset.textContent = '↺ Reset samples'; alert(error.message); });
+          MarkerDialog.confirm({ title: 'Reset the sample batches?', icon: 'reset', confirmLabel: 'Reset samples', cancelLabel: 'Keep as is',
+            message: 'Their marks, comments and confirmations go back to the starting state.', note: 'Your own batches and rubrics are kept.' }).then(function (yes) {
+            if (!yes) return;
+            reset.disabled = true; reset.textContent = 'Resetting…';
+            MarkerAPI.resetSamples().then(function () { location.reload(); }).catch(function (error) { reset.disabled = false; reset.textContent = '↺ Reset samples'; MarkerDialog.alert(MarkerUI.actionError('Could not reset the samples', error)); });
+          });
         });
       }
       document.getElementById('homeBatches').innerHTML = shown.length ? shown.map(function (b) { return batchCard(ui, b); }).join('') : '<p class="home-empty">No batches yet. Start one with “New marking batch”.</p>';

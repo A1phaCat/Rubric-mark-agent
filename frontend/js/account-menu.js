@@ -208,7 +208,7 @@
           .catch(function (err) { nmsg.textContent = err.message || 'Could not save the name'; });
         return;
       }
-      if (e.target.id === 'amOut') { e.preventDefault(); alert('Signing out is not part of this demo.'); return; }
+      if (e.target.id === 'amOut') { e.preventDefault(); MarkerDialog.alert({ title: 'Local single-user mode', message: 'Signing out is not part of this demo: the app runs on your computer for one tutor.' }); return; }
       var t = e.target.closest('[data-test]'), sv = e.target.closest('[data-save]');
       if (!t && !sv) return;
       var which = (t || sv).getAttribute(t ? 'data-test' : 'data-save');

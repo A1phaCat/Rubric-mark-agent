@@ -322,7 +322,7 @@
     var id = b.closest('.rub').dataset.id;
     if (b.dataset.act === 'pin'){
       var r = L.get(id); b.disabled = true;
-      MarkerAPI.pinRubric(id, !r.pinned).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){ render(); toast(r.pinned ? 'Unpinned' : 'Pinned to top'); }).catch(function(err){ b.disabled = false; alert(err.message); });
+      MarkerAPI.pinRubric(id, !r.pinned).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){ render(); toast(r.pinned ? 'Unpinned' : 'Pinned to top'); }).catch(function(err){ b.disabled = false; MarkerDialog.alert(MarkerUI.actionError('Could not change the pin', err)); });
       return;
     }
     open(id, b.dataset.act === 'edit');
@@ -387,7 +387,14 @@
     try { history.replaceState(null, '', location.pathname + location.search + '#open=' + id); } catch(e){}
   }
   function close(){
-    if (editing && !confirm('Close without saving your changes?')) return;
+    if (editing){
+      MarkerDialog.confirm({ title: 'Close without saving?', icon: 'warn', tone: 'danger', confirmLabel: 'Discard changes', cancelLabel: 'Keep editing',
+        message: 'Your edits to this rubric have not been saved.' }).then(function(yes){ if (yes) closeNow(); });
+      return;
+    }
+    closeNow();
+  }
+  function closeNow(){
     editing = false; draft = null; openId = null;
     $('scrim').hidden = true; $('drawer').classList.remove('open'); $('drawer').setAttribute('aria-hidden', 'true');
     try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
@@ -426,15 +433,18 @@
     var payload = { version: draft.version, title: draft.title, source: draft.source, criteria: draft.criteria.map(criterionPayload) };
     MarkerAPI.updateRubric(draft.id, payload).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){
       editing = false; draft = null; drawBody(); render(); toast('Rubric saved as a new version');
-    }).catch(function(err){ btn.disabled = false; alert(err.message); });
+    }).catch(function(err){ btn.disabled = false; MarkerDialog.alert(MarkerUI.actionError('Could not save the rubric', err)); });
   });
   $('dDelete').addEventListener('click', function(){
     var r = L.get(openId);
-    if (r.usedBy.length){ alert('“' + r.title + '” is used by ' + r.usedBy.join(', ') + '. It can be deleted once that batch is closed.'); return; }
-    if (!confirm('Delete “' + r.title + '” from your library?')) return;
-    MarkerAPI.deleteRubric(openId, r.version).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){
-      editing = false; close(); render(); toast('Rubric deleted');
-    }).catch(function(err){ alert(err.message); });
+    if (r.usedBy.length){ MarkerDialog.alert({ title: 'This rubric is in use', icon: 'info', message: '“' + r.title + '” is used by ' + r.usedBy.join(', ') + '. It can be deleted once that batch is closed.' }); return; }
+    MarkerDialog.confirm({ title: 'Delete this rubric?', icon: 'trash', tone: 'danger', kicker: r.title, confirmLabel: 'Delete rubric', cancelLabel: 'Keep it',
+      message: '“' + r.title + '” will be removed from your library.' }).then(function(yes){
+      if (!yes) return;
+      MarkerAPI.deleteRubric(openId, r.version).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){
+        closeNow(); render(); toast('Rubric deleted');
+      }).catch(function(err){ MarkerDialog.alert(MarkerUI.actionError('Could not delete the rubric', err)); });
+    });
   });
   $('dUse').addEventListener('click', function(e){
     e.preventDefault();
@@ -451,6 +461,7 @@
 })();
 </script>
 
+<script src="/js/dialog.js"></script>
 <script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>

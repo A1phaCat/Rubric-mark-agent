@@ -67,21 +67,29 @@ def retry_submission(
                 raise RuntimeError("version_conflict")
             if item.status != "failed":
                 raise RuntimeError("invalid_transition")
-            item.status = "queued"
-            item.error_reason = None
-            item.version += 1
             batch = db.get(Batch, item.batch_id)
             if batch is None:
                 raise KeyError(item.batch_id)
-            if batch.status == "failed_all":
-                batch.status = "processing"
-                batch.version += 1
+            if batch.status == "cancelled":
+                # Retrying one submission must not make a terminated batch look running again.
+                raise RuntimeError("batch_terminated")
+            item.status = "queued"
+            item.error_reason = None
+            item.version += 1
             item.ai_summary = "Queued to retry remaining criteria"
-            batch.status = "processing"
             batch.model_provider = settings.llm
             batch.model_name = settings.ai_model
-            batch.prompt_version = "criterion-grade-coverage-v3"
+            batch.prompt_version = (
+                "criterion-grade-fulltext-v1"
+                if settings.grading_context == "full"
+                else "criterion-grade-coverage-v3"
+            )
             job = _enqueue_grade(db, item, batch, force=False)
+            if batch.status == "paused":
+                job.status = "paused"  # runs when the batch is resumed
+            elif batch.status != "processing":
+                batch.status = "processing"
+                batch.version += 1
             return {
                 "submission_id": item.id,
                 "batch_id": batch.id,

@@ -53,7 +53,7 @@
   .group h2{ font-family:'Source Serif 4',serif; font-weight:600; font-size:18px; margin:0 0 10px; display:flex; align-items:baseline; gap:10px; }
   .group h2 small{ font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:400; color:var(--ink-soft); }
   .list{ background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
-  .lhead, .brow{ display:grid; grid-template-columns:minmax(220px,2fr) 108px minmax(140px,1.1fr) minmax(0,.9fr) 170px; gap:16px; align-items:center; padding:0 22px; }
+  .lhead, .brow{ display:grid; grid-template-columns:minmax(220px,2fr) 108px minmax(140px,1.1fr) minmax(0,.9fr) 250px; gap:16px; align-items:center; padding:0 22px; }
   .lhead{ height:40px; background:var(--tint); border-bottom:1px solid var(--border); font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); font-weight:500; }
   .brow{ min-height:76px; padding-top:14px; padding-bottom:14px; border-bottom:1px solid var(--border); color:var(--ink); text-decoration:none; transition:background .1s; }
   .brow:last-child{ border-bottom:0; }
@@ -75,6 +75,7 @@
   .pill.done{ background:var(--track); color:var(--ink-soft); }
   .pill.draft{ background:transparent; color:var(--ink-soft); border:1px dashed var(--border-strong); }
   .pill.cancelled{ background:var(--risk-bg); color:var(--risk); }
+  .pill.paused{ background:#FFF3CC; color:#7A5A00; }
   @keyframes pulse{ 50%{ opacity:.25; } }
   @keyframes batch-breathe{ 50%{ background:#EED8C8; box-shadow:0 0 0 4px rgba(143,63,36,.07); } }
   .bar{ height:6px; background:var(--track); border-radius:3px; overflow:hidden; }
@@ -91,6 +92,9 @@
   .row-action{ border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); color:var(--ink-soft); padding:6px 9px; font:500 12px 'Inter',sans-serif; cursor:pointer; }
   .row-action:hover{ border-color:var(--risk); color:var(--risk); background:var(--risk-bg); }
   .row-action:disabled{ opacity:.55; cursor:wait; }
+  .row-action.calm:hover{ border-color:var(--ink-soft); color:var(--ink); background:var(--tint); }
+  .row-action.go{ border-color:var(--primary); color:var(--primary); }
+  .row-action.go:hover{ background:var(--primary); color:#fff; border-color:var(--primary); }
   .empty{ text-align:center; color:var(--ink-soft); padding:30px 0; }
   @media (max-width:900px){
     main{ padding:24px 16px 60px; }
@@ -213,18 +217,19 @@
 <script>
 (function(){
   var B = [], loaded = false;  /* filled from GET /api/v1/batches by app-wire.js */
-  var PILL = { processing:['processing','Processing'], review:['reviewing','In review'], draft:['draft','Draft'], complete:['done','Complete'], cancelled:['cancelled','Cancelled'] };
+  var PILL = { processing:['processing','Processing'], paused:['paused','Paused'], review:['reviewing','In review'], draft:['draft','Draft'], complete:['done','Complete'], cancelled:['cancelled','Cancelled'] };
   var filter = 'all';
   function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
   function match(b){
-    if (filter === 'active' && !(b.st === 'processing' || b.st === 'review')) return false;
+    if (filter === 'active' && !(b.st === 'processing' || b.st === 'paused' || b.st === 'review')) return false;
     if (filter !== 'all' && filter !== 'active' && b.st !== filter) return false;
     var q = document.getElementById('q').value.trim().toLowerCase();
     return !q || (b.name + ' ' + b.rubric[0] + ' ' + b.term).toLowerCase().indexOf(q) >= 0;
   }
   function row(b){
     var p = PILL[b.st] || PILL.draft;
-    var actions='<button class="row-action" type="button" data-act="pin" data-id="'+b.id+'" data-pinned="'+(b.pinned?1:0)+'" title="'+(b.pinned?'Unpin':'Pin to Home (up to 3; pinning a fourth unpins the oldest)')+'">'+(b.pinned?'📌 Pinned':'Pin')+'</button>'+(b.canCancel?'<button class="row-action" type="button" data-act="cancel" data-id="'+b.id+'" data-version="'+b.version+'">Terminate</button>':'')+(b.canDelete?'<button class="row-action" type="button" data-act="delete" data-id="'+b.id+'" data-version="'+b.version+'">Delete</button>':'');
+    var flow=b.canPause?'<button class="row-action calm" type="button" data-act="pause" data-id="'+b.id+'" data-version="'+b.version+'" title="Hold back the work not yet sent to the AI; resume any time">❚❚ Pause</button>':b.canResume?'<button class="row-action go" type="button" data-act="resume" data-id="'+b.id+'" data-version="'+b.version+'" title="Continue from where it stopped">▶ Resume</button>':'';
+    var actions=flow+'<button class="row-action calm" type="button" data-act="pin" data-id="'+b.id+'" data-pinned="'+(b.pinned?1:0)+'" title="'+(b.pinned?'Unpin':'Pin to Home (up to 3; pinning a fourth unpins the oldest)')+'">'+(b.pinned?'📌 Pinned':'Pin')+'</button>'+(b.canCancel?'<button class="row-action" type="button" data-act="cancel" data-id="'+b.id+'" data-version="'+b.version+'">Terminate</button>':'')+(b.canDelete?'<button class="row-action" type="button" data-act="delete" data-id="'+b.id+'" data-version="'+b.version+'">Delete</button>':'');
     return '<div class="brow' + (b.st==='processing'&&b.active>0?' is-processing':'') + '" data-href="' + b.href + '">' +
       '<div class="b-main"><div class="b-name">' + esc(b.name) + (b.sample ? '<span class="on-home sample-tag" title="Pinned sample batch — reload with: python -m app.sample.seed">Sample</span>' : '') + (b.home && !b.sample ? '<span class="on-home" title="Shown on Home">On Home</span>' : '') + '</div>' +
       '<div class="b-meta mono">' + b.n + ' · ' + b.crit + ' criteria · ' + b.date + '</div></div>' +
@@ -235,7 +240,7 @@
   }
   function render(){
     var counts = { all:B.length, active:0, draft:0, complete:0, cancelled:0 };
-    B.forEach(function(b){ if (b.st === 'processing' || b.st === 'review') counts.active++; else if(Object.prototype.hasOwnProperty.call(counts,b.st)) counts[b.st]++; });
+    B.forEach(function(b){ if (b.st === 'processing' || b.st === 'paused' || b.st === 'review') counts.active++; else if(Object.prototype.hasOwnProperty.call(counts,b.st)) counts[b.st]++; });
     document.querySelectorAll('.filters .chip').forEach(function(c){ c.querySelector('span').textContent = counts[c.dataset.f]; });
     var terms = [], html = '';
     B.forEach(function(b){ if (terms.indexOf(b.term) < 0) terms.push(b.term); });
@@ -264,13 +269,10 @@
     var action=e.target.closest('[data-act]');
     if(action){
       e.preventDefault();e.stopPropagation();
-      var id=action.dataset.id,version=Number(action.dataset.version),isCancel=action.dataset.act==='cancel';
-      if(action.dataset.act==='pin'){action.disabled=true;MarkerAPI.pinBatch(id,action.dataset.pinned!=='1').then(function(r){if(r.unpinned&&r.unpinned.length)alert('Up to 3 batches can be pinned to Home. Unpinned: '+r.unpinned.map(function(x){return x.name;}).join(', '));location.reload();}).catch(function(error){action.disabled=false;alert(error.message);});return;}
-      var message=isCancel?'Terminate this batch? Queued work will stop and partial results will be retained.':'Delete this batch and its uploaded files permanently?';
-      if(!confirm(message))return;
-      action.disabled=true;action.textContent=isCancel?'Terminating…':'Deleting…';
-      var task=isCancel?MarkerAPI.cancelBatch(id,version,'Terminated from batch list'):MarkerAPI.deleteBatch(id,version);
-      task.then(function(){location.reload();}).catch(function(error){action.disabled=false;action.textContent=isCancel?'Terminate':'Delete';alert(error.message);});
+      var id=action.dataset.id,item=B.filter(function(x){return x.id===id;})[0]||{id:id,name:'',version:Number(action.dataset.version)};
+      if(action.dataset.act==='pin'){action.disabled=true;MarkerAPI.pinBatch(id,action.dataset.pinned!=='1').then(function(r){return r.unpinned&&r.unpinned.length?MarkerDialog.alert(MarkerUI.pinnedNotice(r.unpinned)):null;}).then(function(){location.reload();}).catch(function(error){action.disabled=false;MarkerDialog.alert(MarkerUI.actionError('Could not change the pin',error));});return;}
+      /* Pause, resume, terminate and delete share one confirm-then-act flow (app-wire.js). */
+      MarkerUI.batchFlow(action.dataset.act,{id:id,name:item.name,version:Number(action.dataset.version)},action).then(function(done){if(done)location.reload();});
       return;
     }
     var row=e.target.closest('.brow[data-href]');if(row)location.href=row.dataset.href;
@@ -282,6 +284,7 @@
 })();
 </script>
 
+<script src="/js/dialog.js"></script>
 <script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>

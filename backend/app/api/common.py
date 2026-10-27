@@ -30,6 +30,7 @@ def translate_error(exc: Exception) -> HTTPException:
         "finalised_batch_locked": 409,
         "report_not_ready": 409,
         "claim_conflict": 409,
+        "batch_terminated": 409,
     }
     return HTTPException(
         codes.get(value, 422),
