@@ -34,7 +34,12 @@ from typing import Any, Iterator
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.ingest.anonymise import AnonymisationReport, Anonymiser, residual_identifiers, strip_filename_sid  # noqa: E402
+from app.ingest.anonymise import (  # noqa: E402
+    AnonymisationReport,
+    Anonymiser,
+    residual_identifiers,
+    strip_filename_sid,
+)
 from app.rubric.matching import RubricCandidate, rank_rubrics  # noqa: E402
 
 HEADER_UNIT = re.compile(r"^\s*Unit:\s*(.+)$", re.M)
@@ -98,11 +103,12 @@ def _reflow(lines: list[str]) -> str:
 
 
 def _render(title: str, body: str) -> bytes:
+    from xml.sax.saxutils import escape
+
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import cm
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
-    from xml.sax.saxutils import escape
 
     styles = getSampleStyleSheet()
     buffer = io.BytesIO()

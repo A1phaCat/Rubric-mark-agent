@@ -44,8 +44,8 @@ COMPARE_MODELS = ["gpt-4.1", "gpt-4.1-mini", "gpt-5-mini", "gpt-4o-mini", "MiniM
 def _provider(args: argparse.Namespace) -> tuple[Any, dict[str, Any], str]:
     """The LLM for grading, the batch-start payload and the measurement label."""
 
-    from app.config import settings
     import app.grading.service as grading
+    from app.config import settings
 
     if args.provider == "configured":
         from app.llm import build_llm

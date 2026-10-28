@@ -35,6 +35,10 @@ dev = [
   "types-jsonschema>=4.23,<5"
 ]
 ml = []
+# scripts/import_real_submissions.py: re-renders anonymised text as PDF
+import = ["reportlab>=4,<6"]
+# eval/run.py: tokenizer for dry-run metering, charts
+eval = ["tiktoken>=0.7,<1", "matplotlib>=3.8,<4"]
 
 [tool.setuptools.packages.find]
 where = ["."]
