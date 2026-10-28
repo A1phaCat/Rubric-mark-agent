@@ -95,11 +95,43 @@
       '<td class="sid">' + ui.esc(item.sid || item.filename) + '</td><td>' + mark + '</td><td>' + change + '</td><td>' + ui.esc(item.marker ? item.marker.name : '—') + '</td><td>' + link + '</td></tr>';
   }
 
+  /* USD with enough digits for sub-cent calls; null means a model is missing from the price table. */
+  function money(value) {
+    if (value == null) return 'unpriced';
+    var digits = value === 0 ? 2 : value < 0.01 ? 4 : value < 1 ? 3 : 2;
+    return '$' + value.toFixed(digits);
+  }
+  function cents(value) { return value == null ? '' : ' <small>' + (value * 100).toFixed(value * 100 < 1 ? 2 : 1) + '¢</small>'; }
+
+  /* AI usage card from GET /usage; shown only when the batch has recorded model calls
+     (sample batches replay recorded results and make none). */
+  function usageCardHTML(ui, usage) {
+    var t = usage && usage.totals;
+    if (!t || !t.calls) return '';
+    var p = usage.pricing || {}, tokens = function (n) { return Number(n || 0).toLocaleString('en-AU'); };
+    var perSub = t.cost_per_submission_usd, total = t.cost_usd;
+    var unpriced = (p.unpriced_models || []).length
+      ? '<p class="note usage-unpriced"><span class="dot"></span>No price for ' + p.unpriced_models.map(ui.esc).join(', ') + ' — add it to the price table. Priced calls so far: ' + money(t.priced_cost_usd) + '.</p>' : '';
+    var models = (usage.by_model || []).map(function (m) {
+      return '<tr><td>' + ui.esc(m.model) + '</td><td class="num">' + m.calls + '</td><td class="num">' + tokens(m.input_tokens) + '</td><td class="num">' + tokens(m.cached_tokens) + '</td><td class="num">' + tokens(m.output_tokens) + '</td><td class="num">' + money(m.cost_usd) + '</td></tr>';
+    }).join('');
+    return '<div class="card usage-card" id="usageCard" style="margin-bottom:24px"><h2>AI usage &amp; cost <small>' + t.calls + ' model call' + (t.calls === 1 ? '' : 's') + ' · ' + t.submissions_with_calls + ' submission' + (t.submissions_with_calls === 1 ? '' : 's') + '</small></h2>' +
+      '<div class="kpis"><div class="kpi"><b data-usage="per-submission">' + money(perSub) + cents(perSub) + '</b><span>per submission<br>' + (t.max_submission_cost_usd == null ? '' : 'highest ' + money(t.max_submission_cost_usd)) + '</span></div>' +
+      '<div class="kpi"><b data-usage="total">' + money(total) + '</b><span>this batch<br>all calls, retries included</span></div>' +
+      '<div class="kpi"><b data-usage="per-call">' + money(t.cost_per_call_usd) + '</b><span>per model call<br>average</span></div>' +
+      '<div class="kpi"><b>' + tokens(t.tokens_per_submission) + '</b><span>tokens per submission<br>input + output</span></div></div>' +
+      '<table class="crit-table" style="margin-top:16px"><thead><tr><th>Model</th><th class="num">Calls</th><th class="num">Input tokens</th><th class="num">Cached</th><th class="num">Output tokens</th><th class="num">Cost</th></tr></thead><tbody>' + models + '</tbody></table>' +
+      unpriced + '<p class="note usage-source"><span class="dot"></span>Estimated from recorded token counts at list prices in ' + ui.esc(p.currency || 'USD') + ' ' + ui.esc(p.unit || 'per 1M tokens') + ', checked ' + ui.esc(p.checked_at || 'unknown') + '. Not an invoice.</p></div>';
+  }
+  window.MarkerUsage = { money: money, cardHTML: usageCardHTML };
+
   window.MarkerPages = window.MarkerPages || {};
   window.MarkerPages.results = function (ui) {
     var batchId = new URLSearchParams(location.search).get('batch_id');
     if (!batchId) { location.replace('07-batches.html'); return Promise.resolve(null); }
-    return MarkerAPI.getResults(batchId).then(function (data) {
+    return Promise.all([MarkerAPI.getResults(batchId), MarkerAPI.getUsage(batchId).catch(function () { return null; })]).then(function (values) {
+      var data = values[0], usage = values[1];
+      data.usage = usage;
       window.__MARKER_PAGE_DATA = data;
       var batch = data.batch, s = data.summary, maximum = s.maximum, counts = batch.counts, locked = data.locked;
       var rows = data.submissions.items, pill = STATUS[batch.status] || ['completed', ui.statusLabel(batch.status)];
@@ -138,6 +170,7 @@
         '<div class="kpi"><b>' + s.comments_count + '</b><span>criterion<br>comments</span></div>' +
         '<div class="kpi"><b>' + s.marker_count + '</b><span>tutor' + (s.marker_count === 1 ? '' : 's') + ' · ' + s.markers.map(function (m) { return ui.esc(m.name); }).join(', ') + '</span></div></div></div>' +
         '<div class="card"><h2>Grade distribution <small>final marks</small></h2><div class="dist" aria-label="Grade distribution">' + dist + '</div></div></div>' +
+        usageCardHTML(ui, usage) +
         '<div class="card" style="margin-bottom:24px"><h2>By criterion <small>where tutors changed the AI most</small></h2><table class="crit-table"><thead><tr><th>Criterion</th><th class="num">Avg mark</th><th class="num">AI avg</th><th class="num">Adjusted</th></tr></thead><tbody>' + criteriaRows + '</tbody></table><p class="note"><span class="dot"></span>' + note + '</p></div>' +
         '<div class="filters"><button type="button" class="chip active" data-f="all">All (' + rows.length + ')</button><button type="button" class="chip" data-f="adjusted">Adjusted by tutor (' + adjustedCount + ')</button><button type="button" class="chip" data-f="same">Matches AI (' + (confirmedCount - adjustedCount) + ')</button><button type="button" class="chip" data-f="band">Band changed (' + bandChanged + ')</button></div>' +
         '<div class="table-wrap"><table class="subs"><thead><tr><th>Submission</th><th>Final mark</th><th>Tutor changes</th><th>Tutor</th><th>Actions</th></tr></thead><tbody>' + rows.map(function (r) { return rowHTML(ui, r, maximum, locked); }).join('') + '</tbody></table>' +

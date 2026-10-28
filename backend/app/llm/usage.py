@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.llm import LLMCall
 from app.domain.ids import new_id
+from app.llm.pricing import load_table
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,11 @@ class SQLAlchemyUsageSink:
         self.session = session
 
     def record(self, usage: UsageRecord) -> None:
+        # Cost at the price in force when the call was made; unpriced models store 0 here
+        # and are reported as unpriced by the usage summary, which re-prices from tokens.
+        cost = load_table().cost(
+            usage.model, usage.input_tokens, usage.output_tokens, usage.cached_tokens
+        )
         self.session.add(
             LLMCall(
                 id=new_id("llm"),
@@ -46,7 +52,7 @@ class SQLAlchemyUsageSink:
                 output_tokens=usage.output_tokens,
                 cached_tokens=usage.cached_tokens,
                 latency_ms=usage.latency_ms,
-                cost_usd=0,
+                cost_usd=round(cost or 0.0, 8),
                 submission_id=usage.submission_id,
                 prompt_version=usage.prompt_version,
                 created_at=datetime.now(timezone.utc),

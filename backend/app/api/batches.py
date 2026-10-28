@@ -21,6 +21,7 @@ from app.services.batch_service import PROCESSING_STATES, BatchUseCases
 from app.services.review_service import MANUAL_STATES, READY_STATES, ReviewUseCases
 from app.services.settings_service import load_ai_settings
 from app.services.submission_service import marker_names, submission_row
+from app.services.usage_service import batch_usage
 
 router = APIRouter(prefix="/batches", tags=["batches"])
 
@@ -274,6 +275,20 @@ def next_submission(batch_id: str, after: str | None = None, db: Session = Depen
                 "total": counts["total"],
             },
         }
+    except Exception as exc:
+        raise translate_error(exc) from exc
+
+
+@router.get("/{batch_id}/usage")
+def get_batch_usage(
+    batch_id: str,
+    include: str | None = Query(None, pattern="^calls$"),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Tokens and cost per call, per submission and for the batch."""
+
+    try:
+        return batch_usage(db, batch_id, include_calls=include == "calls")
     except Exception as exc:
         raise translate_error(exc) from exc
 

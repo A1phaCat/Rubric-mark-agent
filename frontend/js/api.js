@@ -52,6 +52,7 @@
     saveCriterion: function (submissionId, criterionId, value) { return request('/submissions/' + id(submissionId) + '/criteria/' + id(criterionId), { method: 'PATCH', body: JSON.stringify(value) }); },
     confirm: function (submissionId, version) { return request('/submissions/' + id(submissionId) + '/confirm', { method: 'POST', body: JSON.stringify({ version: version }) }); },
     getResults: function (batchId) { return request('/batches/' + id(batchId) + '/results'); },
+    getUsage: function (batchId, includeCalls) { return request('/batches/' + id(batchId) + '/usage' + (includeCalls ? '?include=calls' : '')); },
     exportCsvUrl: function (batchId) { return base + '/batches/' + id(batchId) + '/export.csv'; },
     getReport: function (submissionId, audience) { return request('/submissions/' + id(submissionId) + '/report?audience=' + (audience || 'internal')); },
     getSettings: function () { return Promise.all([request('/settings/ai'), request('/settings/canvas')]).then(function (x) { return { ai: x[0], canvas: x[1] }; }); },
