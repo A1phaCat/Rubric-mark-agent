@@ -6,29 +6,69 @@ The product contract is [contracts/openapi.yaml](contracts/openapi.yaml), the mo
 
 ## Quick start
 
-Requirements: Python 3.9+, Node 20+ for browser tests, and GNU Make optionally. On Windows, call `python scripts/tasks.py <target>` instead of `make <target>`.
+Requirements: **Python 3.12** (3.13+ does not work: `fastembed==0.3.6` needs Python < 3.13), Node 20+ for
+browser tests, and GNU Make optionally. On Windows, call `python scripts/tasks.py <target>` instead of
+`make <target>`. For a brand-new machine, follow [Fresh machine from zero](#fresh-machine-from-zero).
 
 ```text
-python -m venv .venv
-.venv/Scripts/python -m pip install -e "backend[dev]"
-.venv/Scripts/python scripts/tasks.py migrate
-.venv/Scripts/python scripts/tasks.py seed   # load the sample rubrics and batches
-.venv/Scripts/python scripts/tasks.py dev
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -e "backend[dev]"      # Windows: .venv\Scripts\python
+.venv/bin/python scripts/tasks.py seed                  # migrate, then load the sample rubrics and batches
+.venv/bin/python scripts/tasks.py dev                   # migrate, API on :8000 and the job worker
 ```
 
 Open <http://127.0.0.1:8000/>. The API contract is exposed at `/api/v1/openapi.json`; health is `/healthz`.
 
+## Fresh machine from zero
 
-## mac run
+Tested on Linux with Python 3.12 and Node 20. Nothing below needs an API key.
 
-```text
-.venv/bin/python -m pip install -e "backend[dev]"
-.venv/bin/python scripts/tasks.py migrate
-.venv/bin/python scripts/tasks.py dev
+1. **Python 3.12.** Check with `python3.12 --version`. If it is missing, install it from python.org,
+   `brew install python@3.12` (macOS), `sudo apt install python3.12 python3.12-venv` (Ubuntu with the
+   deadsnakes PPA if needed), or let [uv](https://docs.astral.sh/uv/) fetch it: `uv python install 3.12`.
+2. **Clone and create the virtual environment** at `.venv/` in the repository root (the Playwright
+   config and the commands below expect that path):
+
+   ```text
+   git clone https://github.com/A1phaCat/Rubric-mark-agent.git
+   cd Rubric-mark-agent
+   python3.12 -m venv .venv            # or: uv venv -p 3.12 .venv
+   .venv/bin/python -m pip install -U pip
+   .venv/bin/python -m pip install -e "backend[dev]"
+   ```
+
+   With uv, the install step is `uv pip install -p .venv/bin/python -e "backend[dev]"`.
+   On Windows use `py -3.12 -m venv .venv` and `.venv\Scripts\python` everywhere.
+3. **Database and samples.** `.venv/bin/python scripts/tasks.py seed` runs every Alembic migration on a new
+   `data/db/marker.sqlite3` and loads the samples. Deleting `data/` and re-running it gives a clean start.
+4. **Run.** `.venv/bin/python scripts/tasks.py dev` starts the API and one worker process. Queued batches
+   are processed only while the worker runs (`make api` alone never grades anything).
+5. **Backend tests** (offline, FakeLLM): `.venv/bin/python scripts/tasks.py test`
+   (= `make test PYTHON=.venv/bin/python`).
+6. **Browser tests.** Install Node 20+, then:
+
+   ```text
+   npm ci
+   npx playwright install chromium     # add --with-deps on a bare Linux box
+   npx playwright test tests/e2e        # = make e2e
+   ```
+
+   Playwright starts `scripts/tasks.py e2e-server` (migrate + seed + API + worker with `MARKER_ENV=test`)
+   on a throwaway database in `data/e2e/`, so your own `data/` is never touched. **Stop any `make dev`
+   server on port 8000 first**: Playwright reuses a running server, and a normal dev server has no
+   FakeLLM. `make visual` compares against the frozen screenshots in `prototype/`.
+7. **First real grading run** downloads the local embedding model into `data/cache/fastembed`.
+8. **AI provider keys** are entered in the app (account menu) and stored server-side. Never commit them or
+   put them in `.env` files that are tracked.
+
+**Token cost.** Each model call's cost is estimated from its token counts with the price table in
+`backend/app/llm/pricing.json` (USD per 1M tokens, with source links and the date it was checked).
+Set `MARKER_PRICING_FILE=/path/to/prices.json` to use your own table, e.g. for university-gateway or Azure
+deployment names. Calls to models missing from the table are shown as *unpriced*, never as $0. The batch
+status page shows ≈ $/submission, and the batch results page has an *AI usage & cost* card; the numbers
+come from `GET /api/v1/batches/{id}/usage`.
+
 Run modes:
-```
-
-
 
 - **local:** run `make dev`, then choose the AI provider (university gateway, Azure, MiniMax, OpenAI) and save
   its key from the account menu; keys stay server-side. Everything the pages show is read from the local
