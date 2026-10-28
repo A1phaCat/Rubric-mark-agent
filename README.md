@@ -6,29 +6,78 @@ The product contract is [contracts/openapi.yaml](contracts/openapi.yaml), the mo
 
 ## Quick start
 
-Requirements: Python 3.9+, Node 20+ for browser tests, and GNU Make optionally. On Windows, call `python scripts/tasks.py <target>` instead of `make <target>`.
+Requirements: **Python 3.12** (3.13+ does not work: `fastembed==0.3.6` needs Python < 3.13), Node 20+ for
+browser tests, and GNU Make optionally. On Windows, call `python scripts/tasks.py <target>` instead of
+`make <target>`. For a brand-new machine, follow [Fresh machine from zero](#fresh-machine-from-zero).
 
 ```text
-python -m venv .venv
-.venv/Scripts/python -m pip install -e "backend[dev]"
-.venv/Scripts/python scripts/tasks.py migrate
-.venv/Scripts/python scripts/tasks.py seed   # load the sample rubrics and batches
-.venv/Scripts/python scripts/tasks.py dev
+cp .env.example .env                                    # optional local settings (never commit .env)
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -e "backend[dev]"      # Windows: .venv\Scripts\python
+.venv/bin/python scripts/tasks.py seed                  # migrate, then load the sample rubrics and batches
+.venv/bin/python scripts/tasks.py dev                   # migrate, API on :8000 and the job worker
 ```
+
+Before starting a real grading run, edit `.env` and set `MARKER_LLM`, `MARKER_AI_BASE_URL`,
+`MARKER_AI_API_KEY`, and `MARKER_AI_MODEL` for your OpenAI-compatible provider. For a fully
+offline run, the deterministic FakeLLM is used, which the code only allows together with
+`MARKER_ENV=test` (set both `MARKER_ENV=test` and `MARKER_LLM=fake`; never for real marking).
+
+On Windows PowerShell, use `.venv\Scripts\python.exe` in place of `python` after creating the
+virtual environment, and call `python scripts/tasks.py <target>` instead of `make <target>`.
 
 Open <http://127.0.0.1:8000/>. The API contract is exposed at `/api/v1/openapi.json`; health is `/healthz`.
 
+## Fresh machine from zero
 
-## mac run
+Tested on Linux with Python 3.12 and Node 20. Nothing below needs an API key.
 
-```text
-.venv/bin/python -m pip install -e "backend[dev]"
-.venv/bin/python scripts/tasks.py migrate
-.venv/bin/python scripts/tasks.py dev
+1. **Python 3.12.** Check with `python3.12 --version`. If it is missing, install it from python.org,
+   `brew install python@3.12` (macOS), `sudo apt install python3.12 python3.12-venv` (Ubuntu with the
+   deadsnakes PPA if needed), or let [uv](https://docs.astral.sh/uv/) fetch it: `uv python install 3.12`.
+2. **Clone and create the virtual environment** at `.venv/` in the repository root (the Playwright
+   config and the commands below expect that path):
+
+   ```text
+   git clone https://github.com/A1phaCat/Rubric-mark-agent.git
+   cd Rubric-mark-agent
+   python3.12 -m venv .venv            # or: uv venv -p 3.12 .venv
+   .venv/bin/python -m pip install -U pip
+   .venv/bin/python -m pip install -e "backend[dev]"
+   ```
+
+   With uv, the install step is `uv pip install -p .venv/bin/python -e "backend[dev]"`.
+   On Windows use `py -3.12 -m venv .venv` and `.venv\Scripts\python` everywhere.
+3. **Database and samples.** `.venv/bin/python scripts/tasks.py seed` runs every Alembic migration on a new
+   `data/db/marker.sqlite3` and loads the samples. Deleting `data/` and re-running it gives a clean start.
+4. **Run.** `.venv/bin/python scripts/tasks.py dev` starts the API and one worker process. Queued batches
+   are processed only while the worker runs (`make api` alone never grades anything).
+5. **Backend tests** (offline, FakeLLM): `.venv/bin/python scripts/tasks.py test`
+   (= `make test PYTHON=.venv/bin/python`).
+6. **Browser tests.** Install Node 20+, then:
+
+   ```text
+   npm ci
+   npx playwright install chromium     # add --with-deps on a bare Linux box
+   npx playwright test tests/e2e        # = make e2e
+   ```
+
+   Playwright starts `scripts/tasks.py e2e-server` (migrate + seed + API + worker with `MARKER_ENV=test`)
+   on a throwaway database in `data/e2e/`, so your own `data/` is never touched. **Stop any `make dev`
+   server on port 8000 first**: Playwright reuses a running server, and a normal dev server has no
+   FakeLLM. `make visual` compares against the frozen screenshots in `prototype/`.
+7. **First real grading run** downloads the local embedding model into `data/cache/fastembed`.
+8. **AI provider keys** are entered in the app (account menu) and stored server-side. Never commit them or
+   put them in `.env` files that are tracked.
+
+**Token cost.** Each model call's cost is estimated from its token counts with the price table in
+`backend/app/llm/pricing.json` (USD per 1M tokens, with source links and the date it was checked).
+Set `MARKER_PRICING_FILE=/path/to/prices.json` to use your own table, e.g. for university-gateway or Azure
+deployment names. Calls to models missing from the table are shown as *unpriced*, never as $0. The batch
+status page shows ≈ $/submission, and the batch results page has an *AI usage & cost* card; the numbers
+come from `GET /api/v1/batches/{id}/usage`.
+
 Run modes:
-```
-
-
 
 - **local:** run `make dev`, then choose the AI provider (university gateway, Azure, MiniMax, OpenAI) and save
   its key from the account menu; keys stay server-side. Everything the pages show is read from the local
@@ -82,6 +131,44 @@ data and keep the saved AI provider settings, stop the dev server and run:
 .\.venv\Scripts\python.exe scripts\reset_local_data.py --yes
 ```
 
+### Canvas
+
+Canvas is optional and off by default. Configure it in **Settings → Canvas** (HTTPS base URL plus an
+access token, stored with the OS secret store) or with environment variables:
+
+```text
+MARKER_CANVAS_BASE_URL=https://canvas.example.edu   # live Canvas REST API
+MARKER_CANVAS_TOKEN=...                             # never commit; env or OS secret store only
+MARKER_CANVAS_OFFLINE_DIR=data/canvas-offline       # or: a Canvas export folder, no network
+```
+
+Without credentials, `python scripts/build_canvas_offline.py` builds an offline export from the sample
+rubrics and files; point `MARKER_CANVAS_OFFLINE_DIR` at it and restart the API. Upload → *From a Canvas
+assignment* imports the assignment rubric and submitted files into a new batch (Canvas user ids only, no
+names) and starts marking. Results → **Send to Canvas…** always shows a dry-run preview first; only
+confirmed submissions are pushed, and a live push is refused unless the assignment posts grades
+manually, so drafts stay hidden from students. Offline pushes are appended to `grade-pushes.jsonl`.
+
+### Real-data import and evaluation
+
+`scripts/import_real_submissions.py --source <folder or .zip>` (needs `pip install -e "backend[import]"`)
+de-identifies every PDF (IDs, names, e-mails, phones → keyed pseudonyms), re-renders it, groups one
+batch per assignment and pairs it with the closest library rubric (`data/import/pairing.json`). Source
+datasets stay outside the repository and nothing under `data/` is committed.
+
+`eval/run.py` (needs `pip install -e "backend[eval]"`, run from `backend/`) reports tokens and cost per
+report, run-to-run consistency and the B2 baseline (the same model scoring the whole report in one call):
+
+```text
+python ../eval/run.py primary --batch <batch_id> --repeats 3 --allow-restart [--provider configured]
+python ../eval/run.py scale --sample 200 --batches 4
+```
+
+`--provider dryrun` (default, no key) sends the real prompts to a metering stub: input tokens are a
+tokenizer estimate, output tokens and scores are placeholders and every output is labelled as an
+estimate. `--provider configured` uses the configured model and its reported usage. Outputs (CSV, JSON,
+PNG) go to `eval/out/` (ignored) or `--out`.
+
 ## Directory map
 
 - `prototype/`: frozen reference UI; never used as runtime writable storage.
@@ -91,7 +178,7 @@ data and keep the saved AI provider settings, stop the dev server and run:
 - `docs/`: review, architecture and ADRs.
 - `tests/`: cross-cutting architecture, browser and visual tests.
 - `scripts/`: cross-platform task, reset and sample-file build entrypoints.
-- `eval/`: golden-set runner skeleton; private datasets are ignored.
+- `eval/`: cost / consistency / B2 baseline runner and metrics; private datasets and outputs are ignored.
 - `data/`: generated runtime data only and ignored by Git.
 
 The local MVP includes deterministic structure-aware rubric parsing, page-aware PDF/DOCX/TXT extraction, and criterion-level hybrid vector/BM25 RAG with verbatim evidence verification. Submission chunks are embedded locally with `BAAI/bge-small-en-v1.5` and cached under `data/index/`. An independent Evidence Gate reads every retrieved candidate, maps zero to five non-redundant passages to the rubric's fixed aspects, and builds a persisted coverage matrix before the grader sees the evidence. Evidence count is never treated as sufficiency. OpenAI-compatible grading is supported; the FakeLLM exists for tests only. Production OCR, FTS5 and production report composition remain post-MVP.

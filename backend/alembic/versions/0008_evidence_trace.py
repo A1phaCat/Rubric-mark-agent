@@ -18,7 +18,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("ai_results", sa.Column("trace_json", sa.Text(), nullable=True))
+    # 0001 builds the schema from the current models, so a brand-new database already
+    # has this column; only databases created before 0008 need it added.
+    columns = {column["name"] for column in sa.inspect(op.get_bind()).get_columns("ai_results")}
+    if "trace_json" not in columns:
+        op.add_column("ai_results", sa.Column("trace_json", sa.Text(), nullable=True))
 
 
 def downgrade() -> None:

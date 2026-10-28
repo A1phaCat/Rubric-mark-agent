@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     embedding_threads: int = 2
     retrieval_candidate_limit: int = 12
     evidence_top_k: int = 5
+    # Canvas LMS: a REST API with a personal access token, or an export folder for offline use.
+    canvas_base_url: str | None = None
+    canvas_token: str | None = Field(default=None, repr=False)
+    canvas_offline_dir: Path | None = None
+    # Token price table used for cost reporting (default: backend/app/llm/pricing.json).
+    pricing_file: Path | None = None
 
     @property
     def fake_llm_allowed(self) -> bool:

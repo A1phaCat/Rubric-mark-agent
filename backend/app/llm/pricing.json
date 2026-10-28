@@ -1,0 +1,32 @@
+{
+  "currency": "USD",
+  "unit": "per 1M tokens",
+  "checked_at": "2026-10-28",
+  "notes": "Standard (non-batch, non-priority) list prices. 'cached_input' is the provider-cache read price; cached tokens are a subset of input tokens. Edit this file, or point MARKER_PRICING_FILE at your own copy, when prices change. Models not listed are shown as unpriced, never as $0.",
+  "sources": {
+    "openai": "https://platform.openai.com/docs/pricing (checked 2026-10-28)",
+    "minimax": "https://platform.minimax.io/docs/pricing/overview (international USD prices, checked 2026-10-28; MiniMax-M3 at the listed 'permanent 50% off' price, <=512k input tokens). The China-mainland endpoint api.minimaxi.com bills in CNY and may differ.",
+    "azure": "Azure OpenAI deployments use deployment names, not model names; add your deployment name here with the price from https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/",
+    "test": "FakeLLM test double: no provider, no cost"
+  },
+  "models": {
+    "gpt-4.1":            {"input": 2.00, "cached_input": 0.50,  "output": 8.00,  "source": "openai"},
+    "gpt-4.1-mini":       {"input": 0.40, "cached_input": 0.10,  "output": 1.60,  "source": "openai"},
+    "gpt-4.1-nano":       {"input": 0.10, "cached_input": 0.025, "output": 0.40,  "source": "openai"},
+    "gpt-4o":             {"input": 2.50, "cached_input": 1.25,  "output": 10.00, "source": "openai"},
+    "gpt-4o-mini":        {"input": 0.15, "cached_input": 0.075, "output": 0.60,  "source": "openai"},
+    "gpt-5":              {"input": 1.25, "cached_input": 0.125, "output": 10.00, "source": "openai"},
+    "gpt-5-mini":         {"input": 0.25, "cached_input": 0.025, "output": 2.00,  "source": "openai"},
+    "gpt-5-nano":         {"input": 0.05, "cached_input": 0.005, "output": 0.40,  "source": "openai"},
+    "gpt-5.1":            {"input": 1.25, "cached_input": 0.125, "output": 10.00, "source": "openai"},
+    "gpt-5.2":            {"input": 1.75, "cached_input": 0.175, "output": 14.00, "source": "openai"},
+    "gpt-5.4-mini":       {"input": 0.75, "cached_input": 0.075, "output": 4.50,  "source": "openai"},
+    "gpt-5.4-nano":       {"input": 0.20, "cached_input": 0.02,  "output": 1.25,  "source": "openai"},
+    "o4-mini":            {"input": 1.10, "cached_input": 0.275, "output": 4.40,  "source": "openai"},
+    "MiniMax-M3":         {"input": 0.30, "cached_input": 0.06,  "output": 1.20,  "source": "minimax"},
+    "MiniMax-M3.1-Flash": {"input": 0.15, "cached_input": 0.015, "output": 0.60,  "source": "minimax"},
+    "MiniMax-M2.7":       {"input": 0.30, "cached_input": 0.06,  "output": 1.20,  "source": "minimax"},
+    "MiniMax-M2.5":       {"input": 0.30, "cached_input": 0.03,  "output": 1.20,  "source": "minimax"},
+    "fake-marker-v1":     {"input": 0.00, "cached_input": 0.00,  "output": 0.00,  "source": "test"}
+  }
+}
