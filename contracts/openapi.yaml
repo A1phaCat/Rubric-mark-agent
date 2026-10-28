@@ -233,14 +233,54 @@ paths:
       operationId: getCanvasSettings
       responses:
         '200':
-          description: Disabled Canvas settings
+          description: Canvas connection (API token or offline export folder); the token is never returned
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CanvasSettings'}
     put:
       operationId: updateCanvasSettings
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CanvasSettings'}}}}
-      responses: {'501': {$ref: '#/components/responses/Error'}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CanvasSettingsUpdate'}}}}
+      responses:
+        '200':
+          description: Saved Canvas connection
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CanvasSettings'}
+        '422': {$ref: '#/components/responses/Error'}
+  /api/v1/canvas/courses:
+    get:
+      operationId: listCanvasCourses
+      responses:
+        '200': {$ref: '#/components/responses/JsonObject'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/v1/canvas/courses/{course_id}/assignments:
+    get:
+      operationId: listCanvasAssignments
+      parameters: [{name: course_id, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {$ref: '#/components/responses/JsonObject'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/v1/canvas/courses/{course_id}/assignments/{assignment_id}/import:
+    post:
+      operationId: importCanvasAssignment
+      description: Create a library rubric from the assignment's Canvas rubric and a draft batch with the students' files.
+      parameters:
+        - {name: course_id, in: path, required: true, schema: {type: string}}
+        - {name: assignment_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '201': {$ref: '#/components/responses/JsonObject'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+  /api/v1/canvas/batches/{batch_id}/push-grades:
+    post:
+      operationId: pushCanvasGrades
+      description: Write grades back to Canvas. Dry run unless dry_run is false; a live push needs a manually posted assignment so grades stay hidden.
+      parameters: [{$ref: '#/components/parameters/BatchId'}]
+      requestBody: {required: false, content: {application/json: {schema: {type: object, properties: {dry_run: {type: boolean, default: true}, include_unconfirmed: {type: boolean, default: false}}}}}}
+      responses:
+        '200': {$ref: '#/components/responses/JsonObject'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
 components:
   parameters:
     BatchId: {name: batch_id, in: path, required: true, schema: {type: string, pattern: '^bat_'}}
@@ -383,4 +423,5 @@ components:
         remaining: {type: object, required: [ready, processing, failed], properties: {ready: {type: integer}, processing: {type: integer}, failed: {type: integer}}}
     AISettings: {type: object, required: [provider, model, base_url, uses_university_gateway, has_api_key, available_models], properties: {provider: {type: string}, model: {type: string}, base_url: {type: [string, 'null']}, uses_university_gateway: {type: boolean}, has_api_key: {type: boolean}, available_models: {type: array, items: {type: string}}}}
     AISettingsWrite: {type: object, required: [provider, model, uses_university_gateway], properties: {provider: {type: string}, model: {type: string}, base_url: {type: [string, 'null']}, api_key: {type: [string, 'null']}, uses_university_gateway: {type: boolean}, clear_api_key: {type: boolean}}}
-    CanvasSettings: {type: object, required: [enabled, base_url, has_token], properties: {enabled: {const: false}, base_url: {type: [string, 'null']}, has_token: {type: boolean}}}
+    CanvasSettings: {type: object, required: [enabled, mode, base_url, has_token, offline_dir], properties: {enabled: {type: boolean}, mode: {enum: [api, offline, null]}, base_url: {type: [string, 'null']}, has_token: {type: boolean}, offline_dir: {type: [string, 'null']}}}
+    CanvasSettingsUpdate: {type: object, properties: {base_url: {type: [string, 'null']}, token: {type: [string, 'null'], writeOnly: true}, offline_dir: {type: [string, 'null']}}}

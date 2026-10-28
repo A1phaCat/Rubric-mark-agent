@@ -11,6 +11,9 @@ from app.deps import get_db, get_settings
 from app.llm import build_llm
 from app.llm.protocol import ProviderError
 from app.security.secrets import protect_secret
+from app.services.canvas_service import describe as describe_canvas
+from app.services.canvas_service import load_canvas_settings
+from app.services.canvas_service import save_settings as save_canvas_settings
 from app.services.settings_service import load_ai_settings
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -118,19 +121,19 @@ async def test_ai(
 
 
 @router.get("/canvas")
-def get_canvas() -> dict:
-    return {"enabled": False, "base_url": None, "has_token": False}
+def get_canvas(settings: Settings = Depends(get_settings), db: Session = Depends(get_db)) -> dict:
+    load_canvas_settings(db, settings)
+    return describe_canvas(settings)
 
 
 @router.put("/canvas")
-def put_canvas() -> None:
-    raise HTTPException(
-        501,
-        {
-            "error": {
-                "code": "feature_not_enabled",
-                "message": "Canvas is not available in the local MVP",
-                "details": None,
-            }
-        },
-    )
+def put_canvas(
+    payload: dict[str, Any], settings: Settings = Depends(get_settings), db: Session = Depends(get_db)
+) -> dict:
+    try:
+        with db.begin():
+            return save_canvas_settings(db, settings, payload)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(
+            422, {"error": {"code": "validation_error", "message": str(exc), "details": None}}
+        ) from exc

@@ -141,6 +141,7 @@
       var actions = '<a class="btn" href="' + MarkerAPI.exportCsvUrl(batch.id) + '" download><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Export grades (CSV)</a>' +
         (batch.status === 'completed' ? '<button class="btn" type="button" id="finaliseBtn">Finalise &amp; lock marks</button>' : '') +
         (batch.status === 'finalised' ? '<span class="btn synced">Finalised · ' + ui.shortDate(batch.finalised_at) + '</span><button class="btn" type="button" id="reopenBtn">Reopen for changes</button>' : '') +
+        '<button class="btn" type="button" id="canvasPushBtn" hidden>Send to Canvas…</button>' +
         (!complete ? '<a class="btn" href="02-batch-status.html?batch_id=' + encodeURIComponent(batch.id) + '">Back to review</a>' : '');
 
       var maxCount = Math.max.apply(null, data.distribution.map(function (d) { return d.count; }).concat([1]));
@@ -195,6 +196,22 @@
         });
       });
       apply();
+      var canvasPush = document.getElementById('canvasPushBtn');
+      MarkerAPI.getCanvasSettings().then(function (canvas) { if (canvas && canvas.enabled) canvasPush.hidden = false; }).catch(function () {});
+      canvasPush.addEventListener('click', function () {
+        /* Always a dry run first: the tutor sees exactly what would be written, then confirms. */
+        MarkerAPI.pushCanvasGrades(batch.id, { dry_run: true }).then(function (preview) {
+          var skipped = preview.skipped.length ? '\n' + preview.skipped.length + ' not sent (not confirmed by a tutor yet).' : '';
+          if (!preview.would_send) return MarkerDialog.alert({ title: 'Nothing to send yet', message: 'Confirm submissions first; only tutor-confirmed marks go to Canvas.' + skipped });
+          return MarkerDialog.confirm({ title: 'Send ' + preview.would_send + ' grade' + (preview.would_send === 1 ? '' : 's') + ' to Canvas?', icon: 'info',
+            message: 'Totals and rubric points for confirmed submissions are written to the Canvas gradebook. Canvas must post this assignment manually, so students see nothing until you post it there.' + skipped,
+            note: preview.mode === 'offline' ? 'Offline Canvas export: the grades are written to grade-pushes.jsonl, not sent.' : '',
+            confirmLabel: 'Send to Canvas', cancelLabel: 'Not now' }).then(function (yes) {
+            if (!yes) return;
+            return MarkerAPI.pushCanvasGrades(batch.id, { dry_run: false }).then(function (sent) { return MarkerDialog.alert({ title: 'Sent to Canvas', message: sent.sent + ' grade' + (sent.sent === 1 ? '' : 's') + ' written; post them in Canvas when you are ready.' }); });
+          });
+        }).catch(function (error) { MarkerDialog.alert(ui.actionError('Canvas push failed', error)); });
+      });
       var finalise = document.getElementById('finaliseBtn');
       if (finalise) finalise.addEventListener('click', function () {
         requestFinaliseConfirmation().then(function (confirmed) {

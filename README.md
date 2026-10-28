@@ -131,6 +131,44 @@ data and keep the saved AI provider settings, stop the dev server and run:
 .\.venv\Scripts\python.exe scripts\reset_local_data.py --yes
 ```
 
+### Canvas
+
+Canvas is optional and off by default. Configure it in **Settings → Canvas** (HTTPS base URL plus an
+access token, stored with the OS secret store) or with environment variables:
+
+```text
+MARKER_CANVAS_BASE_URL=https://canvas.example.edu   # live Canvas REST API
+MARKER_CANVAS_TOKEN=...                             # never commit; env or OS secret store only
+MARKER_CANVAS_OFFLINE_DIR=data/canvas-offline       # or: a Canvas export folder, no network
+```
+
+Without credentials, `python scripts/build_canvas_offline.py` builds an offline export from the sample
+rubrics and files; point `MARKER_CANVAS_OFFLINE_DIR` at it and restart the API. Upload → *From a Canvas
+assignment* imports the assignment rubric and submitted files into a new batch (Canvas user ids only, no
+names) and starts marking. Results → **Send to Canvas…** always shows a dry-run preview first; only
+confirmed submissions are pushed, and a live push is refused unless the assignment posts grades
+manually, so drafts stay hidden from students. Offline pushes are appended to `grade-pushes.jsonl`.
+
+### Real-data import and evaluation
+
+`scripts/import_real_submissions.py --source <folder or .zip>` (needs `pip install -e "backend[import]"`)
+de-identifies every PDF (IDs, names, e-mails, phones → keyed pseudonyms), re-renders it, groups one
+batch per assignment and pairs it with the closest library rubric (`data/import/pairing.json`). Source
+datasets stay outside the repository and nothing under `data/` is committed.
+
+`eval/run.py` (needs `pip install -e "backend[eval]"`, run from `backend/`) reports tokens and cost per
+report, run-to-run consistency and the B2 baseline (the same model scoring the whole report in one call):
+
+```text
+python ../eval/run.py primary --batch <batch_id> --repeats 3 --allow-restart [--provider configured]
+python ../eval/run.py scale --sample 200 --batches 4
+```
+
+`--provider dryrun` (default, no key) sends the real prompts to a metering stub: input tokens are a
+tokenizer estimate, output tokens and scores are placeholders and every output is labelled as an
+estimate. `--provider configured` uses the configured model and its reported usage. Outputs (CSV, JSON,
+PNG) go to `eval/out/` (ignored) or `--out`.
+
 ## Directory map
 
 - `prototype/`: frozen reference UI; never used as runtime writable storage.
@@ -140,7 +178,7 @@ data and keep the saved AI provider settings, stop the dev server and run:
 - `docs/`: review, architecture and ADRs.
 - `tests/`: cross-cutting architecture, browser and visual tests.
 - `scripts/`: cross-platform task, reset and sample-file build entrypoints.
-- `eval/`: golden-set runner skeleton; private datasets are ignored.
+- `eval/`: cost / consistency / B2 baseline runner and metrics; private datasets and outputs are ignored.
 - `data/`: generated runtime data only and ignored by Git.
 
 The local MVP includes deterministic structure-aware rubric parsing, page-aware PDF/DOCX/TXT extraction, and criterion-level hybrid vector/BM25 RAG with verbatim evidence verification. Submission chunks are embedded locally with `BAAI/bge-small-en-v1.5` and cached under `data/index/`. An independent Evidence Gate reads every retrieved candidate, maps zero to five non-redundant passages to the rubric's fixed aspects, and builds a persisted coverage matrix before the grader sees the evidence. Evidence count is never treated as sufficiency. OpenAI-compatible grading is supported; the FakeLLM exists for tests only. Production OCR, FTS5 and production report composition remain post-MVP.
