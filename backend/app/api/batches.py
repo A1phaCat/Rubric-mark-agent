@@ -303,7 +303,10 @@ async def events(batch_id: str, request: Request) -> StreamingResponse:
         last_version: int | None = None
         idle = 0.0
         while not await request.is_disconnected():
-            current = snapshot()
+            # The snapshot is a blocking SQLite read that can wait up to busy_timeout while
+            # the worker writes; run it off the event loop so open progress pages never
+            # stall every other request.
+            current = await asyncio.to_thread(snapshot)
             if current is None:
                 yield "event: error\ndata: {\"code\": \"not_found\"}\n\n"
                 return
