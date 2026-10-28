@@ -110,6 +110,17 @@ paths:
   /api/v1/batches/{batch_id}/results:
     parameters: [{$ref: '#/components/parameters/BatchId'}]
     get: {operationId: getBatchResults, responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}}
+  /api/v1/batches/{batch_id}/usage:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    get:
+      operationId: getBatchUsage
+      description: >-
+        Tokens and cost of the batch's model calls, per submission, per model, per purpose and in total,
+        priced from the configurable table (backend/app/llm/pricing.json or MARKER_PRICING_FILE) with its
+        source and check date. Models missing from the table are listed as unpriced and their cost is null.
+      parameters:
+        - {name: include, in: query, required: false, schema: {type: string, enum: [calls]}, description: Also list every call with its cost.}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}
   /api/v1/batches/{batch_id}/export.csv:
     parameters: [{$ref: '#/components/parameters/BatchId'}]
     get: {operationId: exportBatchCsv, responses: {'200': {description: CSV export, content: {text/csv: {schema: {type: string}}}}}}

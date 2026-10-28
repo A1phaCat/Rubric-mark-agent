@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     embedding_threads: int = 2
     retrieval_candidate_limit: int = 12
     evidence_top_k: int = 5
+    # Token price table used for cost reporting (default: backend/app/llm/pricing.json).
+    pricing_file: Path | None = None
 
     @property
     def fake_llm_allowed(self) -> bool:

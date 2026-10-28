@@ -375,6 +375,18 @@ test('local-fake API completes a new single-file batch', async ({ request, page 
   const reportBody = await report.json();
   expect(reportBody.ai_total).toBeUndefined();
   expect(JSON.stringify(reportBody)).not.toContain('evidence_check');
+  const usage = await (await request.get(`/api/v1/batches/${batch.id}/usage`)).json();
+  expect(usage.totals.calls).toBeGreaterThan(0);
+  expect(usage.totals.unpriced_calls).toBe(0);
+  expect(usage.by_model.map((m) => m.model)).toContain('fake-marker-v1');
+  expect(usage.pricing.checked_at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  await page.goto(`/02-batch-status.html?batch_id=${batch.id}`);
+  await expect(page.locator('#batchUsage')).toContainText('/ submission');
+  await page.goto(`/04-batch-complete.html?batch_id=${batch.id}`);
+  const usageCard = page.locator('#usageCard');
+  await expect(usageCard).toContainText('AI usage & cost');
+  await expect(usageCard).toContainText('fake-marker-v1');
+  await expect(usageCard).toContainText(`checked ${usage.pricing.checked_at}`);
   } finally {
     await cleanupBatch(request, createdBatchId);
   }
