@@ -25,8 +25,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from app.llm.fake import FakeLLM
 from app.llm.protocol import ChatResponse, LLMResponse, ToolSpec

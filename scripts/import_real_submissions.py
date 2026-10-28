@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import itertools
 import json
 import os
 import re
@@ -25,25 +26,26 @@ import sys
 import time
 import zipfile
 from collections import defaultdict
+from collections.abc import Iterator
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.ingest.anonymise import (  # noqa: E402
+from app.ingest.anonymise import (
     AnonymisationReport,
     Anonymiser,
     residual_identifiers,
     strip_filename_sid,
 )
-from app.rubric.matching import RubricCandidate, rank_rubrics  # noqa: E402
+from app.rubric.matching import RubricCandidate, rank_rubrics
 
-HEADER_UNIT = re.compile(r"^\s*Unit:\s*(.+)$", re.M)
-HEADER_ROW = re.compile(r"^\s*Source CSV row:\s*(\d+)", re.M)
+HEADER_UNIT = re.compile(r"^\s*Unit:\s*(.+)$", re.MULTILINE)
+HEADER_ROW = re.compile(r"^\s*Source CSV row:\s*(\d+)", re.MULTILINE)
 TOPIC_SUFFIX = re.compile(r"__[0-9a-f]{6,}$")
 UNIT_CODE = re.compile(r"^((?:FIT|COMP|ELEC|SOFT)\d{4}(?:-(?:FIT|COMP)\d{4})*)")
 
@@ -95,7 +97,7 @@ def _reflow(lines: list[str]) -> str:
     """Undo the PDF's visual line wrapping; keep list items, headings and short lines apart."""
 
     out = lines[0]
-    for previous, line in zip(lines, lines[1:]):
+    for previous, line in itertools.pairwise(lines):
         wrapped = len(previous) > 55 and not previous.endswith((".", ":", ";", "!", "?"))
         joinable = wrapped and not _LIST_START.match(line)
         out += (" " if joinable or (line[:1].islower() and not _LIST_START.match(line)) else "\n") + line
@@ -172,9 +174,8 @@ def _salt(path: Path) -> bytes:
 
 
 def _rubric_candidates(session: Any) -> list[RubricCandidate]:
-    from sqlalchemy import select
-
     from app.db.models.rubric import Rubric, RubricCriterion
+    from sqlalchemy import select
 
     out = []
     for rubric in session.scalars(select(Rubric).where(Rubric.archived_at.is_(None))):
@@ -235,14 +236,13 @@ def main() -> None:
     print(f"read {len(entries)} PDFs → {len(items)} unique submissions in {len(by_title)} assignments "
           f"({time.time() - started:.0f}s)")
 
-    from sqlalchemy import select
-
     from app.db.models.batch import Batch
     from app.db.models.submission import File, Submission
     from app.db.session import SessionLocal
     from app.sample import seed as sample_seed
     from app.services.batch_service import BatchUseCases
     from app.services.submission_service import apply_extraction, store_upload
+    from sqlalchemy import select
 
     with SessionLocal.begin() as session:
         sample_seed._ensure_people(session)
@@ -299,7 +299,7 @@ def main() -> None:
             batches.create(
                 {"name": f"{title} · anonymised", "unit": chosen[0]["unit"], "rubric_id": best.rubric_id,
                  "rubric_version": 1,
-                 "due_at": (datetime.now(timezone.utc) + timedelta(days=14)).replace(microsecond=0).isoformat()},
+                 "due_at": (datetime.now(UTC) + timedelta(days=14)).replace(microsecond=0).isoformat()},
                 actor, batch_id=batch_id,
             )
             batch = session.get(Batch, batch_id)

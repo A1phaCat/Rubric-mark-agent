@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.sample.seed import FILES, RUBRIC_FILES  # noqa: E402
+from app.sample.seed import FILES, RUBRIC_FILES
 
 # sample file token -> rubric export that file answers
 PAIRS = {"ASGN1": "comp5348-asgn1.json", "ASGN2": "comp5348-asgn2.json"}

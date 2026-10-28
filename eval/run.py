@@ -25,7 +25,7 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +33,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT))
 
-from eval.metrics import level_agreement, mean, mean_absolute_error, quadratic_weighted_kappa, stdev  # noqa: E402
+from eval.metrics import (
+    level_agreement,
+    mean,
+    mean_absolute_error,
+    quadratic_weighted_kappa,
+    stdev,
+)
 
 COMPARE_MODELS = ["gpt-4.1", "gpt-4.1-mini", "gpt-5-mini", "gpt-4o-mini", "MiniMax-M3"]
 
@@ -65,9 +71,8 @@ def _provider(args: argparse.Namespace) -> tuple[Any, dict[str, Any], str]:
 
 
 def _criteria(session: Any, batch: Any) -> list[dict[str, Any]]:
-    from sqlalchemy import select
-
     from app.db.models.rubric import RubricCriterion
+    from sqlalchemy import select
 
     rows = session.scalars(
         select(RubricCriterion)
@@ -106,10 +111,9 @@ def _start(batch_id: str, payload: dict[str, Any], sample: int | None) -> None:
 
 
 def _snapshot(submission_ids: list[str]) -> dict[str, dict[str, dict[str, Any]]]:
-    from sqlalchemy import select
-
     from app.db.models.submission import AIResult
     from app.db.session import SessionLocal
+    from sqlalchemy import select
 
     out: dict[str, dict[str, dict[str, Any]]] = {}
     with SessionLocal() as session:
@@ -120,10 +124,9 @@ def _snapshot(submission_ids: list[str]) -> dict[str, dict[str, dict[str, Any]]]
 
 
 def _calls_since(submission_ids: list[str], since: datetime) -> dict[str, dict[str, Any]]:
-    from sqlalchemy import select
-
     from app.db.models.llm import LLMCall
     from app.db.session import SessionLocal
+    from sqlalchemy import select
 
     totals: dict[str, dict[str, Any]] = {}
     with SessionLocal() as session:
@@ -195,11 +198,10 @@ def _run_b2(llm: Any, criteria: list[dict[str, Any]], submission: Any) -> dict[s
 
 
 def primary(args: argparse.Namespace) -> None:
-    from sqlalchemy import select
-
     from app.db.models.batch import Batch
     from app.db.models.submission import Submission
     from app.db.session import SessionLocal
+    from sqlalchemy import select
 
     llm, payload, mode = _provider(args)
     out = Path(args.out)
@@ -219,7 +221,7 @@ def primary(args: argparse.Namespace) -> None:
 
     runs: list[dict[str, Any]] = []
     for repeat in range(args.repeats):
-        since = datetime.now(timezone.utc)
+        since = datetime.now(UTC)
         started = time.perf_counter()
         if repeat == 0 and args.allow_restart is False:
             _start(args.batch, payload, None)
@@ -324,11 +326,10 @@ def primary(args: argparse.Namespace) -> None:
 def scale(args: argparse.Namespace) -> None:
     """Mark ``--sample`` imported submissions spread over the largest anonymised batches."""
 
-    from sqlalchemy import func, select
-
     from app.db.models.batch import Batch
     from app.db.models.submission import Submission
     from app.db.session import SessionLocal
+    from sqlalchemy import func, select
 
     _, payload, mode = _provider(args)
     out = Path(args.out)
@@ -342,7 +343,7 @@ def scale(args: argparse.Namespace) -> None:
         ).all()
     chosen = counts[: args.batches]
     per_batch = max(1, args.sample // max(1, len(chosen)))
-    since = datetime.now(timezone.utc)
+    since = datetime.now(UTC)
     started = time.perf_counter()
     ids: list[str] = []
     for batch_id, _name, _count in chosen:
