@@ -6,29 +6,36 @@ The product contract is [contracts/openapi.yaml](contracts/openapi.yaml), the mo
 
 ## Quick start
 
-Requirements: Python 3.9+, Node 20+ for browser tests, and GNU Make optionally. On Windows, call `python scripts/tasks.py <target>` instead of `make <target>`.
+Requirements: Python 3.9+ (Python 3.11 recommended), Node 20+ for browser tests, and GNU Make optionally.
 
-```text
-python -m venv .venv
-.venv/Scripts/python -m pip install -e "backend[dev]"
-.venv/Scripts/python scripts/tasks.py migrate
-.venv/Scripts/python scripts/tasks.py seed   # load the sample rubrics and batches
-.venv/Scripts/python scripts/tasks.py dev
+On macOS or Linux, create the local environment file, install the backend, initialise the database,
+and start the API plus worker with:
+
+```bash
+cp .env.example .env
+
+python3.11 -m venv .venv
+source .venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install -e "backend[dev]"
+
+python scripts/tasks.py migrate
+python scripts/tasks.py seed
+python scripts/tasks.py dev
 ```
+
+Before starting a real grading run, edit `.env` and set `MARKER_LLM`, `MARKER_AI_BASE_URL`,
+`MARKER_AI_API_KEY`, and `MARKER_AI_MODEL` for your OpenAI-compatible provider. For a fully
+offline run, the deterministic FakeLLM is used, which the code only allows together with
+`MARKER_ENV=test` (set both `MARKER_ENV=test` and `MARKER_LLM=fake`; never for real marking).
+
+On Windows PowerShell, use `.venv\Scripts\python.exe` in place of `python` after creating the
+virtual environment, and call `python scripts/tasks.py <target>` instead of `make <target>`.
 
 Open <http://127.0.0.1:8000/>. The API contract is exposed at `/api/v1/openapi.json`; health is `/healthz`.
 
-
-## mac run
-
-```text
-.venv/bin/python -m pip install -e "backend[dev]"
-.venv/bin/python scripts/tasks.py migrate
-.venv/bin/python scripts/tasks.py dev
 Run modes:
-```
-
-
 
 - **local:** run `make dev`, then choose the AI provider (university gateway, Azure, MiniMax, OpenAI) and save
   its key from the account menu; keys stay server-side. Everything the pages show is read from the local
