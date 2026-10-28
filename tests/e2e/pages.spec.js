@@ -359,6 +359,14 @@ test('local-fake API completes a new single-file batch', async ({ request, page 
   await page.goto(`/03b-review-split.html?submission_id=${submission.id}`);
   await expect(page.locator('#doc')).toContainText('A deterministic test submission.');
   await expect(page.locator('.doc-bar .file span')).toContainText('1 page');
+  const trace = page.locator('#c1 .trace');
+  await expect(trace).toBeVisible();
+  await expect(trace.locator('summary')).toContainText('How the evidence was found');
+  await expect(trace.locator('ol')).toBeHidden();
+  await trace.locator('summary').click();
+  await expect(trace.locator('ol')).toContainText('Read the whole submission');
+  await expect(trace.locator('ol')).toContainText('Quote verified');
+  await expect(trace).toContainText('Tutor view only');
   await page.locator('#btnNext').click();
   await expect(page.locator('#endCard')).toContainText('Batch complete');
   const results = await request.get(`/api/v1/batches/${batch.id}/results`);
@@ -366,6 +374,7 @@ test('local-fake API completes a new single-file batch', async ({ request, page 
   const report = await request.get(`/api/v1/submissions/${submission.id}/report?audience=student`);
   const reportBody = await report.json();
   expect(reportBody.ai_total).toBeUndefined();
+  expect(JSON.stringify(reportBody)).not.toContain('evidence_check');
   } finally {
     await cleanupBatch(request, createdBatchId);
   }

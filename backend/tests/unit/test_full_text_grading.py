@@ -134,7 +134,7 @@ class ScriptedLLM:
 
 
 def _run_criterion(llm, criterion=None):
-    settings = Settings(llm="minimax")
+    settings = Settings(llm="minimax", grading_context="full")
     full = full_document(_document())
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(grading, "build_llm", lambda _settings: llm)
@@ -283,3 +283,13 @@ def test_other_criteria_wait_for_the_first_evidence_call_then_run_together(store
     asyncio.run(go())
     assert events[:2] == ["start crt_0", "gate crt_0"]  # the first one primes the provider cache
     assert events[2:4] == ["start crt_1", "start crt_2"]  # then the rest go together
+
+
+def test_the_rationale_cites_pages_and_paragraphs_not_internal_ids() -> None:
+    gate = {"evidence": [{"passage_id": "p4", "quote": "We measured latency under load", "role": "primary",
+                          "relevance": "direct", "aspect_ids": ["measures", "reports"]}]}
+    grade = {"score": 10, "level": "Good", "rationale": "Latency is measured (p4, p1); see p99.", "confidence": "high"}
+    llm = ScriptedLLM(gate, grade)
+    result = _run_criterion(llm)
+    assert result["rationale"] == "Latency is measured (p.2 ¶4, p.1 ¶1); see p99."
+    assert "never by passage id" in llm.prompts[1][1]

@@ -3,19 +3,29 @@ from __future__ import annotations
 import asyncio
 import random
 import re
+import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from typing import Mapping, Sequence
+from typing import Any, Awaitable, Callable, Mapping, Sequence, TypeVar
 
 import httpx
 
-from app.llm.protocol import FatalProviderError, LLMResponse, ProviderError, RetryableProviderError
+from app.llm.protocol import (
+    ChatResponse,
+    FatalProviderError,
+    LLMResponse,
+    ProviderError,
+    RetryableProviderError,
+    ToolSpec,
+    parse_tool_call,
+)
 from app.llm.ratelimit import ProviderGate, provider_gate
 
 # 408 timeout, 409 conflict, 425 too early, 429 rate limit, 5xx overload; 529 = "overloaded".
 _RETRYABLE_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504, 529})
 _GLOBAL_PAUSE_STATUS = frozenset({429, 503, 529})
 _MAX_RETRY_AFTER_SECONDS = 300.0
+T = TypeVar("T")
 _CONTEXT_LENGTH = re.compile(
     r"context[_ ]length|maximum context|too many tokens|prompt is too long|input is too long|"
     r"exceeds? the (?:model'?s )?(?:context|token limit)",
@@ -147,11 +157,37 @@ class OpenAICompatibleLLM:
         }
         if self.reasoning_effort:
             payload["reasoning_effort"] = self.reasoning_effort
+        return await self._with_retries(lambda: self._complete_once(payload))
+
+    async def chat(
+        self,
+        *,
+        purpose: str,
+        messages: Sequence[Mapping[str, Any]],
+        tools: Sequence[ToolSpec],
+        metadata: Mapping[str, str] | None = None,
+    ) -> ChatResponse:
+        del metadata
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": list(messages),
+            "tools": [tool.as_openai() for tool in tools],
+            "tool_choice": "auto",
+            "temperature": 0,
+            "max_tokens": 4000 if purpose == "evidence_check" else 2500,
+        }
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
+        return await self._with_retries(lambda: self._chat_once(payload))
+
+    async def _with_retries(self, send: Callable[[], Awaitable[T]]) -> T:
+        """Run one provider call behind the shared gate, retrying what waiting can fix."""
+
         attempt = 0
         while True:
             try:
                 async with self.gate.slot():
-                    return await self._post(payload)
+                    return await send()
             except RetryableProviderError as exc:
                 if attempt >= self.max_retries:
                     raise RetryableProviderError(
@@ -178,7 +214,7 @@ class OpenAICompatibleLLM:
         base = min(self.max_backoff_seconds, 2.0 ** attempt)
         return base * random.uniform(0.5, 1.0)
 
-    async def _post(self, payload: dict[str, object]) -> LLMResponse:
+    async def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds, transport=self._transport) as client:
                 response = await client.post(
@@ -187,22 +223,9 @@ class OpenAICompatibleLLM:
                 if response.status_code >= 400:
                     raise _status_error(response)
                 data = response.json()
-                usage = data.get("usage", {})
-                choice = data["choices"][0]
-                content = response_text(choice)
-                if not content:
-                    finish_reason = choice.get("finish_reason") or "unknown"
-                    message = f"Provider returned no text content (finish_reason={finish_reason})"
-                    if finish_reason == "length":
-                        # Deterministic at temperature 0: the output budget is too small.
-                        raise FatalProviderError(message)
-                    raise RetryableProviderError(message)
-                return LLMResponse(
-                    text=content,
-                    model=data.get("model", self.model),
-                    input_tokens=int(usage.get("prompt_tokens", 0)),
-                    output_tokens=int(usage.get("completion_tokens", 0)),
-                )
+                if not isinstance(data, dict) or not data.get("choices"):
+                    raise ValueError("response has no choices")
+                return data
         except ProviderError:
             raise
         except (httpx.TimeoutException, httpx.TransportError) as exc:
@@ -211,3 +234,63 @@ class OpenAICompatibleLLM:
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
             message = str(exc).strip() or "request failed"
             raise ProviderError(f"{type(exc).__name__}: {message}") from exc
+
+    async def _complete_once(self, payload: dict[str, Any]) -> LLMResponse:
+        data = await self._request(payload)
+        choice = data["choices"][0]
+        content = response_text(choice)
+        if not content:
+            _raise_empty(choice)
+        input_tokens, output_tokens, cached = _usage(data)
+        return LLMResponse(
+            text=content,
+            model=data.get("model", self.model),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cached_tokens=cached,
+        )
+
+    async def _chat_once(self, payload: dict[str, Any]) -> ChatResponse:
+        started = time.perf_counter()
+        data = await self._request(payload)
+        choice = data["choices"][0]
+        message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
+        calls = tuple(
+            parse_tool_call(index, raw)
+            for index, raw in enumerate(message.get("tool_calls") or [])
+            if isinstance(raw, dict)
+        )
+        text = message.get("content") if isinstance(message.get("content"), str) else ""
+        if not calls and not (text or "").strip():
+            _raise_empty(choice)
+        input_tokens, output_tokens, cached = _usage(data)
+        return ChatResponse(
+            text=(text or "").strip(),
+            tool_calls=calls,
+            model=data.get("model", self.model),
+            finish_reason=str(choice.get("finish_reason") or ""),
+            reasoning=str(message.get("reasoning_content") or ""),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cached_tokens=cached,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+        )
+
+
+def _usage(data: Mapping[str, Any]) -> tuple[int, int, int]:
+    usage = data.get("usage") if isinstance(data.get("usage"), Mapping) else {}
+    details = usage.get("prompt_tokens_details") if isinstance(usage.get("prompt_tokens_details"), Mapping) else {}
+    return (
+        int(usage.get("prompt_tokens") or 0),
+        int(usage.get("completion_tokens") or 0),
+        int(details.get("cached_tokens") or 0),
+    )
+
+
+def _raise_empty(choice: Mapping[str, Any]) -> None:
+    finish_reason = choice.get("finish_reason") or "unknown"
+    message = f"Provider returned no text content (finish_reason={finish_reason})"
+    if finish_reason == "length":
+        # Deterministic at temperature 0: the output budget is too small.
+        raise FatalProviderError(message)
+    raise RetryableProviderError(message)

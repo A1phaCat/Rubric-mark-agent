@@ -148,6 +148,7 @@ class ReviewUseCases:
                     "evidence_ids": [
                         evidence.id for evidence in evidence_by_criterion.get(definition.id, [])
                     ],
+                    "evidence_check": _evidence_check(result),
                     "version": review.version,
                 }
             )
@@ -402,3 +403,14 @@ class ReviewUseCases:
         if value is None:
             raise KeyError(batch_id)
         return value
+
+
+def _evidence_check(result: AIResult | None) -> dict[str, Any] | None:
+    """How the evidence was found, for the tutor's review screen (never the student report)."""
+
+    if result is None:
+        return None
+    minor = json.loads(result.minor_json or "{}")
+    steps = json.loads(result.trace_json) if result.trace_json else []
+    context = minor.get("context") if isinstance(minor, dict) else None
+    return {"context": context or "retrieval", "steps": steps if isinstance(steps, list) else []}

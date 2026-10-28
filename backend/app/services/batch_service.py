@@ -21,6 +21,7 @@ from app.domain.bands import band_ranges, level_for_score
 from app.domain.ids import new_id
 from app.domain.states import BatchStatus, SubmissionStatus
 from app.domain.timefmt import iso_utc
+from app.grading import prompt_version
 from app.jobs.queue import JobQueue
 
 PROCESSING_STATES = ("extracting", "ocr_running", "queued", "marking")
@@ -289,7 +290,7 @@ class BatchUseCases:
         batch.started_at = batch.started_at or datetime.now(timezone.utc)
         batch.model_provider = provider
         batch.model_name = payload.get("model") or runtime_settings.ai_model
-        batch.prompt_version = "criterion-grade-coverage-v3"
+        batch.prompt_version = prompt_version(runtime_settings.grading_context)
         batch.external_processing_acknowledged = bool(
             payload.get("external_processing_acknowledged", False)
         )

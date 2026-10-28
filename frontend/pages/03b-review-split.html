@@ -170,6 +170,26 @@
   .ai-box .reason{ font-size:13px; color:var(--ai-ink); line-height:1.55; }
   .ai-box .reason b{ font-family:'IBM Plex Mono',monospace; font-weight:500; }
   .ai-box .reason a{ color:var(--ai); font-family:'IBM Plex Mono',monospace; font-size:12px; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+  .trace{ margin:-8px 0 16px; border:1px solid var(--border); border-radius:8px; background:var(--surface); font-size:12.5px; }
+  .trace summary{ display:flex; align-items:baseline; gap:10px; padding:9px 14px; cursor:pointer; color:var(--ink); font-weight:500; list-style:none; }
+  .trace summary::-webkit-details-marker{ display:none; }
+  .trace summary::before{ content:'▸'; color:var(--ink-soft); font-size:11px; transition:transform .15s ease; }
+  .trace[open] summary::before{ transform:rotate(90deg); }
+  .trace summary span{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:400; color:var(--ink-soft); }
+  .trace ol{ list-style:none; margin:0; padding:2px 14px 4px 34px; border-top:1px solid var(--border); }
+  .trace li{ position:relative; display:flex; flex-direction:column; gap:1px; padding:6px 0; color:var(--ink); }
+  .trace li::before{ content:''; position:absolute; left:-17px; top:12px; width:7px; height:7px; border-radius:50%; background:var(--border-strong); }
+  .trace li.ok::before{ background:var(--conf-high); }
+  .trace li.bad::before{ background:var(--risk); }
+  .trace li.warn::before{ background:var(--conf-med-dot); }
+  .trace li.info::before{ background:var(--info); }
+  .trace li b{ font-weight:500; }
+  .trace li span{ color:var(--ink-soft); line-height:1.45; overflow-wrap:anywhere; }
+  .trace li.round{ flex-direction:row; justify-content:space-between; padding:9px 0 2px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); }
+  .trace li.round::before{ display:none; }
+  .trace li.round span{ text-transform:none; letter-spacing:0; }
+  .trace li.bad b{ color:var(--risk); }
+  .trace-foot{ margin:0; padding:8px 14px 10px; border-top:1px solid var(--border); font-size:11.5px; color:var(--ink-soft); }
 
   .marker-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-top:12px; border-top:1px dashed var(--border); }
   .marker-row label{ font-size:12.5px; color:var(--ink-soft); }
@@ -825,6 +845,6 @@
 </script>
 <script src="/js/dialog.js"></script>
 <script src="/js/api.js"></script>
-<script src="account-menu.js"></script><script src="/js/pdf-original-viewer.js"></script><script src="/js/app-wire.js"></script>
+<script src="account-menu.js"></script><script src="/js/pdf-original-viewer.js"></script><script src="/js/evidence-trace.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

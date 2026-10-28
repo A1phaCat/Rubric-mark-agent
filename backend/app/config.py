@@ -38,9 +38,14 @@ class Settings(BaseSettings):
     # Retries inside the LLM client for 429 / 5xx / timeouts; Retry-After is honoured.
     llm_max_retries: int = Field(default=5, ge=0, le=10)
     llm_max_backoff_seconds: float = Field(default=60.0, ge=1, le=600)
-    # "full": the evidence step reads the whole submission (default). "retrieval": only the
-    # passages retrieved for each criterion — kept for evaluation comparisons.
-    grading_context: Literal["full", "retrieval"] = "full"
+    # What the evidence step reads and how:
+    #   "full_tools": the whole submission, with tools that verify each quote as it is cited
+    #                 and a search before an aspect is reported missing (default)
+    #   "full":       the whole submission in one call
+    #   "retrieval":  only the passages retrieved for each criterion (evaluation comparisons)
+    grading_context: Literal["full_tools", "full", "retrieval"] = "full_tools"
+    # Model turns the evidence check may take for one criterion.
+    agent_max_rounds: int = Field(default=4, ge=1, le=8)
     # Model context window. A submission that cannot fit is routed to manual marking,
     # never truncated.
     ai_context_tokens: int = Field(default=128_000, ge=8_000)

@@ -13,8 +13,9 @@ from app.db.models.batch import Batch
 from app.db.models.review import Review
 from app.db.models.submission import AIResult, Evidence, Submission
 from app.domain.ids import new_id
-from app.grading import grade_criterion
+from app.grading import grade_criterion, prompt_version
 from app.llm.protocol import FatalProviderError, ProviderError
+from app.llm.usage import SQLAlchemyUsageSink, UsageRecord
 from app.retrieval import FullDocument, full_document, retrieve_passages
 
 
@@ -155,6 +156,7 @@ async def grade_submission(
     confidence_values: list[str] = []
     evidence_count = 0
     now = datetime.now(timezone.utc)
+    usage = SQLAlchemyUsageSink(session)
 
     def persist(
         position: int,
@@ -176,6 +178,24 @@ async def grade_submission(
             session.execute(delete(Evidence).where(Evidence.ai_result_id == completed.id))
             session.execute(delete(AIResult).where(AIResult.id == completed.id))
 
+        context = str(result.get("context") or ("full" if full else "retrieval"))
+        version = prompt_version(context)
+        trace = result.get("evidence_trace")
+        for call in result.get("llm_calls") or []:
+            usage.record(
+                UsageRecord(
+                    provider=settings.llm,
+                    model=str(call.get("model") or settings.ai_model),
+                    purpose=str(call["purpose"]),
+                    input_tokens=int(call.get("input_tokens") or 0),
+                    output_tokens=int(call.get("output_tokens") or 0),
+                    cached_tokens=int(call.get("cached_tokens") or 0),
+                    latency_ms=int(call.get("latency_ms") or 0),
+                    submission_id=submission.id,
+                    prompt_version=version,
+                )
+            )
+
         ai_result = AIResult(
             id=new_id("air"),
             submission_id=submission.id,
@@ -188,7 +208,7 @@ async def grade_submission(
                     "grading_mode": result.get("grading_mode", criterion.get("grading_mode")),
                     "coverage_ratio": result.get("coverage_ratio", 0),
                     "missing_aspects": result.get("missing_aspects", []),
-                    "context": "full" if full else "retrieval",
+                    "context": context,
                 },
                 ensure_ascii=False,
             ),
@@ -198,10 +218,11 @@ async def grade_submission(
             self_confidence=None,
             provider=settings.llm,
             model=str(result.get("model") or settings.ai_model),
-            prompt_version="criterion-grade-fulltext-v1" if full else "criterion-grade-coverage-v3",
+            prompt_version=version,
             input_tokens=int(result.get("input_tokens") or 0),
             output_tokens=int(result.get("output_tokens") or 0),
             latency_ms=int(result.get("latency_ms") or 0),
+            trace_json=json.dumps(trace, ensure_ascii=False) if trace else None,
             created_at=now,
         )
         session.add(ai_result)
@@ -300,11 +321,12 @@ async def grade_submission(
             session.commit()
         return score, confidence, added
 
-    # 1. What the evidence step reads. Full: every paragraph of the submission, once for
-    #    all criteria — never truncated; a submission that cannot fit goes to a tutor.
-    #    Retrieval: the passages retrieved for each criterion (evaluation comparison only).
+    # 1. What the evidence step reads. Full (with or without tools): every paragraph of the
+    #    submission, once for all criteria — never truncated; a submission that cannot fit
+    #    goes to a tutor. Retrieval: the passages retrieved for each criterion (evaluation
+    #    comparison only).
     full: FullDocument | None = None
-    if settings.grading_context == "full":
+    if settings.grading_context in {"full", "full_tools"}:
         full = full_document(document)
         limit_tokens = int(settings.ai_context_tokens) - _PROMPT_RESERVE_TOKENS
         if full.estimated_tokens > limit_tokens:

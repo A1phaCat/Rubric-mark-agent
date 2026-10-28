@@ -1,15 +1,28 @@
 from __future__ import annotations
 
 import json
+import re
 import time
+from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
+from app.agent import AgentStep, run_evidence_check
 from app.config import Settings
 from app.domain import levels
 from app.llm import build_llm
-from app.llm.protocol import LLM, LLMResponse
+from app.llm.protocol import LLM, FatalProviderError, LLMResponse
 from app.retrieval import FullDocument, RetrievedPassage, find_quote
 from app.rubric.assessment import normalise_assessment_plan
+
+PROMPT_VERSIONS = {
+    "full_tools": "criterion-grade-fulltools-v1",
+    "full": "criterion-grade-fulltext-v1",
+    "retrieval": "criterion-grade-coverage-v3",
+}
+
+
+def prompt_version(context: str) -> str:
+    return PROMPT_VERSIONS.get(context, PROMPT_VERSIONS["retrieval"])
 
 
 def _json_object(
@@ -81,6 +94,7 @@ async def _complete_json(
             model=repair.model,
             input_tokens=response.input_tokens + repair.input_tokens,
             output_tokens=response.output_tokens + repair.output_tokens,
+            cached_tokens=response.cached_tokens + repair.cached_tokens,
         )
         return value, combined
 
@@ -138,6 +152,16 @@ def _reconcile_level(criterion: dict[str, Any], result: dict[str, Any]) -> None:
     level = levels.level_for(criterion.get("levels", []), score)
     if level is not None:
         result["level"] = str(level.get("label") or result.get("level") or "")
+
+
+_PASSAGE_ID = re.compile(r"\bp\d+(?:c\d+)?\b")
+
+
+def readable_references(text: str, passages: list[RetrievedPassage]) -> str:
+    """Replace internal paragraph ids (p14) with the page and paragraph a tutor sees (p.2 ¶5)."""
+
+    where = {item.id: f"p.{item.page} {item.paragraph}".strip() for item in passages}
+    return _PASSAGE_ID.sub(lambda match: where.get(match.group(0), match.group(0)), text)
 
 
 def _passage_context(passages: list[RetrievedPassage]) -> str:
@@ -346,11 +370,93 @@ def _fake_gate(
                 "aspect_ids": [aspects[index % len(aspects)]["id"]],
             }
         )
-    return _normalise_gate(
-        criterion,
-        passages,
-        {"evidence": raw_evidence, "notes": "Deterministic FakeLLM evidence gate."},
+    return {"evidence": raw_evidence, "notes": "Deterministic FakeLLM evidence gate."}
+
+
+@dataclass
+class FoundEvidence:
+    """The evidence step's raw answer, how it was produced, and the provider calls it made."""
+
+    raw: dict[str, Any]
+    context: str  # full_tools | full | retrieval
+    model: str = ""
+    calls: list[dict[str, Any]] = field(default_factory=list)
+    trace: list[dict[str, Any]] | None = None
+
+
+def _call_record(purpose: str, model: str, input_tokens: int, output_tokens: int,
+                 cached_tokens: int, latency_ms: int) -> dict[str, Any]:
+    return {"purpose": purpose, "model": model, "input_tokens": input_tokens,
+            "output_tokens": output_tokens, "cached_tokens": cached_tokens, "latency_ms": latency_ms}
+
+
+# Provider answers that mean the model or endpoint cannot run the tool-based check (no
+# status: the answer was cut off). The one-shot evidence step is used instead. Wrong keys,
+# rate limits and an over-long submission are not among them.
+_TOOLS_UNAVAILABLE = frozenset({400, 404, 405, 422, None})
+
+
+async def _find_evidence(
+    settings: Settings,
+    llm: LLM,
+    criterion: dict[str, Any],
+    passages: list[RetrievedPassage],
+    metadata: Mapping[str, str],
+    full: FullDocument | None,
+    after_first_turn: Callable[[], None] | None,
+) -> FoundEvidence:
+    if full is None:
+        context = "retrieval"
+    else:
+        context = "full_tools" if settings.grading_context == "full_tools" else "full"
+    trace: list[dict[str, Any]] = []
+    if context == "full_tools":
+        chat = getattr(llm, "chat", None)
+        reason = "this provider does not support tool calling"
+        if chat is not None:
+            _, aspects = normalise_assessment_plan(criterion)
+            try:
+                check = await run_evidence_check(
+                    llm,  # type: ignore[arg-type]
+                    full,
+                    json.dumps(_rubric(criterion), ensure_ascii=False),
+                    aspects,
+                    max_citations=evidence_limit(criterion),
+                    max_rounds=settings.agent_max_rounds,
+                    metadata=metadata,
+                    after_first_turn=after_first_turn,
+                )
+            except FatalProviderError as exc:
+                if exc.reason == "context_length" or exc.status not in _TOOLS_UNAVAILABLE:
+                    raise
+                reason = f"the provider rejected the tool-based check ({exc})"
+            else:
+                trace = [step.as_dict() for step in check.steps]
+                calls = [
+                    _call_record("evidence_check", check.model, step.input_tokens, step.output_tokens,
+                                 step.cached_tokens, step.latency_ms)
+                    for step in check.steps
+                    if step.kind == "model"
+                ]
+                if check.finished or check.gate_raw["evidence"]:
+                    return FoundEvidence(check.gate_raw, context, check.model, calls, trace)
+                reason = "the check stopped without recording any evidence"
+        rounds = max([step["round"] for step in trace] or [0])
+        trace.append(AgentStep(rounds, "fallback", detail=f"Read in one pass instead: {reason}.").as_dict())
+        context = "full"
+
+    if settings.llm == "fake":
+        return FoundEvidence(_fake_gate(criterion, passages), context, "fake-marker-v1", trace=trace or None)
+    started = time.perf_counter()
+    raw, response = await _complete_json(
+        llm,
+        purpose="evidence_gate",
+        prompt=_full_gate_prompt(criterion, full) if full else _gate_prompt(criterion, passages),
+        metadata=metadata,
     )
+    call = _call_record("evidence_gate", response.model, response.input_tokens, response.output_tokens,
+                        response.cached_tokens, int((time.perf_counter() - started) * 1000))
+    return FoundEvidence(raw, context, response.model, [call], trace or None)
 
 
 def _grade_prompt(
@@ -378,7 +484,7 @@ Return JSON only:
 {{
   "score": number from 0 to {criterion.get('weight')},
   "level": "one exact rubric level label",
-  "rationale": "concise neutral explanation grounded only in validated evidence and missing aspects",
+  "rationale": "concise neutral explanation grounded only in validated evidence and missing aspects; cite evidence by page and paragraph, e.g. (p.2 ¶5), never by passage id",
   "confidence": "high|medium|low|none"
 }}
 
@@ -465,60 +571,57 @@ async def grade_criterion(
     """Gate evidence first, then grade only against validated coverage.
 
     With ``full`` the evidence step reads the whole submission (``passages`` are then all
-    of its paragraphs); the grade step still sees only verified evidence, the coverage
-    computed from it and software-computed document facts. ``after_gate`` is called once
-    the evidence step's provider call has returned, so other criteria can start and reuse
-    the provider's cached copy of the submission text.
+    of its paragraphs) — through the tool-based check when ``grading_context`` is
+    ``full_tools``, falling back to one pass if the provider cannot run it. The grade step
+    still sees only verified evidence, the coverage computed from it and software-computed
+    document facts. ``after_gate`` is called once the evidence step's first provider call
+    has returned, so other criteria can start and reuse the provider's cached copy of the
+    submission text.
     """
 
     started = time.perf_counter()
-    if settings.llm == "fake":
-        if not settings.fake_llm_allowed:
-            raise ValueError("The offline FakeLLM is available only when MARKER_ENV=test")
-        gate = _fake_gate(criterion, passages)
-        if after_gate is not None:
-            after_gate()
-        result = _fake_grade(criterion, gate) if gate["evidence"] else _lowest_result(criterion, gate)
-        _reconcile_level(criterion, result)
-        return result
-
     llm = build_llm(settings)
     try:
-        gate_raw, gate_response = await _complete_json(
-            llm,
-            purpose="evidence_gate",
-            prompt=_full_gate_prompt(criterion, full) if full else _gate_prompt(criterion, passages),
-            metadata=metadata,
-        )
+        found = await _find_evidence(settings, llm, criterion, passages, metadata, full, after_gate)
     finally:
         if after_gate is not None:
             after_gate()
     gate = _normalise_gate(
-        criterion, passages, gate_raw, max_items=evidence_limit(criterion) if full else 5
+        criterion, passages, found.raw, max_items=evidence_limit(criterion) if full else 5
     )
-    if gate_raw.get("evidence") and not gate["evidence"]:
+    if found.raw.get("evidence") and not gate["evidence"]:
         raise ValueError(
             "The evidence gate returned quotes that do not match the submission text"
         )
+    calls = list(found.calls)
+    process = {"context": found.context, "evidence_trace": found.trace, "llm_calls": calls}
+
+    if settings.llm == "fake":
+        result = _fake_grade(criterion, gate) if gate["evidence"] else _lowest_result(criterion, gate)
+        result.update(process)
+        _reconcile_level(criterion, result)
+        return result
+
     if not gate["evidence"]:
         result = _lowest_result(criterion, gate)
-        result.update(
-            model=gate_response.model,
-            input_tokens=gate_response.input_tokens,
-            output_tokens=gate_response.output_tokens,
-            latency_ms=int((time.perf_counter() - started) * 1000),
-        )
+        result.update(process, model=found.model, **_totals(calls),
+                      latency_ms=int((time.perf_counter() - started) * 1000))
         return result
 
     selected_ids = {item["passage_id"] for item in gate["evidence"]}
     selected_passages = [item for item in passages if item.id in selected_ids]
+    grade_started = time.perf_counter()
     result, grade_response = await _complete_json(
         llm,
         purpose="criterion_grade",
         prompt=_grade_prompt(criterion, selected_passages, gate, full.facts if full else None),
         metadata=metadata,
     )
+    calls.append(_call_record("criterion_grade", grade_response.model, grade_response.input_tokens,
+                              grade_response.output_tokens, grade_response.cached_tokens,
+                              int((time.perf_counter() - grade_started) * 1000)))
     result.update(
+        process,
         grading_mode=gate["grading_mode"],
         evidence=gate["evidence"],
         coverage=gate["coverage"],
@@ -526,10 +629,15 @@ async def grade_criterion(
         sufficiency=gate["sufficiency"],
         missing_aspects=gate["missing_aspects"],
         model=grade_response.model,
-        input_tokens=gate_response.input_tokens + grade_response.input_tokens,
-        output_tokens=gate_response.output_tokens + grade_response.output_tokens,
         latency_ms=int((time.perf_counter() - started) * 1000),
+        **_totals(calls),
     )
+    result["rationale"] = readable_references(str(result.get("rationale") or ""), passages)
     _apply_analytic_cap(criterion, result)
     _reconcile_level(criterion, result)
     return result
+
+
+def _totals(calls: list[dict[str, Any]]) -> dict[str, int]:
+    return {key: sum(int(call[key]) for call in calls)
+            for key in ("input_tokens", "output_tokens", "cached_tokens")}

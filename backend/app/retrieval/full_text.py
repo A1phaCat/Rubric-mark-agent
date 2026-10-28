@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .service import RetrievedPassage, _passages
+from .service import RetrievedPassage, _lexical_scores, _passages
 
 _WHOLE_PARAGRAPH = 10**9  # never split a paragraph
 _CAPTION = re.compile(r"^(figure|fig\.|table)\s*\d+", re.IGNORECASE)
@@ -134,3 +134,19 @@ def find_quote(text: str, quote: str) -> str | None:
         return None
     end = start + len(folded_needle) - 1
     return text[mapping[start] : mapping[end] + 1]
+
+
+def keyword_search(passages: list[RetrievedPassage], query: str, limit: int = 5) -> list[RetrievedPassage]:
+    """Paragraphs that best match ``query`` (BM25 keywords, plus exact phrase matches first)."""
+
+    if not query.strip() or not passages:
+        return []
+    scores = _lexical_scores(passages, query)
+    folded_query, _ = _fold(query)
+    ranked = []
+    for passage, score in zip(passages, scores):
+        phrase = bool(folded_query) and folded_query in _fold(passage.text)[0]
+        if score > 0 or phrase:
+            ranked.append((1 if phrase else 0, score, passage))
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return [passage for _, _, passage in ranked[:limit]]

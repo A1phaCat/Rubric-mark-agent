@@ -18,6 +18,7 @@ from app.db.models.batch import Batch
 from app.db.models.job import Job
 from app.db.models.submission import File, Submission
 from app.deps import get_current_user, get_db, get_settings
+from app.grading import prompt_version
 from app.jobs.queue import JobQueue
 from app.services.review_service import ReviewUseCases
 from app.services.settings_service import load_ai_settings
@@ -79,11 +80,7 @@ def retry_submission(
             item.ai_summary = "Queued to retry remaining criteria"
             batch.model_provider = settings.llm
             batch.model_name = settings.ai_model
-            batch.prompt_version = (
-                "criterion-grade-fulltext-v1"
-                if settings.grading_context == "full"
-                else "criterion-grade-coverage-v3"
-            )
+            batch.prompt_version = prompt_version(settings.grading_context)
             job = _enqueue_grade(db, item, batch, force=False)
             if batch.status == "paused":
                 job.status = "paused"  # runs when the batch is resumed
@@ -171,7 +168,7 @@ def regrade_submission(
             batch.status = "processing"
             batch.model_provider = settings.llm
             batch.model_name = settings.ai_model
-            batch.prompt_version = "criterion-grade-coverage-v3"
+            batch.prompt_version = prompt_version(settings.grading_context)
             batch.version += 1
             job = _enqueue_grade(db, item, batch, force=True)
             return {

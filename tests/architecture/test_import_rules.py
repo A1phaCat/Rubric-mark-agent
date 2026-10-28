@@ -27,7 +27,7 @@ def test_domain_has_no_infrastructure_dependencies() -> None:
 
 
 def test_processing_modules_do_not_import_api_or_database_models() -> None:
-    for package in ("ingest", "extract", "retrieval", "grading", "report"):
+    for package in ("ingest", "extract", "retrieval", "grading", "report", "agent"):
         for path in (APP / package).rglob("*.py"):
             forbidden = {
                 name

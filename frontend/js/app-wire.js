@@ -459,6 +459,7 @@
         var confidenceTag = card.querySelector('.conf-tag'); if (confidenceTag) { confidenceTag.className = 'conf-tag ' + (noAI ? 'none' : confidence); confidenceTag.innerHTML = '<span class="dot"></span>' + (noAI ? 'No AI suggestion' : confidence.charAt(0).toUpperCase() + confidence.slice(1) + ' confidence'); }
         var ai = card.querySelector('.ai-box .badge'); if (ai) ai.textContent = noAI ? 'Manual marking' : 'AI · ' + num(item.ai_score) + '/' + num(def.weight) + (item.ai_level ? ' · ' + item.ai_level : '');
         var reason = card.querySelector('.ai-box .reason'); if (reason) reason.textContent = item.rationale || '';
+        var aiBox = card.querySelector('.ai-box'), trace = window.EvidenceTrace ? EvidenceTrace.render(item.evidence_check, item.coverage) : null; Array.prototype.forEach.call(card.querySelectorAll('.trace'), function (node) { node.remove(); }); if (trace && aiBox) aiBox.insertAdjacentElement('afterend', trace);
         var score = card.querySelector('.score-input'); if (score) { score.value = item.score == null ? '' : item.score; score.dataset.ai = noAI ? '' : item.ai_score; score.dataset.max = def.weight; score.max = def.weight; score.min = 0; score.step = 'any'; score.disabled = locked; if (noAI) score.placeholder = '—'; }
         var accept = card.querySelector('.accept-btn'); if (accept) accept.style.display = noAI || locked ? 'none' : '';
         var max = card.querySelector('.score-max'); if (max) max.textContent = '/ ' + num(def.weight);
