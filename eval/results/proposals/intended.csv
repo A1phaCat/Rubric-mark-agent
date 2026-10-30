@@ -1,0 +1,5 @@
+Condition,Criteria,Mean difference,Same level,Within one level,QWK
+direct,36,10%,69%,97%,0.76
+retrieval,36,20%,42%,92%,0.49
+full,36,17%,47%,97%,0.53
+full_tools,36,16%,50%,94%,0.62

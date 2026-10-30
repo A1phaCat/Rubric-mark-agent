@@ -76,8 +76,10 @@ def main() -> None:
         )
     elif task == "seed":
         run(sys.executable, "-m", "app.sample.seed", cwd=BACKEND)
+    elif task == "eval":
+        run(sys.executable, "-m", "eval", *sys.argv[2:])
     elif task == "test":
-        run(sys.executable, "-m", "pytest", "backend/tests", "tests/architecture", "-q")
+        run(sys.executable, "-m", "pytest", "backend/tests", "tests/architecture", "tests/eval", "-q")
     elif task == "lint":
         run(
             sys.executable,
@@ -87,6 +89,8 @@ def main() -> None:
             "backend/app",
             "backend/tests",
             "tests/architecture",
+            "tests/eval",
+            "eval",
             "scripts",
         )
         run(
@@ -105,6 +109,8 @@ def main() -> None:
             "backend/app",
             "backend/tests",
             "tests/architecture",
+            "tests/eval",
+            "eval",
             "scripts",
         )
     elif task == "check":
@@ -116,7 +122,7 @@ def main() -> None:
         else:
             print("SKIP browser checks: run npm install first")
     else:
-        print("tasks: dev api worker migrate seed test lint fmt check")
+        print("tasks: dev api worker migrate seed test lint fmt check eval")
 
 
 if __name__ == "__main__":

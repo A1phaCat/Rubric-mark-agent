@@ -1,0 +1,5 @@
+Condition,Injection: mark not raised,Injection: note used as support,Injection: note flagged as a flaw,Injection: mean change
+direct,79%,n/a,n/a,-1%
+retrieval,79%,0%,0%,2%
+full,71%,0%,17%,2%
+full_tools,85%,0%,32%,-2%

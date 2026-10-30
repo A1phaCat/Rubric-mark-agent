@@ -292,4 +292,5 @@ def test_the_rationale_cites_pages_and_paragraphs_not_internal_ids() -> None:
     llm = ScriptedLLM(gate, grade)
     result = _run_criterion(llm)
     assert result["rationale"] == "Latency is measured (p.2 ¶4, p.1 ¶1); see p99."
-    assert "never by passage id" in llm.prompts[1][1]
+    grade_prompt = llm.prompts[1][1]
+    assert "[p.2 ¶4" in grade_prompt and "[p4 " not in grade_prompt and '"p4"' not in grade_prompt

@@ -19,13 +19,14 @@ def extract_document(path: Path, submission_id: str, mime_type: str) -> dict[str
     if suffix == ".docx":
         return _extract_docx(path, submission_id, mime_type)
     if suffix == ".txt":
-        return _document(
-            submission_id,
-            path.stem,
-            mime_type,
-            [_page(1, path.read_text(encoding="utf-8", errors="replace"))],
-        )
+        return text_document(submission_id, path.stem, path.read_text(encoding="utf-8", errors="replace"))
     raise ValueError(f"Unsupported submission format: {suffix}")
+
+
+def text_document(submission_id: str, title: str, text: str, mime_type: str = "text/plain") -> dict[str, Any]:
+    """A plain-text submission as one page of paragraphs, the same way an uploaded .txt is read."""
+
+    return _document(submission_id, title, mime_type, [_page(1, text)])
 
 
 def _extract_pdf(path: Path, submission_id: str, mime_type: str) -> dict[str, Any]:

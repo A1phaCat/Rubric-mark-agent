@@ -1,0 +1,186 @@
+{
+  "key": "fit5205-a1-commentary",
+  "assignment_name": "FIT5205_S1_2021-Assignment 1-8326051",
+  "unit_name": "FIT5205 Data in society - S1 2021",
+  "title": "Analytical commentary (FIT5205 A1)",
+  "total": 20,
+  "scale_note": "Points per level as stated in the rubric; Unsatisfactory covers 0 up to its stated maximum.",
+  "criteria": [
+    {
+      "id": "c1",
+      "name": "Description, context & data issues",
+      "weight": 4.0,
+      "kind": "content",
+      "description": "",
+      "levels": [
+        {
+          "label": "Very Good",
+          "points": 4.0,
+          "min_score": 4.0,
+          "max_score": 4.0,
+          "description": "Nuanced, comprehensive description demonstrating sophisticated research and keen insight into data-related concerns."
+        },
+        {
+          "label": "Good",
+          "points": 3.0,
+          "min_score": 3.0,
+          "max_score": 3.0,
+          "description": "Clear, accurate description covering the majority of important points and relevant data issues."
+        },
+        {
+          "label": "Satisfactory",
+          "points": 2.5,
+          "min_score": 2.5,
+          "max_score": 2.5,
+          "description": "Adequate overview capturing most key aspects; minor omissions or inaccuracies."
+        },
+        {
+          "label": "Needs Improvement",
+          "points": 1.5,
+          "min_score": 1.5,
+          "max_score": 1.5,
+          "description": "Partial or uneven coverage with notable gaps; limited awareness of data issues."
+        },
+        {
+          "label": "Unsatisfactory",
+          "points": 1.0,
+          "min_score": 0.0,
+          "max_score": 1.0,
+          "description": "Superficial or incorrect description; little or no recognition of data considerations."
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "name": "Identification of arguments & underpinning evidence",
+      "weight": 6.0,
+      "kind": "content",
+      "description": "",
+      "levels": [
+        {
+          "label": "Very Good",
+          "points": 6.0,
+          "min_score": 6.0,
+          "max_score": 6.0,
+          "description": "Thorough, perceptive mapping of arguments; evaluates evidence with depth and originality."
+        },
+        {
+          "label": "Good",
+          "points": 5.0,
+          "min_score": 5.0,
+          "max_score": 5.0,
+          "description": "Solid identification of arguments supported by clear explanation of evidence."
+        },
+        {
+          "label": "Satisfactory",
+          "points": 4.0,
+          "min_score": 4.0,
+          "max_score": 4.0,
+          "description": "Basic identification of main arguments and corresponding evidence; may lack depth."
+        },
+        {
+          "label": "Needs Improvement",
+          "points": 3.0,
+          "min_score": 3.0,
+          "max_score": 3.0,
+          "description": "Incomplete or partially correct identification; explanation lacks clarity."
+        },
+        {
+          "label": "Unsatisfactory",
+          "points": 2.0,
+          "min_score": 0.0,
+          "max_score": 2.0,
+          "description": "Arguments misconstrued or missing; evidence not addressed."
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "name": "Critical evaluation via ethical framework",
+      "weight": 6.0,
+      "kind": "content",
+      "description": "",
+      "levels": [
+        {
+          "label": "Very Good",
+          "points": 6.0,
+          "min_score": 6.0,
+          "max_score": 6.0,
+          "description": "Demonstrates excellent understanding of the framework; applies it insightfully to build a compelling critique."
+        },
+        {
+          "label": "Good",
+          "points": 5.0,
+          "min_score": 5.0,
+          "max_score": 5.0,
+          "description": "Shows substantial understanding; applies the framework effectively to the article."
+        },
+        {
+          "label": "Satisfactory",
+          "points": 4.0,
+          "min_score": 4.0,
+          "max_score": 4.0,
+          "description": "Competent use of the framework; evaluation occasionally descriptive rather than analytical."
+        },
+        {
+          "label": "Needs Improvement",
+          "points": 3.0,
+          "min_score": 3.0,
+          "max_score": 3.0,
+          "description": "Limited grasp of the framework; application is superficial."
+        },
+        {
+          "label": "Unsatisfactory",
+          "points": 2.0,
+          "min_score": 0.0,
+          "max_score": 2.0,
+          "description": "Minimal or erroneous use of ethical framework."
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "name": "Academic writing, citation & referencing",
+      "weight": 4.0,
+      "kind": "general",
+      "description": "",
+      "levels": [
+        {
+          "label": "Very Good",
+          "points": 4.0,
+          "min_score": 4.0,
+          "max_score": 4.0,
+          "description": "Writing is polished and well structured; virtually no language errors; exemplary citation practice."
+        },
+        {
+          "label": "Good",
+          "points": 3.0,
+          "min_score": 3.0,
+          "max_score": 3.0,
+          "description": "Writing is clear and logical; few language slips; referencing generally accurate."
+        },
+        {
+          "label": "Satisfactory",
+          "points": 2.5,
+          "min_score": 2.5,
+          "max_score": 2.5,
+          "description": "Organisation and language acceptable; some errors; citations mostly correct."
+        },
+        {
+          "label": "Needs Improvement",
+          "points": 1.5,
+          "min_score": 1.5,
+          "max_score": 1.5,
+          "description": "Disorganised writing; frequent errors; referencing problems evident."
+        },
+        {
+          "label": "Unsatisfactory",
+          "points": 1.0,
+          "min_score": 0.0,
+          "max_score": 1.0,
+          "description": "Disjointed prose; pervasive errors; serious citation shortcomings or evidence of plagiarism."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+Condition,Planted gaps,Flagged as not supported,Mark below the top level,Aspects flagged in the all-strong submission
+direct,n/a,n/a,100%,n/a
+retrieval,28,36%,93%,5%
+full,28,29%,86%,0%
+full_tools,28,14%,86%,0%

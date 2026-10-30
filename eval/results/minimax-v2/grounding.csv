@@ -1,0 +1,5 @@
+Condition,Gradings,Failed,Has verified evidence,Evidence / criterion,Quotes kept,Invalid quotes corrected,Mean coverage,Rounds,Hit round limit,Fell back,High confidence,Mean mark
+direct,42,0%,n/a,n/a,n/a,n/a,n/a,n/a,n/a,n/a,93%,81%
+retrieval,42,0%,100%,3.8,100%,n/a,0.92,n/a,n/a,n/a,86%,84%
+full,42,0%,100%,4.8,97%,n/a,0.95,n/a,n/a,n/a,93%,84%
+full_tools,42,0%,100%,5.0,100%,5 of 231 cited,0.92,2.5,2%,0%,88%,85%

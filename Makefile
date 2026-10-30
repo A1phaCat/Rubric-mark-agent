@@ -19,7 +19,7 @@ lint:
 fmt:
 	$(PYTHON) scripts/tasks.py fmt
 eval:
-	$(PYTHON) eval/run.py
+	$(PYTHON) scripts/tasks.py eval $(ARGS)
 screenshots:
 	npm run screenshots
 e2e:

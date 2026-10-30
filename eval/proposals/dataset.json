@@ -1,0 +1,172 @@
+{
+ "description": "Synthetic ELEC5623 business proposals written to a planned quality per criterion, graded with the real Canvas rubric. Intended marks and planted gaps are the design, not human marks.",
+ "rubrics": [
+  "elec5623-business-proposal"
+ ],
+ "decoys_from": "../datasets/main.json",
+ "cases": [
+  {
+   "id": "p01-tenderlens",
+   "rubric": "elec5623-business-proposal",
+   "pdf": "pdf/p01-tenderlens.pdf",
+   "source_row": 0,
+   "design": "Strong throughout; meets every minimum in the assignment brief.",
+   "intended": {
+    "c1": 1.5,
+    "c2": 1.5,
+    "c3": 2,
+    "c4": 2,
+    "c5": 1.5,
+    "c6": 1.5
+   },
+   "planted": {},
+   "intended_total": 10.0
+  },
+  {
+   "id": "p02-codecoach",
+   "rubric": "elec5623-business-proposal",
+   "pdf": "pdf/p02-codecoach.pdf",
+   "source_row": 0,
+   "design": "Strong problem and design; evaluation is a demo and satisfaction survey, alternatives dismissed in one line; some acceptance criteria blank and only three vague NFRs; risks without mitigations.",
+   "intended": {
+    "c1": 1.5,
+    "c2": 1,
+    "c3": 1.5,
+    "c4": 0.5,
+    "c5": 1,
+    "c6": 1.5
+   },
+   "planted": {
+    "c4": [
+     "relevant-alternatives-or-competitors-are-critically-considered",
+     "evaluation-includes-clear-success-criteria-appropriate-baselines"
+    ],
+    "c5": [
+     "major-technical-and-project-risks-are-clearly-identified-with-cr"
+    ]
+   },
+   "intended_total": 7.0
+  },
+  {
+   "id": "p03-sitesafe",
+   "rubric": "elec5623-business-proposal",
+   "pdf": "pdf/p03-sitesafe.pdf",
+   "source_row": 0,
+   "design": "Requirements are a vague 'should' list with no IDs, acceptance criteria or precise scope; over-ambitious scope, no risk register, no team roles, no milestones; sections out of order and thin referencing. Design and evaluation are sound.",
+   "intended": {
+    "c1": 1,
+    "c2": 0.5,
+    "c3": 1.5,
+    "c4": 1.5,
+    "c5": 0.5,
+    "c6": 1
+   },
+   "planted": {
+    "c2": [
+     "target-users-and-stakeholders-are-clearly-identified",
+     "project-scope-and-boundaries-are-precise",
+     "use-cases-are-appropriate",
+     "functional-and-non-functional-requirements-are-coherent-measurab"
+    ],
+    "c5": [
+     "scope-is-realistic-and-appropriately-constrained",
+     "major-technical-and-project-risks-are-clearly-identified-with-cr",
+     "milestones-are-achievable-and-team-responsibilities-are-clearly-"
+    ],
+    "c6": [
+     "external-claims-are-supported-by-relevant-and-credible-sources-w"
+    ]
+   },
+   "intended_total": 6.0
+  },
+  {
+   "id": "p04-askuni",
+   "rubric": "elec5623-business-proposal",
+   "pdf": "pdf/p04-askuni.pdf",
+   "source_row": 0,
+   "design": "Generic chatbot: vague problem with no evidence, GenAI need not justified; design forwards questions to an LLM API with a system prompt and no grounding; evaluation has no baseline.",
+   "intended": {
+    "c1": 0.5,
+    "c2": 1,
+    "c3": 0.5,
+    "c4": 1,
+    "c5": 1,
+    "c6": 1
+   },
+   "planted": {
+    "c1": [
+     "background-is-supported-by-credible-evidence",
+     "the-need-for-genai-is-clearly-and-convincingly-justified"
+    ],
+    "c3": [
+     "the-role-of-genai-is-explicit-and-necessary",
+     "methodology-architecture-and-workflow-are-coherent-and-sufficien"
+    ],
+    "c4": [
+     "evaluation-includes-clear-success-criteria-appropriate-baselines"
+    ]
+   },
+   "intended_total": 5.0
+  },
+  {
+   "id": "p05-clinicnotes",
+   "rubric": "elec5623-business-proposal",
+   "pdf": "pdf/p05-clinicnotes.pdf",
+   "source_row": 0,
+   "design": "Technically strong and well planned, but written as long run-on paragraphs with typos, almost no tables and no references at all.",
+   "intended": {
+    "c1": 1,
+    "c2": 1.5,
+    "c3": 2,
+    "c4": 1.5,
+    "c5": 1.5,
+    "c6": 0.5
+   },
+   "planted": {
+    "c1": [
+     "background-is-supported-by-credible-evidence"
+    ],
+    "c6": [
+     "the-proposal-is-clear-concise-coherent-and-professionally-presen",
+     "figures-and-tables-are-effective-where-appropriate",
+     "external-claims-are-supported-by-relevant-and-credible-sources-w"
+    ]
+   },
+   "intended_total": 8.0
+  },
+  {
+   "id": "p06-greenroute",
+   "rubric": "elec5623-business-proposal",
+   "pdf": "pdf/p06-greenroute.pdf",
+   "source_row": 0,
+   "design": "Thin throughout: two pages, vague requirements, no alternatives, no real evaluation, no risk analysis or roles.",
+   "intended": {
+    "c1": 0.5,
+    "c2": 0.5,
+    "c3": 1,
+    "c4": 0.5,
+    "c5": 0.5,
+    "c6": 1
+   },
+   "planted": {
+    "c1": [
+     "background-is-supported-by-credible-evidence",
+     "the-problem-is-specific-meaningful-and-well-scoped"
+    ],
+    "c2": [
+     "project-scope-and-boundaries-are-precise",
+     "functional-and-non-functional-requirements-are-coherent-measurab"
+    ],
+    "c4": [
+     "relevant-alternatives-or-competitors-are-critically-considered",
+     "evaluation-includes-clear-success-criteria-appropriate-baselines"
+    ],
+    "c5": [
+     "major-technical-and-project-risks-are-clearly-identified-with-cr",
+     "milestones-are-achievable-and-team-responsibilities-are-clearly-"
+    ]
+   },
+   "intended_total": 4.0
+  }
+ ]
+}

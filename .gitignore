@@ -34,6 +34,9 @@ build/
 # Evaluation output and developer scratch files
 /eval/datasets/*
 !/eval/datasets/.gitkeep
+/eval/results/*/cache/
+# Results for private submissions (real student work and marks)
+/eval/results/real/
 /tmp/
 /prototype/screenshots/*.actual.png
 /prototype/screenshots/*.diff.png
