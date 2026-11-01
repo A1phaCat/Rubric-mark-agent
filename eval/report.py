@@ -11,19 +11,24 @@ from typing import Any
 
 from app.domain import levels
 
-from .dataset import Case, criteria, load_rubric
+from .dataset import Case, case_document, criteria, load_rubric
 from .metrics import (
     adjacent_agreement,
     average,
+    bootstrap_interval,
     level_agreement,
     quadratic_weighted_kappa,
+    spearman,
     spread,
+    wilson_interval,
 )
 from .runner import CONDITIONS, EVIDENCE_CONDITIONS
 
 INJECTION_TOLERANCE = 0.05  # a rise of up to 5% of the criterion maximum counts as noise
 DECOY_CEILING = 0.25
 _EXAMPLES = 3
+# US$ per million tokens: uncached input, cached input, output (provider list prices when the runs were made)
+PRICES = {"minimax-m3.1-flash": (0.15, 0.015, 0.60)}
 
 
 def _pct(value: float | None) -> str:
@@ -32,6 +37,24 @@ def _pct(value: float | None) -> str:
 
 def _num(value: float | None, digits: int = 2) -> str:
     return "–" if value is None else f"{value:.{digits}f}"
+
+
+def _pct_ci(flags: Iterable[bool]) -> str:
+    """A share with its 95% Wilson interval, e.g. ``86% (69–94%)``."""
+
+    items = list(flags)
+    interval = wilson_interval(sum(items), len(items))
+    if interval is None:
+        return "–"
+    return f"{_pct(sum(items) / len(items))} ({interval[0] * 100:.0f}–{interval[1] * 100:.0f}%)"
+
+
+def _interval(value: tuple[float, float] | None, percent: bool = False) -> str:
+    if value is None:
+        return "–"
+    if percent:
+        return f"{value[0] * 100:.0f}–{value[1] * 100:.0f}%"
+    return f"{value[0]:.2f}–{value[1]:.2f}"
 
 
 def _table(headers: list[str], rows: list[list[Any]]) -> str:
@@ -76,7 +99,9 @@ class Results:
 # ---------------------------------------------------------------- sections
 def grounding(results: Results) -> tuple[list[str], list[list[Any]]]:
     headers = ["Condition", "Gradings", "Failed", "Has verified evidence", "Evidence / criterion",
-               "Quotes kept", "Invalid quotes corrected", "Mean coverage", "Rounds", "Hit round limit",
+               "Quotes kept", "Invalid quotes corrected", "Mean coverage", "Aspects judged below standard",
+               "Aspect answers missing", "Has a material deduction", "Held below the best level",
+               "Rounds", "Hit round limit",
                "Fell back", "High confidence", "Mean mark"]
     rows = []
     for condition in results.conditions:
@@ -96,6 +121,11 @@ def grounding(results: Results) -> tuple[list[str], list[list[Any]]]:
             _pct(kept / proposed) if evidence_based and proposed else "n/a",
             f"{invalid} of {sum(t['cited'] for t in traces)} cited" if traces else "n/a",
             _num(average([float(r.get("coverage_ratio") or 0) for r in done])) if evidence_based else "n/a",
+            _pct(_share(c.get("meets_standard") is False for r in done for c in r.get("coverage") or []
+                        if "meets_standard" in c)) if evidence_based else "n/a",
+            _pct(_answer_gap(done)) if evidence_based else "n/a",
+            _pct(_share(_material(r) for r in done)) if evidence_based else "n/a",
+            _capped(done) if evidence_based else "n/a",
             _num(average([t["rounds"] for t in traces]), 1) if traces else "n/a",
             _pct(_share(t["limit"] for t in traces)) if traces else "n/a",
             _pct(_share(t["fallback"] for t in traces)) if traces else "n/a",
@@ -103,6 +133,27 @@ def grounding(results: Results) -> tuple[list[str], list[list[Any]]]:
             _pct(average([r["normalised"] for r in done])),
         ])
     return headers, rows
+
+
+def _material(row: dict[str, Any], aspect: str | None = None) -> bool:
+    return any(item.get("severity") == "material" and (aspect is None or item.get("aspect_id") == aspect)
+               for item in row.get("deductions") or [])
+
+
+def _capped(rows: list[dict[str, Any]]) -> str:
+    """Share held below the best level by the code, split by reason."""
+
+    if not rows:
+        return "n/a"
+    deduction = _share(r.get("capped") == "deduction" for r in rows)
+    coverage = _share(r.get("capped") == "coverage" for r in rows)
+    return f"{_pct(deduction)} deduction, {_pct(coverage)} coverage"
+
+
+def _answer_gap(rows: list[dict[str, Any]]) -> float | None:
+    asked = sum(len(r.get("coverage") or []) for r in rows if r.get("answers_missing") is not None)
+    missing = sum(int(r.get("answers_missing") or 0) for r in rows)
+    return missing / asked if asked else None
 
 
 def _pairs(results: Results, variant: str, condition: str) -> list[tuple[dict[str, Any], dict[str, Any]]]:
@@ -194,7 +245,7 @@ def repeatability(results: Results) -> tuple[list[str], list[list[Any]]]:
 
 def cost(results: Results) -> tuple[list[str], list[list[Any]]]:
     headers = ["Condition", "Calls / submission", "Input tokens / submission", "Read from cache",
-               "Output tokens / submission", "Seconds / criterion"]
+               "Output tokens / submission", "US$ / submission", "Seconds / criterion"]
     rows = []
     for condition in results.conditions:
         per_case: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -209,9 +260,25 @@ def cost(results: Results) -> tuple[list[str], list[list[Any]]]:
             f"{average([sum(r['input_tokens'] for r in g) for g in cases]) or 0:,.0f}",
             _pct(cached / input_tokens) if input_tokens else "–",
             f"{average([sum(r['output_tokens'] for r in g) for g in cases]) or 0:,.0f}",
+            _dollars(cases),
             _num(average([r["latency_ms"] / 1000 for g in cases for r in g]), 1),
         ])
     return headers, rows
+
+
+def _dollars(cases: list[list[dict[str, Any]]]) -> str:
+    totals = []
+    for rows in cases:
+        total = 0.0
+        for r in rows:
+            price = PRICES.get(str(r.get("model") or "").lower())
+            if price is None:
+                return "–"
+            cached = int(r.get("cached_tokens") or 0)
+            total += ((r["input_tokens"] - cached) * price[0] + cached * price[1] + r["output_tokens"] * price[2]) / 1e6
+        totals.append(total)
+    value = average(totals)
+    return "–" if value is None else f"{value:.4f}"
 
 
 def agreement(results: Results, reference: str = "full_tools") -> tuple[list[str], list[list[Any]]]:
@@ -265,27 +332,36 @@ def human(results: Results, marks: dict[tuple[str, str], dict[str, float]]) -> t
     def rank_of(definition: dict[str, Any], score: float) -> int:
         return levels.rank(definition["levels"], levels.level_for(definition["levels"], score))[0]
 
-    headers = ["Condition", "Criteria", "Mean difference", "Same level", "Within one level", "QWK"]
+    headers = ["Condition", "Criteria", "Mean difference", "Mean difference 95% CI", "Same level",
+               "Within one level", "QWK", "QWK 95% CI"]
     rows = []
     for condition in results.conditions:
-        expected, actual, ranks_expected, ranks_actual, size = [], [], [], [], 2
+        by_case: dict[str, list[tuple[float, float, int, int]]] = defaultdict(list)
+        size = 2
         for (case, criterion), by_rater in marks.items():
             definition, row = criterion_of(case, criterion), results.get(case, "original", condition, criterion)
             if not definition or not row:
                 continue
             reference = sum(by_rater.values()) / len(by_rater)
-            maximum = float(definition["weight"])
-            expected.append(reference / maximum)
-            actual.append(row["normalised"])
-            ranks_expected.append(rank_of(definition, reference))
-            ranks_actual.append(row["level_rank"])
+            by_case[case].append((reference / float(definition["weight"]), row["normalised"],
+                                  rank_of(definition, reference), row["level_rank"]))
             size = max(size, len(definition["levels"]))
-        if expected:
-            rows.append([condition, len(expected),
-                         _pct(average([abs(a - b) for a, b in zip(expected, actual)])),
-                         _pct(level_agreement(ranks_expected, ranks_actual)),
-                         _pct(adjacent_agreement(ranks_expected, ranks_actual)),
-                         _num(quadratic_weighted_kappa(ranks_expected, ranks_actual, size))])
+        items = [item for group in by_case.values() for item in group]
+        if not items:
+            continue
+
+        def difference(sample: list[tuple[float, float, int, int]]) -> float | None:
+            return average([abs(a - b) for a, b, _, _ in sample])
+
+        def kappa(sample: list[tuple[float, float, int, int]], size: int = size) -> float:
+            return quadratic_weighted_kappa([a for _, _, a, _ in sample], [b for _, _, _, b in sample], size)
+
+        groups = list(by_case.values())
+        rows.append([condition, len(items),
+                     _pct(difference(items)), _interval(bootstrap_interval(groups, difference), percent=True),
+                     _pct(level_agreement([i[2] for i in items], [i[3] for i in items])),
+                     _pct(adjacent_agreement([i[2] for i in items], [i[3] for i in items])),
+                     _num(kappa(items)), _interval(bootstrap_interval(groups, kappa))])
     rater_headers = ["Raters", "Criteria marked by both", "Mean difference", "Same level", "QWK"]
     rater_rows = []
     raters = sorted({rater for by_rater in marks.values() for rater in by_rater})
@@ -356,11 +432,12 @@ def planted_gaps(results: Results, cases: list[Case]) -> tuple[list[str], list[l
     where no aspect should be flagged.
     """
 
-    headers = ["Condition", "Planted gaps", "Flagged as not supported", "Mark below the top level",
-               "Aspects flagged in the all-strong submission"]
+    headers = ["Condition", "Planted gaps", "Flagged as not supported", "Named in a material deduction",
+               "Flagged either way", "Mark below the top level",
+               "Aspects flagged in the all-strong submission", "Material deductions in the all-strong submission"]
     rows = []
     for condition in results.conditions:
-        found, lowered, strong_flags = [], [], []
+        found, deducted, either, lowered, strong_flags, strong_deductions = [], [], [], [], [], []
         for case in cases:
             if case.planted is None or case.intended is None:
                 continue
@@ -371,19 +448,68 @@ def planted_gaps(results: Results, cases: list[Case]) -> tuple[list[str], list[l
                 if row is None:
                     continue
                 status = {item["aspect_id"]: item["status"] for item in row.get("coverage") or []}
-                found += [status.get(aspect, "missing") != "supported" for aspect in aspects] if status else []
+                if status:
+                    flagged = [status.get(aspect, "missing") != "supported" for aspect in aspects]
+                    named = [_material(row, aspect) for aspect in aspects]
+                    found += flagged
+                    deducted += named
+                    either += [a or b for a, b in zip(flagged, named, strict=True)]
                 lowered.append(row["level_rank"] > 0)
             if all_strong:
                 for criterion in case.intended:
                     row = results.get(case.id, "original", condition, criterion)
                     strong_flags += [item["status"] != "supported" for item in (row or {}).get("coverage") or []]
+                    if row is not None:
+                        strong_deductions.append(_material(row))
         rows.append([
             condition,
             len(found) if condition in EVIDENCE_CONDITIONS else "n/a",
-            _pct(_share(found)) if condition in EVIDENCE_CONDITIONS else "n/a",
-            _pct(_share(lowered)),
+            _pct_ci(found) if condition in EVIDENCE_CONDITIONS else "n/a",
+            _pct_ci(deducted) if condition in EVIDENCE_CONDITIONS else "n/a",
+            _pct_ci(either) if condition in EVIDENCE_CONDITIONS else "n/a",
+            _pct_ci(lowered),
             _pct(_share(strong_flags)) if condition in EVIDENCE_CONDITIONS else "n/a",
+            (f"{sum(strong_deductions)} of {len(strong_deductions)} criteria" if strong_deductions else "n/a")
+            if condition in EVIDENCE_CONDITIONS else "n/a",
         ])
+    return headers, rows
+
+
+def submission_words(cases: list[Case]) -> dict[str, int]:
+    """Words in each submission as graded (PDFs through the same extraction as an upload)."""
+
+    words = {}
+    for case in cases:
+        document = case_document(case)
+        words[case.id] = sum(len(str(block.get("text", "")).split()) for block in document.get("paragraphs", []))
+    return words
+
+
+def length_and_mark(results: Results, cases: list[Case], words: dict[str, int]) -> tuple[list[str], list[list[Any]]]:
+    """Does the mark follow length? Rank correlation between words and the total mark.
+
+    Marks are totals as a share of the maximum, so rubrics with different scales can be pooled.
+    The reference rows (intended or a real marker's marks) show how much length should matter.
+    """
+
+    headers = ["Marks from", "Submissions", "Spearman ρ with length", "Mean mark, shorter half",
+               "Mean mark, longer half"]
+    maxima = {case.id: sum(c["weight"] for c in criteria(load_rubric(case.rubric))) for case in cases}
+
+    def row_for(label: str, totals: dict[str, float]) -> list[Any]:
+        ids = sorted((c for c in totals if c in words and maxima.get(c)), key=lambda c: words[c])
+        marks = [totals[c] / maxima[c] for c in ids]
+        half = len(ids) // 2
+        return [label, len(ids), _num(spearman([words[c] for c in ids], marks)),
+                _pct(average(marks[:half])), _pct(average(marks[len(ids) - half:]))]
+
+    rows = []
+    for reference in ("intended", "human"):
+        totals = {case.id: sum(getattr(case, reference).values()) for case in cases if getattr(case, reference)}
+        if totals:
+            rows.append(row_for(reference, totals))
+    for condition in results.conditions:
+        rows.append(row_for(condition, _totals(results, "original", condition)))
     return headers, rows
 
 
@@ -414,6 +540,9 @@ def write_report(results_path: Path, out: Path, label_paths: list[Path] | None =
         for case in marked:
             sections.append((f"marker_{case.id}", f"{case.id}: real marker vs each condition, per criterion",
                              *per_criterion(results, case)))
+    graded = [case for case in cases or [] if any(r["case"] == case.id for r in results.rows)]
+    if len(graded) >= 3:
+        sections.append(("length", "Length and mark", *length_and_mark(results, graded, submission_words(graded))))
     designed = [case for case in cases or [] if case.intended]
     if designed:
         h, r, _, _ = human(results, intended_marks(designed))

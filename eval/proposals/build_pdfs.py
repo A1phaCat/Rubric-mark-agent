@@ -30,6 +30,7 @@ th { background: #eee; }
 tr { page-break-inside: avoid; }
 ul, ol { margin: 0 0 7pt 16pt; padding: 0; }
 li { margin: 0 0 2pt; }
+pre { font-family: 'DejaVu Sans Mono', 'Courier New', monospace; font-size: 8.5pt; line-height: 1.2; white-space: pre-wrap; margin: 4pt 0 8pt; }
 """
 
 
@@ -43,7 +44,7 @@ def _front_matter(text: str) -> tuple[dict[str, str], str]:
 
 def render(source: Path, target: Path, page) -> None:
     meta, body = _front_matter(source.read_text(encoding="utf-8"))
-    html_body = markdown.markdown(body, extensions=["tables"])
+    html_body = markdown.markdown(body, extensions=["tables", "fenced_code"])
     head = (f"<h1>{meta.get('title', '')}</h1><p class='subtitle'>{meta.get('subtitle', '')}</p>"
             f"<p class='team'>{meta.get('team', '')}</p>")
     page.set_content(f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>{head}{html_body}</body></html>")

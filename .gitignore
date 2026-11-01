@@ -36,7 +36,7 @@ build/
 !/eval/datasets/.gitkeep
 /eval/results/*/cache/
 # Results for private submissions (real student work and marks)
-/eval/results/real/
+/eval/results/real*/
 /tmp/
 /prototype/screenshots/*.actual.png
 /prototype/screenshots/*.diff.png
@@ -48,3 +48,8 @@ build/
 Thumbs.db
 Desktop.ini
 
+# Generated submissions: rebuilt from eval/cohort/specs.json by eval/cohort/local_generate.py
+/output/
+/eval/cohort/prompts/
+/eval/cohort/src/
+/eval/cohort/pdf/

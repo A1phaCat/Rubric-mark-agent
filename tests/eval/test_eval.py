@@ -8,7 +8,13 @@ import pytest
 
 from app.config import settings as app_settings
 from eval import dataset, report, runner, variants
-from eval.metrics import adjacent_agreement, quadratic_weighted_kappa
+from eval.metrics import (
+    adjacent_agreement,
+    bootstrap_interval,
+    quadratic_weighted_kappa,
+    spearman,
+    wilson_interval,
+)
 
 PARAGRAPHS = [
     "Introduction. This commentary analyses a news feature about hiring algorithms and the data they use.",
@@ -95,6 +101,32 @@ def test_quadratic_weighted_kappa() -> None:
     assert quadratic_weighted_kappa([0, 1, 2, 3], [3, 2, 1, 0]) == pytest.approx(-1.0)
     assert 0 < quadratic_weighted_kappa([0, 1, 2, 3], [0, 2, 2, 3]) < 1
     assert adjacent_agreement([0, 1, 2], [1, 1, 0]) == pytest.approx(2 / 3)
+
+
+def test_intervals_and_rank_correlation() -> None:
+    low, high = wilson_interval(24, 28)
+    assert (round(low, 2), round(high, 2)) == (0.69, 0.94)
+    assert wilson_interval(0, 0) is None and wilson_interval(0, 5)[0] == 0.0
+    assert spearman([1, 2, 3, 4], [10, 20, 30, 40]) == pytest.approx(1.0)
+    assert spearman([1, 2, 3, 4], [4, 3, 2, 1]) == pytest.approx(-1.0)
+    assert spearman([1, 2, 2, 3], [1, 2, 2, 3]) == pytest.approx(1.0) and spearman([1, 2], [1, 2]) is None
+    groups = [[1.0, 1.0], [0.0], [1.0], [0.0, 0.0]]
+    low, high = bootstrap_interval(groups, lambda xs: sum(xs) / len(xs))
+    assert 0 <= low < 0.5 < high <= 1
+    assert bootstrap_interval(groups, lambda xs: sum(xs) / len(xs)) == (low, high)  # seeded
+    assert bootstrap_interval([[1.0]], lambda xs: 1.0) is None
+
+
+def test_length_and_mark_compares_with_the_reference() -> None:
+    cases = [dataset.Case(f"p{i}", "elec5623-business-proposal", "", 0, intended={"c1": mark})
+             for i, mark in enumerate([0.5, 1.0, 1.5])]
+    rows = [_rows(case=f"p{i}", variant="original", condition="full_tools", criterion="c1", score=1.5,
+                  normalised=1.0, level_rank=0) for i in range(3)]
+    words = {"p0": 100, "p1": 200, "p2": 300}
+    headers, table = report.length_and_mark(report.Results(rows), cases, words)
+    intended, graded = (dict(zip(headers, row)) for row in table)
+    assert intended["Marks from"] == "intended" and intended["Spearman ρ with length"] == "1.00"
+    assert graded["Marks from"] == "full_tools" and graded["Spearman ρ with length"] == "–"  # no variation
 
 
 def test_controlled_change_checks_are_scored() -> None:
@@ -186,7 +218,7 @@ def test_planted_gaps_and_totals_are_reported() -> None:
     results = report.Results(rows)
     headers, table = report.planted_gaps(results, cases)
     row = dict(zip(headers, table[0]))
-    assert row["Planted gaps"] == 1 and row["Flagged as not supported"] == "100%"
+    assert row["Planted gaps"] == 1 and row["Flagged as not supported"] == "100% (21–100%)"
     assert row["Aspects flagged in the all-strong submission"] == "50%"
     headers, table = report.totals(results, cases)
     assert table == [["p-strong", "1.5", "1.5"], ["p-weak", "0.5", "1.0"]]
@@ -202,3 +234,31 @@ def test_a_real_markers_marks_are_compared_per_criterion() -> None:
     assert headers == ["Criterion", "Marker", "full_tools"]
     assert table[0][1:] == ["0.5", "1.33 (1–1.5)"] and table[1][1:] == ["1.5", "1.5"]
     assert report.totals(results, [case], "human")[1] == [["real", "2", "3.0"]]
+
+
+def test_comparison_runs_can_override_the_evidence_standard() -> None:
+    rubric = dataset.load_rubric("fit1049-a1-career-report")  # weights 15, 15, 5, 5, 10 of 50
+    by_weight = {c["id"]: c["evidence_standard"] for c in dataset.criteria(rubric, "weight:0.2")}
+    assert by_weight == {"c1": "quality", "c2": "quality", "c3": "presence", "c4": "presence", "c5": "quality"}
+    assert {c["evidence_standard"] for c in dataset.criteria(rubric, "presence")} == {"presence"}
+    assert {c["evidence_standard"] for c in dataset.criteria(rubric)} == {None}  # the default rule decides
+    assert dataset.criteria(rubric)[2]["weight_share"] == 0.1
+
+
+def test_the_cohort_specification_is_reproducible_and_separates_length_from_quality() -> None:
+    from eval.cohort import specs
+
+    first, second = specs.build(), specs.build()
+    assert first == second and len(first) == 100
+    kinds = {kind: sum(s["type"] == kind for s in first) for kind in specs.MIX}
+    assert kinds == specs.MIX
+    normal = [s for s in first if s["type"] == "normal"]
+    assert all(0.0 not in s["intended"].values() for s in normal)  # only "incomplete" leaves a part out
+    totals = [sum(s["intended"].values()) for s in normal]
+    assert abs(spearman([s["words"] for s in normal], totals)) < 0.3
+    duplicate = next(s for s in first if s["type"] == "near_duplicate")
+    source = next(s for s in first if s["id"] == duplicate["source"])
+    assert duplicate["intended"] == source["intended"]
+    rubric = dataset.criteria(dataset.load_rubric(specs.RUBRIC))
+    text = specs.prompt(first[0], rubric)
+    assert "Never mention marks" in text and "points" not in text.split("Rules:")[0]

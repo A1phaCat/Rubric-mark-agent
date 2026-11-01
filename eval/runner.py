@@ -117,10 +117,15 @@ def _record(unit: Unit, criterion: dict[str, Any], result: dict[str, Any] | None
         "sufficiency": result.get("sufficiency"),
         "coverage_ratio": result.get("coverage_ratio"),
         "missing_aspects": result.get("missing_aspects", []),
-        "coverage": [{"aspect_id": row.get("aspect_id"), "status": row.get("status")}
+        "coverage": [{key: row[key] for key in ("aspect_id", "status", "addressed", "meets_standard", "reason")
+                      if key in row}
                      for row in result.get("coverage") or [] if isinstance(row, dict)],
         "evidence": evidence,
         "evidence_proposed": result.get("evidence_proposed"),
+        "evidence_standard": result.get("evidence_standard"),
+        "answers_missing": result.get("answers_missing"),
+        "deductions": result.get("deductions"),
+        "capped": result.get("capped"),
         "injection_cited_as": (
             "support" if any(item["relevance"] != "contradictory" for item in note)
             else "flaw" if note else None
@@ -226,6 +231,7 @@ def plan(
     variant_names: list[str],
     repeats: int,
     repeat_per_rubric: int,
+    standard: str = "auto",
 ) -> list[Unit]:
     """Units that need no earlier results: every variant except ``removed``."""
 
@@ -234,7 +240,7 @@ def plan(
     for index, case in enumerate(cases):
         position = seen[case.rubric]
         seen[case.rubric] += 1
-        rubric_criteria = criteria(load_rubric(case.rubric))
+        rubric_criteria = criteria(load_rubric(case.rubric), standard)
         original = case_document(case)
         for variant in variant_names:
             if variant == "removed":
@@ -257,7 +263,8 @@ def plan(
     return units
 
 
-def removal_plan(cases: list[Case], conditions: list[str], rows: list[dict[str, Any]], per_case: int) -> list[Unit]:
+def removal_plan(cases: list[Case], conditions: list[str], rows: list[dict[str, Any]], per_case: int,
+                 standard: str = "auto") -> list[Unit]:
     """Delete the paragraphs cited for a case's heaviest criteria and grade those criteria again.
 
     The deleted paragraphs are everything any evidence-based condition cited for that
@@ -270,7 +277,7 @@ def removal_plan(cases: list[Case], conditions: list[str], rows: list[dict[str, 
             cited[(row["case"], row["criterion"])].update(item["quote"] for item in row.get("evidence") or [])
     units: list[Unit] = []
     for case in cases:
-        rubric_criteria = criteria(load_rubric(case.rubric))
+        rubric_criteria = criteria(load_rubric(case.rubric), standard)
         heaviest = sorted(rubric_criteria, key=lambda c: (-c["weight"], c["id"]))[:per_case]
         original = case_document(case)
         for criterion in heaviest:

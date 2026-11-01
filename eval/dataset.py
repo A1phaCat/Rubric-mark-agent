@@ -45,14 +45,23 @@ def load_rubric(key: str) -> dict[str, Any]:
     return json.loads((RUBRICS / f"{key}.json").read_text(encoding="utf-8"))
 
 
-def criteria(rubric: dict[str, Any]) -> list[dict[str, Any]]:
-    """Criteria in the shape the grading pipeline receives from a batch's rubric snapshot."""
+def criteria(rubric: dict[str, Any], standard: str = "auto") -> list[dict[str, Any]]:
+    """Criteria in the shape the grading pipeline receives from a batch's rubric snapshot.
 
+    ``standard`` overrides each criterion's evidence standard for comparison runs:
+    ``auto`` keeps the rubric's own choice or the default rule, ``quality`` or ``presence``
+    sets every criterion, and ``weight:0.2`` requires the described standard only from that
+    share of the total up.
+    """
+
+    total = sum(float(item["weight"]) for item in rubric["criteria"]) or 1.0
     return [
         {
             "id": item["id"],
             "name": item["name"],
             "weight": float(item["weight"]),
+            "weight_share": float(item["weight"]) / total,
+            "evidence_standard": _standard(standard, float(item["weight"]) / total, item.get("evidence_standard")),
             "kind": item.get("kind", "content"),  # content | general (writing, referencing)
             "description": item.get("description", ""),
             "levels": item["levels"],
@@ -61,6 +70,14 @@ def criteria(rubric: dict[str, Any]) -> list[dict[str, Any]]:
         }
         for item in rubric["criteria"]
     ]
+
+
+def _standard(rule: str, share: float, own: str | None) -> str | None:
+    if rule in {"quality", "presence"}:
+        return rule
+    if rule.startswith("weight:"):
+        return "quality" if share >= float(rule.split(":", 1)[1]) else "presence"
+    return own
 
 
 def document(submission_id: str, text: str) -> dict[str, Any]:

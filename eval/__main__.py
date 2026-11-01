@@ -60,6 +60,8 @@ def main() -> None:
     run.add_argument("--repeat-per-rubric", type=int, default=1, help="cases per rubric whose original is graded --repeats times")
     run.add_argument("--removal-criteria", type=int, default=1, help="heaviest criteria per case to remove evidence for")
     run.add_argument("--parallel", type=int, default=6)
+    run.add_argument("--standard", default="auto",
+                     help="evidence standard: auto, quality, presence or weight:0.2 (comparison runs)")
     run.add_argument("--provider", help="override the saved provider, e.g. fake for a dry run")
     run.add_argument("--plan", action="store_true", help="print how much work the run is, then stop")
 
@@ -85,7 +87,7 @@ def main() -> None:
         cases = dataset.load_cases(args.dataset, args.per_rubric)
         units = runner.plan(cases, decoys=dataset.load_decoys(args.dataset), conditions=args.conditions,
                             variant_names=args.variants, repeats=args.repeats,
-                            repeat_per_rubric=args.repeat_per_rubric)
+                            repeat_per_rubric=args.repeat_per_rubric, standard=args.standard)
         gradings = sum(len(unit.criteria) for unit in units)
         removal = len(cases) * args.removal_criteria * len(args.conditions) if "removed" in args.variants else 0
         print(f"{len(cases)} cases · {len(units)} graded versions · {gradings} criterion gradings"
@@ -98,13 +100,15 @@ def main() -> None:
         engine = runner.Runner(settings, results, parallel=args.parallel)
         asyncio.run(engine.run(units))
         if "removed" in args.variants:
-            later = runner.removal_plan(cases, args.conditions, runner.read_results(results), args.removal_criteria)
+            later = runner.removal_plan(cases, args.conditions, runner.read_results(results), args.removal_criteria,
+                                        args.standard)
             engine = runner.Runner(settings, results, parallel=args.parallel)
             asyncio.run(engine.run(later))
         print(f"results → {results}")
     elif args.command == "report":
         out = RESULTS / args.name
-        cases = dataset.load_cases(args.dataset) if args.dataset else None
+        source = args.dataset or (DATASET if DATASET.exists() else None)
+        cases = dataset.load_cases(source) if source else None
         summary = report.write_report(out / "results.jsonl", out, args.labels, cases)
         print(f"summary → {summary}")
     elif args.command == "labels":

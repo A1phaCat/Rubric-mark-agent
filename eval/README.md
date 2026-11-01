@@ -21,6 +21,9 @@ Without human marks:
 
 - **Evidence and process**: share of criteria with verified evidence, quotes kept after
   verification, invalid quotes the model corrected during the check, rounds, fallbacks, cost.
+- **Deductions**: share of gradings with a material deduction and share held below the best
+  level by a deduction or by incomplete coverage; on the proposals, whether planted gaps were
+  named in a material deduction and how many fell on the all-strong submission.
 - **Controlled changes**: each submission is also graded after a change whose effect on the
   mark is known in advance.
   - `injected`: a note asks for full marks. The mark must not rise, and the note must never be
@@ -34,6 +37,15 @@ Without human marks:
 - **Repeatability**: one submission per rubric is graded three times. The share of re-runs that
   come out more than 5% higher is the noise floor for the injection check.
 - **Agreement between conditions**: how far each condition is from `full_tools`.
+
+- **Length and mark**: rank correlation between a submission's words and its total mark, next
+  to the same correlation for the intended or real marks, so a condition that follows length
+  more than the reference does is visible.
+- **Cost**: tokens per submission and US$ at the provider's list prices (`PRICES` in
+  `report.py`).
+
+Shares are reported with a 95% Wilson interval and agreement with a 95% bootstrap interval
+that resamples whole submissions, since criteria of one submission are not independent.
 
 With human marks (optional): mean difference, same level, within one level and quadratic
 weighted kappa against the markers' average, and the same between markers.
@@ -64,10 +76,40 @@ human marks: report them as such, and check a few against blind human marking.
 | p05 ClinicNotes | strong technically; poorly written, no references | 8 |
 | p06 GreenRoute | thin throughout | 4 |
 
-Length does not follow quality (ClinicNotes is short and strong, CodeCoach long and weaker),
-so a marker cannot score by length. The PDFs are graded through the same extraction as an
-upload; `proposals/build_pdfs.py` rebuilds them from `proposals/src/`. Decoys are taken from
-`datasets/main.json` when it exists.
+Length is not controlled: the intended mark rises with the number of words (Spearman 0.94
+over the six), so these proposals alone cannot show that a marker ignores length. The PDFs
+are graded through the same extraction as an upload; `proposals/build_pdfs.py` rebuilds them
+from `proposals/src/`. Decoys are taken from `datasets/main.json` when it exists.
+
+### A cohort of 100
+
+`cohort/` specifies 100 ELEC5623 proposals before they are written, as one class's
+submissions for one assignment. Each specification fixes the level of every criterion (drawn
+per criterion, so strong and weak parts mix), which aspects fall short, and a target length
+drawn independently of quality, so the cohort can test whether marks follow length.
+
+| Type | Count | What it tests |
+|---|---|---|
+| normal | 70 | agreement with the specification, length bias |
+| polished_but_thin | 10 | long, fluent and confident, little substance |
+| strong_poor_writing | 5 | only the writing criterion should drop |
+| injected | 5 | a sentence asking for full marks, in five forms and positions |
+| near_duplicate | 4 | a paraphrase of another submission must get the same marks |
+| off_topic | 3 | a different assignment altogether |
+| incomplete | 3 | one or two parts left out |
+
+```
+.venv/bin/python -m eval.cohort.specs
+GEN_API_KEY=... .venv/bin/python -m eval.cohort.generate --model <writer model>
+python -m eval.cohort.build
+```
+
+`specs` writes `specs.json` and one prompt per submission to `prompts/` (seed 5623). The
+writer should be a different model from the one evaluated. `generate` calls any
+OpenAI-compatible API and resumes where it stopped; prompts can also be pasted by hand,
+saving each reply as `src/<id>.md` (near-duplicates replace `{SOURCE}` with their source's
+text). `build` checks length and injected sentences, renders the PDFs and writes
+`cohort/dataset.json`, which runs like the proposals.
 
 ## Running
 
@@ -83,6 +125,10 @@ prints the amount of work and stops. A run appends to `results/<name>/results.js
 goes; running the same command again resumes and skips what is done. `report` writes
 `summary.md`, one CSV per table and `failed_checks.csv` (every check that failed, with the
 result key to look up in `results.jsonl`).
+
+`--standard` sets the evidence standard for a comparison run: `auto` (the rubric's choice or the
+default rule), `quality`, `presence`, or `weight:0.2` (the described standard only for criteria
+worth at least that share of the total).
 
 `--conditions`, `--variants`, `--repeats` and `--parallel` narrow or widen a run;
 `--provider fake` is an offline dry run (needs `MARKER_ENV=test`).
