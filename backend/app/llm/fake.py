@@ -9,6 +9,7 @@ from app.llm.protocol import ChatResponse, LLMResponse, ToolCall, ToolSpec
 # Deterministic responses for automated tests. The grading pipeline has its own
 # offline path (see app.grading.service); these cover the remaining purposes.
 _RESPONSES: dict[str, dict[str, Any]] = {
+    "connection_test": {"ok": True},
     "criterion_grade": {
         "score": 0,
         "level": "FL",
@@ -71,7 +72,12 @@ class FakeLLM:
             calls.append(_call("fake_search", "search", {"query": aspects[2].replace("-", " "),
                                                           "aspect_ids": [aspects[2]]}))
         else:
-            calls.append(_call("fake_finish", "finish", {"notes": "Deterministic FakeLLM evidence check."}))
+            # Cited aspects are addressed; only the first is judged to meet its standard.
+            cited = aspects[:2] if paragraphs else []
+            answers = [{"aspect_id": aspect, "addressed": aspect in cited, "meets_standard": aspect == aspects[0],
+                        "reason": "Deterministic FakeLLM answer."} for aspect in aspects]
+            calls.append(_call("fake_finish", "finish", {"aspects": answers,
+                                                         "notes": "Deterministic FakeLLM evidence check."}))
         return ChatResponse(text="", tool_calls=tuple(calls), model="fake-marker-v1", finish_reason="tool_calls")
 
 

@@ -99,13 +99,20 @@ async def test_ai(
         candidate.ai_api_key = payload.get("api_key") or candidate.ai_api_key
     started = time.perf_counter()
     try:
-        models = list(await build_llm(candidate).list_models())
+        llm = build_llm(candidate)
+        models = list(await llm.list_models())
+        offered = bool(candidate.ai_model) and (not models or candidate.ai_model in models)
+        if offered:
+            # Listing models only proves the key works; one tiny request proves the model accepts
+            # the parameters grading sends.
+            await llm.complete(purpose="connection_test", prompt='Reply with the JSON {"ok": true} only.')
         return {
             "ok": True,
             "latency_ms": int((time.perf_counter() - started) * 1000),
-            "model": candidate.ai_model,
+            "model": candidate.ai_model if offered else None,
             "models": models,
-            "message": "Provider connection succeeded",
+            "message": "Provider connection succeeded" if offered
+            else "Connected. Choose a model from this provider's list, then test again.",
         }
     except (ProviderError, ValueError, NotImplementedError) as exc:
         return {

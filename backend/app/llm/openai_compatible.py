@@ -26,6 +26,11 @@ _RETRYABLE_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504, 529})
 _GLOBAL_PAUSE_STATUS = frozenset({429, 503, 529})
 _MAX_RETRY_AFTER_SECONDS = 300.0
 T = TypeVar("T")
+# Parameters a model has rejected, learned from its own 400 replies, per endpoint and model.
+# Reasoning models (OpenAI o-series, GPT-5 and later, their Azure deployments) reject
+# ``max_tokens`` and a non-default ``temperature``, and some allow function tools on chat
+# completions only with reasoning turned off; other providers accept all of these.
+_LEARNED: dict[tuple[str, str], set[str]] = {}
 _CONTEXT_LENGTH = re.compile(
     r"context[_ ]length|maximum context|too many tokens|prompt is too long|input is too long|"
     r"exceeds? the (?:model'?s )?(?:context|token limit)",
@@ -67,6 +72,41 @@ def _status_error(response: httpx.Response) -> ProviderError:
         )
     reason = "context_length" if _CONTEXT_LENGTH.search(detail) else None
     return FatalProviderError(message, status=response.status_code, reason=reason)
+
+
+def _lesson(detail: str, learned: set[str]) -> str | None:
+    """Which parameter a 400 reply says this model does not accept, if any."""
+
+    text = detail.lower()
+    rejected = any(word in text for word in ("unsupported", "not supported", "does not support", "only the default"))
+    if "reasoning_effort" in text and rejected:
+        if "tool" in text:  # tools are allowed only with reasoning turned down
+            return "tools_without_reasoning" if "tools_without_reasoning" not in learned else "tools_unavailable"
+        supported = re.search(r"supported values are:(.*)", text)
+        if supported and "tools_without_reasoning" in learned:
+            options = re.findall(r"'([a-z]+)'", supported.group(1))
+            for choice in ("minimal", "low"):  # the lowest setting the model offers
+                if choice in options:
+                    return f"reasoning:{choice}"
+            return "tools_unavailable"
+        return None
+    if "max_tokens" in text and ("max_completion_tokens" in text or rejected):
+        return "max_completion_tokens"
+    if "temperature" in text and rejected:
+        return "default_temperature"
+    return None
+
+
+def _adapted(payload: dict[str, Any], learned: set[str]) -> dict[str, Any]:
+    body = dict(payload)
+    if "max_completion_tokens" in learned and "max_tokens" in body:
+        body["max_completion_tokens"] = body.pop("max_tokens")
+    if "default_temperature" in learned:
+        body.pop("temperature", None)
+    if body.get("tools") and "tools_without_reasoning" in learned:
+        lowest = next((item.split(":", 1)[1] for item in learned if item.startswith("reasoning:")), "none")
+        body["reasoning_effort"] = lowest
+    return body
 
 
 def response_text(choice: Mapping[str, object]) -> str:
@@ -215,11 +255,21 @@ class OpenAICompatibleLLM:
         return base * random.uniform(0.5, 1.0)
 
     async def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
+        learned = _LEARNED.setdefault((self.base_url, self.model), set())
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds, transport=self._transport) as client:
-                response = await client.post(
-                    f"{self.base_url}/chat/completions", headers=self._headers, json=payload
-                )
+                while True:
+                    if payload.get("tools") and "tools_unavailable" in learned:
+                        raise FatalProviderError(
+                            f"{self.model} does not accept function tools on chat completions", status=400
+                        )
+                    response = await client.post(
+                        f"{self.base_url}/chat/completions", headers=self._headers, json=_adapted(payload, learned)
+                    )
+                    lesson = _lesson(response.text, learned) if response.status_code == 400 else None
+                    if lesson is None or lesson in learned:
+                        break
+                    learned.add(lesson)  # resend at once without the rejected parameter
                 if response.status_code >= 400:
                     raise _status_error(response)
                 data = response.json()

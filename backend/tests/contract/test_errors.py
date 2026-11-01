@@ -29,3 +29,13 @@ def test_ai_connection_test_uses_server_side_provider_registry() -> None:
         )
         assert response.status_code == 200
         assert response.json()["models"] == ["fake-marker-v1"]
+
+
+def test_ai_connection_test_skips_the_probe_for_a_model_the_provider_does_not_offer() -> None:
+    with TestClient(app) as client:
+        response = client.post("/api/v1/settings/ai/test", json={"provider": "fake", "model": "gpt-5-mini"})
+        body = response.json()
+        assert body["ok"] is True and body["model"] is None and body["models"] == ["fake-marker-v1"]
+        assert "Choose a model" in body["message"]
+        offered = client.post("/api/v1/settings/ai/test", json={"provider": "fake", "model": "fake-marker-v1"}).json()
+        assert offered["ok"] is True and offered["model"] == "fake-marker-v1"
