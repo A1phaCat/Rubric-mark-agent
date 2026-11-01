@@ -412,5 +412,12 @@ def _evidence_check(result: AIResult | None) -> dict[str, Any] | None:
         return None
     minor = json.loads(result.minor_json or "{}")
     steps = json.loads(result.trace_json) if result.trace_json else []
-    context = minor.get("context") if isinstance(minor, dict) else None
-    return {"context": context or "retrieval", "steps": steps if isinstance(steps, list) else []}
+    if not isinstance(minor, dict):
+        minor = {}
+    deductions = minor.get("deductions")
+    return {
+        "context": minor.get("context") or "retrieval",
+        "steps": steps if isinstance(steps, list) else [],
+        "deductions": deductions if isinstance(deductions, list) else None,
+        "capped": minor.get("capped"),
+    }

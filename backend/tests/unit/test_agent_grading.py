@@ -16,6 +16,7 @@ from app.grading.service import grade_criterion
 from app.llm.protocol import ChatResponse, FatalProviderError, LLMResponse, ToolCall
 from app.retrieval import full_document
 from app.services.grading_service import grade_submission
+from app.services.review_service import _evidence_check
 from tests.unit.test_full_text_grading import _criterion, _document, stored  # noqa: F401
 
 GRADE = {"score": 10, "level": "Good", "rationale": "Measured and reported.", "confidence": "high"}
@@ -23,6 +24,12 @@ GRADE = {"score": 10, "level": "Good", "rationale": "Measured and reported.", "c
 
 def call(name: str, **arguments) -> ToolCall:
     return ToolCall(id=f"{name}_{len(arguments)}", name=name, raw_arguments=json.dumps(arguments), arguments=arguments)
+
+
+def done(notes: str = "done", **met: bool) -> ToolCall:
+    answers = [{"aspect_id": a, "addressed": True, "meets_standard": met.get(a, True), "reason": "r"}
+               for a in ("measures", "reports")]
+    return call("finish", aspects=answers, notes=notes)
 
 
 class ToolLLM:
@@ -39,7 +46,7 @@ class ToolLLM:
         self.purposes.append(purpose)
         if self.error is not None:
             raise self.error
-        calls = self.turns.pop(0) if self.turns else (call("finish", notes="done"),)
+        calls = self.turns.pop(0) if self.turns else (done(),)
         return ChatResponse(text="", tool_calls=tuple(calls), model="tools-model",
                             input_tokens=3000, output_tokens=40, cached_tokens=2500, latency_ms=900)
 
@@ -68,7 +75,7 @@ def _run(llm, **settings):
 
 
 def test_the_check_feeds_the_unchanged_grade_step() -> None:
-    llm = ToolLLM((MEASURED,), (call("finish", notes="all found"),))
+    llm = ToolLLM((MEASURED,), (done("all found"),))
     result = _run(llm)
     assert llm.purposes == ["evidence_check", "evidence_check", "criterion_grade"]
     assert result["context"] == "full_tools"
@@ -78,7 +85,7 @@ def test_the_check_feeds_the_unchanged_grade_step() -> None:
 
 
 def test_the_steps_and_every_provider_call_are_kept() -> None:
-    result = _run(ToolLLM((MEASURED,), (call("finish", notes="all found"),)))
+    result = _run(ToolLLM((MEASURED,), (done("all found"),)))
     kinds = [step["kind"] for step in result["evidence_trace"]]
     assert kinds == ["read", "model", "tool", "model", "tool"]
     assert [c["purpose"] for c in result["llm_calls"]] == ["evidence_check", "evidence_check", "criterion_grade"]
@@ -132,9 +139,22 @@ def test_the_check_is_stored_with_the_result_and_its_calls_are_logged(stored) ->
     with stored() as session:
         result = session.scalar(select(AIResult))
         trace = json.loads(result.trace_json)
-        assert result.prompt_version == "criterion-grade-fulltools-v1"
-        assert json.loads(result.minor_json)["context"] == "full_tools"
+        assert result.prompt_version == "criterion-grade-fulltools-v3"
+        minor = json.loads(result.minor_json)
+        assert minor["context"] == "full_tools" and minor["deductions"] == [] and minor["capped"] is None
+        check = _evidence_check(result)
+        assert check["deductions"] == [] and check["capped"] is None and check["steps"]
         assert trace[0]["kind"] == "read" and any(step["tool"] == "cite" for step in trace)
         assert session.scalars(select(Evidence)).all()
         purposes = [row.purpose for row in session.scalars(select(LLMCall))]
         assert purposes and set(purposes) == {"evidence_check"}  # the fake grade step makes no call
+
+
+def test_an_aspect_below_its_standard_caps_the_mark() -> None:
+    llm = ToolLLM((MEASURED,), (done("reports are listed but thin", reports=False),))
+    result = _run(llm)
+    coverage = {row["aspect_id"]: row["status"] for row in result["coverage"]}
+    assert coverage == {"measures": "supported", "reports": "partial"}
+    assert "partial" in llm.grade_prompt and "reports" in llm.grade_prompt
+    assert (result["score"], result["level"]) == (5, "Fair")  # the model said 10; the rule caps it
+    assert result["evidence_standard"] == "quality" and result["answers_missing"] == 0

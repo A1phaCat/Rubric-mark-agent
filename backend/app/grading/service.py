@@ -7,18 +7,21 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
 from app.agent import AgentStep, run_evidence_check
+from app.agent.tools import parse_answers
 from app.config import Settings
 from app.domain import levels
 from app.llm import build_llm
 from app.llm.protocol import LLM, FatalProviderError, LLMResponse
 from app.retrieval import FullDocument, RetrievedPassage, find_quote
-from app.rubric.assessment import normalise_assessment_plan
+from app.rubric.assessment import evidence_standard, normalise_assessment_plan
 
 PROMPT_VERSIONS = {
-    "full_tools": "criterion-grade-fulltools-v1",
-    "full": "criterion-grade-fulltext-v1",
-    "retrieval": "criterion-grade-coverage-v3",
+    "full_tools": "criterion-grade-fulltools-v3",
+    "full": "criterion-grade-fulltext-v3",
+    "retrieval": "criterion-grade-coverage-v5",
 }
+_DEDUCTION_SEVERITIES = ("minor", "material")
+_MAX_DEDUCTIONS = 8
 
 
 def prompt_version(context: str) -> str:
@@ -211,7 +214,7 @@ END OF SUBMISSION
 Rubric criterion to find evidence for, with its fixed assessment aspects:
 {rubric}
 
-Read the whole submission before choosing. Content that addresses an aspect may use different words from the rubric, be split across sections, or depend on a definition given earlier — judge meaning, not keywords. For each aspect, select the passages that decide it: the strongest support, and anything that materially contradicts it. Return JSON only:
+Read the whole submission before choosing. Content that addresses an aspect may use different words from the rubric, be split across sections, or depend on a definition given earlier — judge meaning, not keywords. For each aspect, select the passages that decide it: the strongest support, and the weakest or most limited passage: vague or hedged statements, claims without support, parts left undone, or anything that materially contradicts it. Mark weaknesses partial or contradictory. Return JSON only:
 {{
   "evidence": [
     {{
@@ -222,10 +225,18 @@ Read the whole submission before choosing. Content that addresses an aspect may 
       "aspect_ids": ["one or more aspect ids"]
     }}
   ],
+  "aspects": [
+    {{
+      "aspect_id": "one supplied aspect id",
+      "addressed": true,
+      "meets_standard": false,
+      "reason": "one sentence"
+    }}
+  ],
   "notes": "brief neutral note on what the submission does and does not contain for this criterion"
 }}
 
-Return zero to {limit} items and never pad the list. A direct item clearly supports a named aspect; a partial item supports only part of it; a contradictory item materially weighs against it. Every item must map to at least one supplied aspect id and quote the paragraph whose id it gives, word for word. Prefer non-redundant evidence covering distinct aspects. If an aspect is not addressed anywhere in the submission, give no item for it — missing aspects are recorded from that."""
+Return zero to {limit} items and never pad the list. A direct item clearly supports a named aspect; a partial item supports only part of it; a contradictory item materially weighs against it. Every item must map to at least one supplied aspect id and quote the paragraph whose id it gives, word for word. Prefer non-redundant evidence covering distinct aspects. If an aspect is not addressed anywhere in the submission, give no item for it — missing aspects are recorded from that. For every aspect also answer two questions: addressed (the submission covers it) and meets_standard (the evidence shows it at the standard the aspect describes). Covering a topic is not meeting its standard: a claim stated but not demonstrated, a list without the analysis the description asks for, or a plan left at the level of possibilities is addressed but does not meet it."""
 
 
 def _gate_prompt(criterion: dict[str, Any], passages: list[RetrievedPassage]) -> str:
@@ -249,10 +260,18 @@ Read every candidate separately. Return JSON only:
       "aspect_ids": ["one or more aspect ids"]
     }}
   ],
+  "aspects": [
+    {{
+      "aspect_id": "one supplied aspect id",
+      "addressed": true,
+      "meets_standard": false,
+      "reason": "one sentence"
+    }}
+  ],
   "notes": "brief neutral retrieval assessment"
 }}
 
-There is no evidence quota. Return zero to five items, never pad the list. Exclude merely topical or keyword-matching passages that do not help decide this criterion. A direct item clearly supports a named aspect; a partial item supports only part of it; a contradictory item materially weighs against it. Every selected item must map to at least one supplied aspect id. Quotes must be exact substrings of their passage. Prefer non-redundant evidence covering distinct aspects. If no candidate is genuinely useful, return an empty evidence array."""
+There is no evidence quota. Return zero to five items, never pad the list. Exclude merely topical or keyword-matching passages that do not help decide this criterion. A direct item clearly supports a named aspect; a partial item supports only part of it; a contradictory item materially weighs against it. Every selected item must map to at least one supplied aspect id. Quotes must be exact substrings of their passage. Prefer non-redundant evidence covering distinct aspects. If no candidate is genuinely useful, return an empty evidence array. For every aspect also answer two questions: addressed (the submission covers it) and meets_standard (the evidence shows it at the standard the aspect describes). Covering a topic is not meeting its standard: a claim stated but not demonstrated, a list without the analysis the description asks for, or a plan left at the level of possibilities is addressed but does not meet it."""
 
 
 def _normalise_gate(
@@ -263,10 +282,14 @@ def _normalise_gate(
 ) -> dict[str, Any]:
     """Keep only evidence whose quote really is in the submission, then derive coverage.
 
-    Coverage is recomputed here from the verified evidence: the model's own view of what
-    is covered never reaches the grade.
+    Coverage is recomputed here from the verified evidence. Under the ``quality`` standard
+    an aspect with supporting evidence counts as supported only when the evidence step also
+    judged that it meets the standard the aspect describes; otherwise it is partial. The
+    model's answers can lower a status but never raise one: without verified evidence an
+    aspect stays missing whatever the model says.
     """
     mode, aspects = normalise_assessment_plan(criterion)
+    standard = evidence_standard(criterion)
     aspect_by_id = {str(item["id"]): item for item in aspects}
     passage_by_id = {item.id: item for item in passages}
     evidence: list[dict[str, Any]] = []
@@ -315,6 +338,7 @@ def _normalise_gate(
             }
         )
 
+    answers = parse_answers(raw.get("aspects"), {key: value["label"] for key, value in aspect_by_id.items()})
     coverage: list[dict[str, Any]] = []
     for aspect_id, aspect in aspect_by_id.items():
         related = [item for item in evidence if aspect_id in item["aspect_ids"]]
@@ -328,11 +352,17 @@ def _normalise_gate(
             status = "contradicted"
         else:
             status = "missing"
+        answer = answers.get(aspect_id)
+        if status == "supported" and answer is not None:
+            if not answer["addressed"] or (standard == "quality" and not answer["meets_standard"]):
+                status = "partial"
         coverage.append(
             {
                 "aspect_id": aspect_id,
                 "label": aspect["label"],
                 "status": status,
+                **({"addressed": answer["addressed"], "meets_standard": answer["meets_standard"],
+                    "reason": answer["reason"]} if answer else {}),
                 "evidence_ids": [item["passage_id"] for item in supporting],
                 "contradictory_evidence_ids": [
                     item["passage_id"] for item in contradictory
@@ -355,6 +385,8 @@ def _normalise_gate(
     )
     return {
         "grading_mode": mode,
+        "evidence_standard": standard,
+        "answers_missing": sum(1 for aspect_id in aspect_by_id if aspect_id not in answers),
         "evidence": evidence,
         "coverage": coverage,
         "coverage_ratio": round(covered_units / len(coverage), 3) if coverage else 0.0,
@@ -501,15 +533,23 @@ Validated evidence passages:
 Evidence coverage matrix:
 {json.dumps(coverage, ensure_ascii=False)}
 {_facts_block(facts)}
-Return JSON only:
+Return JSON only, with the deductions decided before the level:
 {{
+  "deductions": [
+    {{
+      "aspect_id": "one aspect id from the coverage matrix",
+      "severity": "minor|material",
+      "issue": "what a strict but fair marker would write as a reason this is not at the best level",
+      "evidence": "a bracket such as p.1 ¶5, or absent"
+    }}
+  ],
   "score": number from 0 to {criterion.get('weight')},
   "level": "one exact rubric level label",
   "rationale": "concise neutral explanation grounded only in validated evidence and missing aspects; cite evidence exactly as its bracket shows it, e.g. (p.1 ¶5)",
   "confidence": "high|medium|low|none"
 }}
 
-Evidence count is not evidence sufficiency. Select the highest rubric level fully supported by the coverage matrix and passages. Do not infer that a missing aspect is present elsewhere. Do not add, replace or reinterpret evidence. Explicitly mention important missing or contradicted aspects in the rationale."""
+Mark as a strict but fair marker who has to justify the best level. First list deductions: compare the evidence with the best level's description and the level below it, and record everything that falls short. A material deduction is one a marker would give as the reason the work is not at the best level; a minor one is worth noting but still compatible with it. Length, detail and confident wording are not quality; a list is not analysis; a claim is not a demonstration; a plan that names possibilities has not decided. An empty deductions list means you checked and found nothing below the best level. The best level must be earned: choose it only when there is no material deduction. Evidence count is not evidence sufficiency. An aspect marked partial is covered but not shown at the standard the best level describes; its reason says why. Select the highest rubric level fully supported by the coverage matrix and passages. Do not infer that a missing aspect is present elsewhere. Do not add, replace or reinterpret evidence. Explicitly mention important missing or contradicted aspects in the rationale."""
 
 
 def _facts_block(facts: dict[str, Any] | None) -> str:
@@ -563,9 +603,44 @@ def _fake_grade(criterion: dict[str, Any], gate: dict[str, Any]) -> dict[str, An
     }
 
 
-def _apply_analytic_cap(criterion: dict[str, Any], result: dict[str, Any]) -> None:
-    if result.get("sufficiency") == "sufficient" or result.get("grading_mode") != "analytic":
-        return
+def _deductions(raw: Any, gate: dict[str, Any], passages: list[RetrievedPassage]) -> list[dict[str, str]]:
+    """Deductions that name an aspect of this criterion and point at shown evidence or an absence."""
+
+    aspects = {str(row["aspect_id"]) for row in gate["coverage"]}
+    shown = {_where(item) for item in passages}
+    kept: list[dict[str, str]] = []
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict) or len(kept) >= _MAX_DEDUCTIONS:
+            continue
+        aspect = str(item.get("aspect_id") or "")
+        severity = str(item.get("severity") or "").lower()
+        evidence = " ".join(str(item.get("evidence") or "").split())
+        issue = str(item.get("issue") or "").strip()
+        if aspect not in aspects or severity not in _DEDUCTION_SEVERITIES or not issue:
+            continue
+        if evidence.lower() != "absent" and evidence not in shown:
+            continue  # a deduction must rest on evidence the grade step was shown, or on an absence
+        kept.append({"aspect_id": aspect, "severity": severity, "issue": issue[:300],
+                     "evidence": "absent" if evidence.lower() == "absent" else evidence})
+    return kept
+
+
+def _apply_caps(criterion: dict[str, Any], result: dict[str, Any]) -> None:
+    """Hold the mark below the best level when coverage is incomplete or a material deduction stands.
+
+    Incomplete coverage caps analytic criteria. A material deduction caps any criterion held
+    to the quality standard; under the presence standard deductions are shown but do not cap.
+    """
+
+    if result.get("grading_mode") == "analytic" and result.get("sufficiency") != "sufficient":
+        _cap_below_best(criterion, result, "coverage")
+    elif result.get("evidence_standard") == "quality" and any(
+        item["severity"] == "material" for item in result.get("deductions") or []
+    ):
+        _cap_below_best(criterion, result, "deduction")
+
+
+def _cap_below_best(criterion: dict[str, Any], result: dict[str, Any], reason: str) -> None:
     levels = sorted(
         criterion.get("levels", []),
         key=lambda level: float(level.get("points") or 0),
@@ -578,6 +653,7 @@ def _apply_analytic_cap(criterion: dict[str, Any], result: dict[str, Any]) -> No
     if float(result.get("score") or 0) > cap:
         result["score"] = cap
         result["level"] = str(second.get("label") or result.get("level") or "")
+        result["capped"] = reason
 
 
 async def grade_criterion(
@@ -620,6 +696,8 @@ async def grade_criterion(
         "evidence_trace": found.trace,
         "llm_calls": calls,
         "evidence_proposed": len(found.raw.get("evidence") or []),
+        "evidence_standard": gate["evidence_standard"],
+        "answers_missing": gate["answers_missing"],
     }
 
     if settings.llm == "fake":
@@ -659,7 +737,8 @@ async def grade_criterion(
         **_totals(calls),
     )
     result["rationale"] = readable_references(str(result.get("rationale") or ""), passages)
-    _apply_analytic_cap(criterion, result)
+    result["deductions"] = _deductions(result.get("deductions"), gate, selected_passages)
+    _apply_caps(criterion, result)
     _reconcile_level(criterion, result)
     return result
 

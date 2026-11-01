@@ -28,6 +28,14 @@ def call(name: str, **arguments) -> ToolCall:
     return ToolCall(id=f"{name}_{len(arguments)}", name=name, raw_arguments=json.dumps(arguments), arguments=arguments)
 
 
+def done(notes: str = "done", **met: bool) -> ToolCall:
+    """finish with an answer for every aspect; ``met`` overrides meets_standard per aspect."""
+
+    answers = [{"aspect_id": a["id"], "addressed": True, "meets_standard": met.get(a["id"], True), "reason": "r"}
+               for a in ASPECTS]
+    return call("finish", aspects=answers, notes=notes)
+
+
 class Scripted:
     """Plays back one turn per call and records the conversation it was sent."""
 
@@ -37,7 +45,7 @@ class Scripted:
 
     async def chat(self, *, purpose, messages, tools, metadata=None):
         self.sent.append([dict(m) for m in messages])
-        calls = self.turns.pop(0) if self.turns else (call("finish", notes="out of script"),)
+        calls = self.turns.pop(0) if self.turns else (done("out of script"),)
         return ChatResponse(text="", tool_calls=tuple(calls), model="scripted", input_tokens=100, cached_tokens=80)
 
 
@@ -47,7 +55,7 @@ def _run(llm, **kwargs):
 
 
 def test_the_model_reads_the_whole_submission_first() -> None:
-    llm = Scripted((call("finish", notes="none"),), (call("finish", notes="none"),))
+    llm = Scripted((done("none"),), (done("none"),))
     _run(llm)
     system = llm.sent[0][0]["content"]
     assert system.startswith(SYSTEM_HEADER)
@@ -61,7 +69,7 @@ def test_an_invented_quote_is_rejected_on_the_spot_and_can_be_corrected() -> Non
         (call("cite", paragraph_id="p2", quote="logged waste fell by 18%", aspect_ids=["metrics"], relevance="direct"),
          call("cite", paragraph_id="p1", quote="We compare the tracker against a manual paper log", aspect_ids=["baseline"], relevance="direct"),
          call("cite", paragraph_id="p3", quote="items thrown away without being scanned are missed", aspect_ids=["failures"], relevance="direct")),
-        (call("finish", notes="all found"),),
+        (done("all found"),),
     )
     check = _run(llm)
     tool_reply = llm.sent[1][-1]
@@ -77,10 +85,10 @@ def test_missing_is_only_accepted_after_a_search() -> None:
     llm = Scripted(
         (call("cite", paragraph_id="p1", quote="We compare the tracker against a manual paper log", aspect_ids=["baseline"], relevance="direct"),
          call("cite", paragraph_id="p2", quote="logged waste fell by 18%", aspect_ids=["metrics"], relevance="direct")),
-        (call("finish", notes="failures not addressed"),),            # too early: nudged
+        (done("failures not addressed"),),            # too early: nudged
         (call("search", query="failure scanned missed", aspect_ids=["failures"]),),
         (call("cite", paragraph_id="p3", quote="items thrown away without being scanned are missed", aspect_ids=["failures"], relevance="direct"),
-         call("finish", notes="found in the appendix")),
+         done("found in the appendix")),
     )
     check = _run(llm)
     assert [s.kind for s in check.steps if s.kind == "nudge"] == ["nudge"]
@@ -94,7 +102,7 @@ def test_missing_is_only_accepted_after_a_search() -> None:
 def test_a_searched_aspect_can_be_reported_missing() -> None:
     llm = Scripted(
         (call("search", query="reproducibility random seed", aspect_ids=["failures"]),),
-        (call("finish", notes="no failure analysis"),),
+        (done("no failure analysis", failures=False),),
     )
     workspace_steps = _run(llm).steps
     assert not [s for s in workspace_steps if s.kind == "nudge" and "failures" in s.detail]
@@ -132,7 +140,7 @@ def test_output_feeds_the_existing_evidence_gate_unchanged() -> None:
     llm = Scripted(
         (call("cite", paragraph_id="p1", quote="We compare the tracker against a manual paper log", aspect_ids=["baseline"], relevance="direct"),
          call("search", query="failures", aspect_ids=["failures", "metrics"]),),
-        (call("finish", notes="partial"),),
+        (done("partial"),),
     )
     check = _run(llm)
     full = full_document(DOCUMENT)
@@ -145,7 +153,42 @@ def test_output_feeds_the_existing_evidence_gate_unchanged() -> None:
 def test_token_use_is_totalled_and_the_cache_warm_up_hook_fires_once() -> None:
     fired = []
     llm = Scripted((call("search", query="baseline", aspect_ids=["baseline", "metrics", "failures"]),),
-                   (call("finish", notes="x"),))
+                   (done("x"),))
     check = _run(llm, after_first_turn=lambda: fired.append(1))
     assert fired == [1]
     assert (check.input_tokens, check.cached_tokens) == (200, 160)
+
+
+def test_finishing_needs_an_answer_for_every_aspect() -> None:
+    partial = [{"aspect_id": "baseline", "addressed": True, "meets_standard": True, "reason": "compared"}]
+    llm = Scripted(
+        (call("search", query="baseline", aspect_ids=["baseline", "metrics", "failures"]),),
+        (call("finish", aspects=partial, notes="x"),),                     # two aspects unanswered
+        (done("now complete", metrics=False),),
+    )
+    check = _run(llm)
+    assert "Missing: metrics" in llm.sent[2][-1]["content"]
+    assert [s.outcome for s in check.steps if s.tool == "finish"] == ["incomplete", "done"]
+    answers = {a["aspect_id"]: a for a in check.gate_raw["aspects"]}
+    assert answers["metrics"]["meets_standard"] is False and answers["baseline"]["reason"] == "r"
+    assert check.finished and check.rounds == 3
+
+
+def test_a_second_incomplete_finish_is_accepted() -> None:
+    llm = Scripted(
+        (call("search", query="baseline", aspect_ids=["baseline", "metrics", "failures"]),),
+        (call("finish", notes="no answers"),),
+        (call("finish", notes="still none"),),
+    )
+    check = _run(llm)
+    assert check.finished and check.gate_raw["aspects"] == []
+    finish = [s for s in check.steps if s.tool == "finish"][-1]
+    assert finish.data["unanswered"] == ["baseline", "metrics", "failures"]
+
+
+def test_meeting_the_standard_requires_addressing_it() -> None:
+    workspace = EvidenceWorkspace(full_document(DOCUMENT), ASPECTS, 8)
+    workspace.finish({"aspects": [{"aspect_id": "metrics", "addressed": False, "meets_standard": True, "reason": "r"},
+                                  {"aspect_id": "nope", "addressed": True, "meets_standard": True, "reason": "r"},
+                                  {"aspect_id": "baseline", "addressed": "yes", "meets_standard": True}]})
+    assert workspace.answers == {"metrics": {"addressed": False, "meets_standard": False, "reason": "r"}}

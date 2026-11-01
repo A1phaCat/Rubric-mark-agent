@@ -17,10 +17,17 @@ branch_labels = None
 depends_on = None
 
 
+def _columns() -> set[str]:
+    return {column["name"] for column in sa.inspect(op.get_bind()).get_columns("ai_results")}
+
+
 def upgrade() -> None:
-    op.add_column("ai_results", sa.Column("trace_json", sa.Text(), nullable=True))
+    # A new database already has the column: 0001 creates the tables from the current models.
+    if "trace_json" not in _columns():
+        op.add_column("ai_results", sa.Column("trace_json", sa.Text(), nullable=True))
 
 
 def downgrade() -> None:
-    with op.batch_alter_table("ai_results") as batch:
-        batch.drop_column("trace_json")
+    if "trace_json" in _columns():
+        with op.batch_alter_table("ai_results") as batch:
+            batch.drop_column("trace_json")

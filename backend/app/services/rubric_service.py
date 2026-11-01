@@ -138,6 +138,7 @@ class RubricUseCases:
                 "scoring_mode": item.get("scoring_mode", "fixed_levels"),
                 "score_mapping": item.get("score_mapping", "explicit"),
                 "granularity": item.get("granularity"),
+                "evidence_standard": item.get("evidence_standard"),
                 "prov": item.get("prov", {}),
                 "source_text": item.get("source_text", {}),
             }
@@ -285,6 +286,7 @@ class RubricUseCases:
             "scoring_mode": metadata.get("scoring_mode", "fixed_levels"),
             "score_mapping": metadata.get("score_mapping", "explicit"),
             "granularity": metadata.get("granularity"),
+            "evidence_standard": metadata.get("evidence_standard"),
             "prov": metadata.get("prov", {}),
             "source_text": metadata.get("source_text", {}),
         }

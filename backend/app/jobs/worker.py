@@ -78,11 +78,14 @@ async def handle_grade(payload: dict[str, object]) -> None:
                 .order_by(RubricCriterion.position)
             )
         )
+        rubric_total = sum(float(criterion.weight or 0) for criterion in criteria)
         criterion_payloads: list[dict[str, Any]] = [
             {
                 "id": criterion.id,
                 "name": criterion.name,
                 "weight": criterion.weight,
+                "weight_share": float(criterion.weight or 0) / rubric_total if rubric_total else None,
+                "evidence_standard": _criterion_metadata(criterion).get("evidence_standard"),
                 "description": criterion.description or "",
                 "levels": json.loads(criterion.levels_json or "[]"),
                 "grading_mode": criterion.grading_mode,
@@ -174,6 +177,13 @@ async def handle_grade(payload: dict[str, object]) -> None:
         raise
     finally:
         session.close()
+
+
+def _criterion_metadata(criterion: RubricCriterion) -> dict[str, Any]:
+    """Editor metadata stored with a criterion (older rows hold a plain list of flags)."""
+
+    stored = json.loads(criterion.flags_json or "{}")
+    return stored if isinstance(stored, dict) else {}
 
 
 def _route_to_manual(

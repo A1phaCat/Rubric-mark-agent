@@ -49,8 +49,33 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "finish",
-        "Call when the evidence is complete. Say which aspects are not addressed anywhere in the submission.",
-        {"type": "object", "properties": {"notes": {"type": "string"}}, "required": ["notes"]},
+        "Call when the evidence is complete, with two answers for every aspect: is it addressed "
+        "anywhere in the submission, and does the cited evidence show it at the standard the aspect "
+        "describes. Mentioning a topic is not meeting its standard.",
+        {
+            "type": "object",
+            "properties": {
+                "aspects": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "aspect_id": {"type": "string"},
+                            "addressed": {"type": "boolean", "description": "The submission covers this aspect"},
+                            "meets_standard": {
+                                "type": "boolean",
+                                "description": "The cited evidence shows the quality the aspect describes, "
+                                               "e.g. measurable, compelling, critically compared",
+                            },
+                            "reason": {"type": "string", "description": "One sentence"},
+                        },
+                        "required": ["aspect_id", "addressed", "meets_standard", "reason"],
+                    },
+                },
+                "notes": {"type": "string"},
+            },
+            "required": ["aspects"],
+        },
     ),
 )
 
@@ -83,6 +108,8 @@ class EvidenceWorkspace:
         self.max_citations = max_citations
         self.citations: list[Citation] = []
         self.searched: set[str] = set()
+        self.answers: dict[str, dict[str, Any]] = {}
+        self.answers_requested = False
         self.notes = ""
         self.finished = False
 
@@ -109,6 +136,7 @@ class EvidenceWorkspace:
                 }
                 for index, citation in enumerate(self.citations)
             ],
+            "aspects": [{"aspect_id": aspect, **answer} for aspect, answer in self.answers.items()],
             "notes": self.notes,
         }
 
@@ -192,5 +220,36 @@ class EvidenceWorkspace:
 
     def finish(self, arguments: dict[str, Any]) -> ToolOutcome:
         self.notes = str(arguments.get("notes") or "").strip()[:2000]
+        self.answers.update(parse_answers(arguments.get("aspects"), self.aspects))
+        unanswered = [aspect for aspect in self.aspects if aspect not in self.answers]
+        if unanswered and not self.answers_requested:
+            # Ask once for the missing answers; after that, finish with what was given.
+            self.answers_requested = True
+            listed = "; ".join(f"{aspect} ({self.aspects[aspect]})" for aspect in unanswered)
+            return ToolOutcome(
+                f"not finished: give addressed and meets_standard for every aspect. Missing: {listed}. "
+                "Call finish again with all aspects.",
+                "incomplete", detail=listed, data={"aspect_ids": unanswered},
+            )
         self.finished = True
-        return ToolOutcome("done", "done", detail=self.notes[:300])
+        answers = [{"aspect_id": aspect, **answer} for aspect, answer in self.answers.items()]
+        return ToolOutcome("done", "done", detail=self.notes[:300],
+                           data={"aspects": answers, "unanswered": unanswered})
+
+
+def parse_answers(value: Any, aspects: dict[str, str]) -> dict[str, dict[str, Any]]:
+    """Valid per-aspect answers keyed by aspect id; unknown ids and malformed items are dropped."""
+
+    answers: dict[str, dict[str, Any]] = {}
+    for item in value if isinstance(value, list) else []:
+        if not isinstance(item, dict) or str(item.get("aspect_id")) not in aspects:
+            continue
+        addressed, meets = item.get("addressed"), item.get("meets_standard")
+        if not isinstance(addressed, bool) or not isinstance(meets, bool):
+            continue
+        answers[str(item["aspect_id"])] = {
+            "addressed": addressed,
+            "meets_standard": meets and addressed,
+            "reason": str(item.get("reason") or "").strip()[:300],
+        }
+    return answers

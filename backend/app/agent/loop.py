@@ -23,10 +23,10 @@ SYSTEM_HEADER = """You check the evidence for one rubric criterion of a universi
 
 How to work:
 1. Read the whole submission. Content that addresses an aspect may use different words from the rubric, be split across sections, or depend on a definition given earlier: judge meaning, not keywords.
-2. Use cite for the passages that decide each aspect: the strongest support, and anything that materially contradicts it. Copy the exact words from one paragraph. You may make several calls at once.
+2. Use cite for the passages that decide each aspect: the strongest support, and the weakest or most limited passage: vague or hedged statements, claims without support, parts left undone, or anything that materially contradicts it. Cite weaknesses as partial or contradictory. Copy the exact words from one paragraph. You may make several calls at once.
 3. If a cite is reported invalid, cite again with the exact words or leave it out.
 4. Before treating an aspect as not addressed, use search to look for it in other words.
-5. Call finish, naming any aspect that is not addressed anywhere in the submission.
+5. Call finish with two answers for every aspect. addressed: the submission covers it somewhere. meets_standard: the evidence you cited shows it at the standard the aspect describes. Covering a topic is not meeting its standard: a claim stated but not demonstrated, a list without the analysis the description asks for, or a plan left at the level of possibilities is addressed but does not meet it.
 
 SUBMISSION
 ==========
@@ -126,6 +126,8 @@ async def run_evidence_check(
             reply = outcome.reply
             missing = workspace.unchecked_missing() if call.name == "finish" and workspace.finished else []
             deferred = bool(missing) and not nudged
+            if outcome.outcome == "incomplete":
+                limit = max(limit, rounds + 1)  # room to answer for the missing aspects
             steps.append(AgentStep(rounds, "tool", tool=call.name, outcome="deferred" if deferred else outcome.outcome,
                                    detail=outcome.detail, data=outcome.data))
             if deferred:
