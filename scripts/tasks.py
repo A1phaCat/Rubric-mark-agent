@@ -21,6 +21,13 @@ def run(*args: str, cwd: Path = ROOT) -> None:
 
 def main() -> None:
     task = sys.argv[1] if len(sys.argv) > 1 else "help"
+    if task == "e2e-server":
+        # Browser tests need the whole stack: current schema, freshly reset samples, and a
+        # worker, otherwise new batches stay "queued" forever. Playwright sets MARKER_ENV=test.
+        if os.environ.get("MARKER_ENV") != "test":
+            raise SystemExit("e2e-server needs MARKER_ENV=test")
+        run(sys.executable, str(Path(__file__).resolve()), "seed")
+        task = "dev"
     if task in {"api", "dev"}:
         # Keep the schema current so the startup sample reset never meets an old database.
         run(sys.executable, "-m", "alembic", "-c", "alembic.ini", "upgrade", "head", cwd=BACKEND)
@@ -75,6 +82,7 @@ def main() -> None:
             cwd=BACKEND,
         )
     elif task == "seed":
+        run(sys.executable, str(Path(__file__).resolve()), "migrate")
         run(sys.executable, "-m", "app.sample.seed", cwd=BACKEND)
     elif task == "test":
         run(sys.executable, "-m", "pytest", "backend/tests", "tests/architecture", "-q")
@@ -116,7 +124,7 @@ def main() -> None:
         else:
             print("SKIP browser checks: run npm install first")
     else:
-        print("tasks: dev api worker migrate seed test lint fmt check")
+        print("tasks: dev api worker migrate seed test lint fmt check e2e-server")
 
 
 if __name__ == "__main__":

@@ -386,11 +386,13 @@
 
       <section class="box" id="boxCanvas" hidden>
         <div class="box-h"><span class="tag">A</span><h3>From a Canvas assignment</h3><span class="chosen">Using this</span></div>
-        <p class="hint">Not available in local MVP. Upload PDF, DOCX or ZIP files instead.</p>
-        <select class="sel" id="assnSel" aria-label="Canvas assignment" disabled title="Not available in local MVP">
-          <option value="">Not available in local MVP</option>
+        <p class="hint" id="canvasHint">Imports the assignment's Canvas rubric and every submitted file into a new batch, then starts AI marking. Student names are not stored.</p>
+        <select class="sel" id="courseSel" aria-label="Canvas course"><option value="">Choose a course…</option></select>
+        <select class="sel" id="assnSel" aria-label="Canvas assignment" disabled>
+          <option value="">Choose an assignment…</option>
         </select>
         <div class="assn" id="assnInfo"></div>
+        <div class="row-btns"><button class="btn" type="button" id="canvasImport" disabled>Import from Canvas &amp; start →</button></div>
       </section>
 
       <section class="box" id="boxZip">
@@ -696,15 +698,43 @@
     if (!s || s.kind !== 'zip') $('zipFiles').innerHTML = '';
     update();
   }
+  /* Canvas: shown only when a Canvas connection (API token or export folder) is configured. */
+  /* api.js loads after this inline script, so wait for the document before calling it. */
+  document.addEventListener('DOMContentLoaded', function(){ if(window.MarkerAPI) MarkerAPI.getCanvasSettings().then(function(canvas){
+    if(!canvas||!canvas.enabled)return;
+    $('boxCanvas').hidden=false;
+    if(canvas.mode==='offline')$('canvasHint').textContent+=' (offline Canvas export — nothing is sent to Canvas)';
+    return MarkerAPI.canvasCourses().then(function(data){
+      $('courseSel').innerHTML='<option value="">Choose a course…</option>'+data.items.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.course_code||c.name)+'</option>';}).join('');
+    });
+  }).catch(function(){}); });
+  $('courseSel').addEventListener('change', function(){
+    ASSN={}; $('assnSel').disabled=true; $('canvasImport').disabled=true; $('assnInfo').classList.remove('show');
+    if(!this.value){ $('assnSel').innerHTML='<option value="">Choose an assignment…</option>'; return; }
+    var courseId=this.value;
+    MarkerAPI.canvasAssignments(courseId).then(function(data){
+      data.items.forEach(function(a){ASSN[a.id]=a;});
+      $('assnSel').innerHTML='<option value="">Choose an assignment…</option>'+data.items.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.has_rubric?'':' disabled')+'>'+esc(a.name)+(a.has_rubric?'':' (no rubric)')+'</option>';}).join('');
+      $('assnSel').disabled=false;
+    }).catch(function(error){ MarkerDialog.alert({title:'Could not load Canvas assignments',message:error.message}); });
+  });
   $('assnSel').addEventListener('change', function(){
     var a = ASSN[this.value];
-    if (!a){ setSubs(null); return; }
-    $('assnInfo').innerHTML = '<dl class="kv"><dt>Unit</dt><dd>' + a.unit + '</dd><dt>Due</dt><dd>' + a.due + '</dd><dt>Total marks</dt><dd>' + a.marks + '</dd><dt>Submitted</dt><dd>' + fmt(a.count) + '</dd></dl>' +
-      (a.scanned ? '<div class="files"><div class="file warn"><span class="nm">⚠ ' + a.scanned + ' scanned files</span><span class="mt">will need OCR</span></div></div>' : '') +
-      (!a.count ? '<div class="files"><div class="file warn"><span class="nm">No submissions yet</span><span class="mt">due ' + a.due + '</span></div></div>' : '');
+    $('canvasImport').disabled=!a;
+    if (!a){ $('assnInfo').classList.remove('show'); return; }
+    $('assnInfo').innerHTML = '<dl class="kv"><dt>Total marks</dt><dd>' + esc(a.points_possible==null?'—':a.points_possible) + '</dd><dt>Due</dt><dd>' + esc(a.due_at||'—') + '</dd><dt>Grades</dt><dd>' + (a.post_manually?'posted manually (pushed grades stay hidden)':'posted automatically') + '</dd></dl>';
     $('assnInfo').classList.add('show');
-    setSubs({ kind:'canvas', label:a.label, count:a.count, scanned:a.scanned });
-    $('assnSel').value = this.value; $('assnInfo').classList.add('show');
+  });
+  $('canvasImport').addEventListener('click', function(){
+    var button=this, courseId=$('courseSel').value, assignmentId=$('assnSel').value;
+    button.disabled=true; button.textContent='Importing from Canvas…';
+    MarkerAPI.importCanvasAssignment(courseId, assignmentId).then(function(result){
+      if(!result.imported) throw new Error('The assignment has no submitted files to mark');
+      return startProcessing({batch:{id:result.batch_id}}, button);
+    }).catch(function(error){
+      button.disabled=false; button.textContent='Import from Canvas & start →';
+      if(!error.cancelled) MarkerDialog.alert({title:'Canvas import failed',message:error.message});
+    });
   });
   function zipLoaded(files,preservedRows){
     discardPendingBatch();
@@ -825,8 +855,8 @@
       var ai=config.ai||{}, provider=ai.provider||'university', external=['fake','university'].indexOf(provider)<0;
       return (external?confirmExternalProcessing(provider):Promise.resolve(true)).then(function(acknowledged){
         if(!acknowledged){var cancelled=new Error('Processing cancelled');cancelled.cancelled=true;throw cancelled;}
-        var estimate=estimateAiPrep(R,S);
-        button.textContent='Retrieving evidence…';$('why').textContent='AI is grading '+R.criteria.length+' '+(R.criteria.length===1?'criterion':'criteria')+(estimate?' · estimated '+estimate.text.replace(/^~/,''):'');
+        var estimate=R&&S?estimateAiPrep(R,S):null,count=R&&R.criteria?R.criteria.length:0;
+        button.textContent='Retrieving evidence…';$('why').textContent=count?'AI is grading '+count+' '+(count===1?'criterion':'criteria')+(estimate?' · estimated '+estimate.text.replace(/^~/,''):''):'AI is grading the imported Canvas assignment';
         return MarkerAPI.startBatch(context.batch.id,{provider:provider,model:ai.model,external_processing_acknowledged:external,estimated_cost_acknowledged:true}).then(function(){location.href='02-batch-status.html?batch_id='+encodeURIComponent(context.batch.id);});
       });
     });

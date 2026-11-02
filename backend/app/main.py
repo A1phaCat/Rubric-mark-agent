@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from app.api import batches, files, me, rubrics, samples, submissions
+from app.api import batches, canvas, files, me, rubrics, samples, submissions
 from app.api import settings as settings_api
 from app.config import settings
 from app.db.base import Base
@@ -63,6 +63,7 @@ def create_app() -> FastAPI:
         rubrics.router,
         samples.router,
         settings_api.router,
+        canvas.router,
     ):
         app.include_router(router, prefix=api)
 

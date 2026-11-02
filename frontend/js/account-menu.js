@@ -1,5 +1,5 @@
 /* Account menu (top-right avatar) — shared by every page.
-   One connection in the local MVP: the AI model that suggests marks (Canvas is post-MVP and hidden).
+   One connection in the local MVP: the AI model that suggests marks (Canvas is configured on the server: MARKER_CANVAS_BASE_URL + MARKER_CANVAS_TOKEN, or MARKER_CANVAS_OFFLINE_DIR).
    The working frontend sends settings and connection tests to the backend; secrets never enter localStorage. */
 (function () {
   /* The university service runs on Azure OpenAI. "Own key" options below it. */
@@ -175,7 +175,7 @@
             '<div class="am-act"><span class="msg" id="amAiMsg"></span><button class="am-btn" type="button" data-test="ai">Test</button><button class="am-btn pri" type="button" data-save="ai">Save</button></div>' +
           '</div>' +
         '</div>' +
-        /* Canvas is hidden until the integration exists (post-MVP). */
+        /* Canvas connection is server configuration (see README · Canvas); it is not edited here. */
         '<div class="am-foot"><span>Keys are stored server-side only.</span><a href="#" id="amOut">Sign out</a></div>';
       badge();
     }
