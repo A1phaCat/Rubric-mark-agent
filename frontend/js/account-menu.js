@@ -1,5 +1,5 @@
 /* Account menu (top-right avatar) — shared by every page.
-   One connection in the local MVP: the AI model that suggests marks (Canvas is post-MVP and hidden).
+   Two connections: the AI model that suggests marks, and Canvas (read-only: rubrics and submissions in).
    The working frontend sends settings and connection tests to the backend; secrets never enter localStorage. */
 (function () {
   /* The university service runs on Azure OpenAI. "Own key" options below it. */
@@ -13,7 +13,7 @@
   };
   var DEFAULTS = {
     ai: { provider: 'minimax', model: '', key: '', base: '', ok: true, useUni: true, hasKey: false },
-    canvas: { url: '', token: '', ok: false }
+    canvas: { url: 'canvas.sydney.edu.au', token: '', ok: false, hasToken: false, user: '' }
   };
 
   function load() { return JSON.parse(JSON.stringify(DEFAULTS)); }
@@ -73,7 +73,9 @@
     return [s.ai.ok ? '' : 'err', (s.ai.provider === 'minimax' ? 'MiniMax' : PROVIDERS[s.ai.provider].label) + ' · ' + s.ai.model + ' · ' + (s.ai.key ? mask(s.ai.key) : 'key saved')];
   }
   function cvSummary(s) {
-    return ['off', 'Not available in local MVP'];
+    if (!s.canvas.hasToken) return ['off', 'Not connected · import rubrics and submissions'];
+    var host = (s.canvas.url || '').replace(/^https?:\/\//, '');
+    return [s.canvas.ok ? '' : 'err', host + (s.canvas.user ? ' · ' + s.canvas.user : ' · token saved')];
   }
 
   /* Model suggestions: the live list from the provider once fetched for this provider + base URL;
@@ -148,7 +150,7 @@
     var menu = document.createElement('div'); menu.className = 'am'; menu.hidden = true;
     menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', 'Account and connections');
     document.body.appendChild(menu);
-    if(window.MarkerAPI)MarkerAPI.getSettings().then(function(config){var ai=config.ai||{}, provider=ai.provider||'university';S.ai.provider=provider==='university'||!PROVIDERS[provider]?'minimax':provider;S.ai.model=ai.model||'';S.ai.base=ai.base_url||'';S.ai.useUni=provider==='university';S.ai.hasKey=!!ai.has_api_key;S.ai.ok=S.ai.useUni||S.ai.hasKey;if(!menu.hidden)draw(null);badge();}).catch(function(){});
+    if(window.MarkerAPI)MarkerAPI.getSettings().then(function(config){var ai=config.ai||{}, provider=ai.provider||'university';S.ai.provider=provider==='university'||!PROVIDERS[provider]?'minimax':provider;S.ai.model=ai.model||'';S.ai.base=ai.base_url||'';S.ai.useUni=provider==='university';S.ai.hasKey=!!ai.has_api_key;S.ai.ok=S.ai.useUni||S.ai.hasKey;var cv=config.canvas||{};S.canvas.url=cv.base_url||S.canvas.url;S.canvas.hasToken=!!cv.has_token;S.canvas.user=cv.user||'';S.canvas.ok=!!cv.has_token;if(!menu.hidden)draw(null);badge();}).catch(function(){});
 
     function badge() {
       var warn = !S.ai.useUni && !S.ai.hasKey && (!S.ai.key || !S.ai.ok);
@@ -175,7 +177,14 @@
             '<div class="am-act"><span class="msg" id="amAiMsg"></span><button class="am-btn" type="button" data-test="ai">Test</button><button class="am-btn pri" type="button" data-save="ai">Save</button></div>' +
           '</div>' +
         '</div>' +
-        /* Canvas is hidden until the integration exists (post-MVP). */
+        '<div class="am-row' + (openId === 'cv' ? ' open' : '') + '" data-id="cv">' +
+          '<button class="am-sum" type="button" aria-expanded="' + (openId === 'cv') + '"><span class="am-ic">' + ICON_CV + '</span><span class="t"><b>Canvas</b><small><span class="am-dot ' + c[0] + '"></span>' + esc(c[1]) + '</small></span>' + CHEV + '</button>' +
+          '<div class="am-body">' +
+            '<label class="am-f"><span>Canvas address</span><input type="text" class="mono" id="amUrl" value="' + esc(S.canvas.url) + '" spellcheck="false"></label>' +
+            '<label class="am-f"><span>Access token</span><span class="am-key"><input type="password" class="mono" id="amTok" placeholder="' + (S.canvas.hasToken ? 'Saved · paste a new one to replace it' : 'Canvas → Account → Settings → New access token') + '" autocomplete="off" spellcheck="false"><button class="am-eye" type="button" data-eye="amTok" aria-label="Show token">Show</button></span><small class="am-note">Read-only: rubrics and submissions come in; nothing is sent back to Canvas.</small></label>' +
+            '<div class="am-act"><span class="msg" id="amCvMsg"></span>' + (S.canvas.hasToken ? '<button class="am-btn" type="button" id="amCvClear">Disconnect</button>' : '') + '<button class="am-btn" type="button" data-test="cv">Test</button><button class="am-btn pri" type="button" data-save="cv">Save</button></div>' +
+          '</div>' +
+        '</div>' +
         '<div class="am-foot"><span>Keys are stored server-side only.</span><a href="#" id="amOut">Sign out</a></div>';
       badge();
     }
@@ -209,6 +218,10 @@
         return;
       }
       if (e.target.id === 'amOut') { e.preventDefault(); MarkerDialog.alert({ title: 'Local single-user mode', message: 'Signing out is not part of this demo: the app runs on your computer for one tutor.' }); return; }
+      if (e.target.id === 'amCvClear') {
+        MarkerAPI.updateCanvasSettings({ clear_token: true }).then(function () { S.canvas.hasToken = false; S.canvas.user = ''; S.canvas.ok = false; draw('cv'); window.dispatchEvent(new CustomEvent('marker:canvas', { detail: S.canvas })); });
+        return;
+      }
       var t = e.target.closest('[data-test]'), sv = e.target.closest('[data-save]');
       if (!t && !sv) return;
       var which = (t || sv).getAttribute(t ? 'data-test' : 'data-save');
@@ -269,6 +282,27 @@
           msg.className = 'msg err';
           msg.textContent = error.message || 'Could not save AI settings';
         });
+      } else if (which === 'cv') {
+        var url = document.getElementById('amUrl').value.trim(), tok = document.getElementById('amTok').value.trim();
+        var m2 = document.getElementById('amCvMsg');
+        if (!tok && !S.canvas.hasToken) { m2.className = 'msg err'; m2.textContent = 'Paste a Canvas access token first'; return; }
+        m2.className = 'msg'; m2.textContent = t ? 'Checking with Canvas…' : 'Saving…';
+        if (t) {
+          MarkerAPI.testCanvas({ base_url: url || null, token: tok || null }).then(function (j) {
+            m2.className = 'msg ' + (j.ok ? 'ok' : 'err'); m2.textContent = j.ok ? '✓ ' + j.message : (j.message || 'Canvas rejected the token');
+          }).catch(function (err) { m2.className = 'msg err'; m2.textContent = err.message || 'Could not reach Canvas'; });
+          return;
+        }
+        MarkerAPI.updateCanvasSettings(tok ? { base_url: url, token: tok } : { base_url: url }).then(function (saved) {
+          return MarkerAPI.testCanvas({}).then(function (j) {
+            S.canvas = { url: saved.base_url || url, token: '', hasToken: !!saved.has_token, user: j.ok ? j.user : '', ok: !!j.ok };
+            draw('cv');
+            var after = document.getElementById('amCvMsg');
+            if (after) { after.className = 'msg ' + (j.ok ? 'ok' : 'err'); after.textContent = j.ok ? '✓ Saved · ' + j.message : 'Saved, but ' + (j.message || 'Canvas rejected the token'); }
+            badge();
+            window.dispatchEvent(new CustomEvent('marker:canvas', { detail: S.canvas }));
+          });
+        }).catch(function (err) { m2.className = 'msg err'; m2.textContent = err.message || 'Could not save Canvas settings'; });
       }
     });
     menu.addEventListener('change', function (e) {

@@ -37,12 +37,12 @@ def test_processing_modules_do_not_import_api_or_database_models() -> None:
             assert not forbidden, f"{path.relative_to(APP)}: {sorted(forbidden)}"
 
 
-def test_only_llm_package_imports_httpx() -> None:
+def test_only_the_outbound_client_packages_import_httpx() -> None:
     offenders = []
     for path in APP.rglob("*.py"):
         if (
             "httpx" in imported_modules(path)
-            and "llm" not in path.relative_to(APP).parts
+            and not {"llm", "canvas"} & set(path.relative_to(APP).parts)
         ):
             offenders.append(str(path.relative_to(APP)))
     assert not offenders

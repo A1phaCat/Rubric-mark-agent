@@ -159,6 +159,8 @@
   select.sel:focus{ outline:none; border-color:var(--primary); }
   .assn{ margin-top:12px; display:none; border:1px solid var(--border); border-radius:8px; background:var(--tint); padding:12px 14px; }
   .assn.show{ display:block; }
+  .cv-pick{ display:grid; gap:8px; }
+  .assn .use-rubric{ margin-top:10px; }
   .kv{ display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:12.5px; }
   .kv dt{ color:var(--ink-soft); } .kv dd{ margin:0; text-align:right; font-family:'IBM Plex Mono',monospace; }
   .dropzone{ border:1.5px dashed var(--border-strong); border-radius:8px; padding:22px 16px; text-align:center; color:var(--ink-soft); font-size:13px; cursor:pointer; background:var(--tint); transition:border-color .15s, background .15s; }
@@ -384,17 +386,21 @@
     <div class="col col-right">
       <div class="sec-title"><h2><span class="n" id="n2">2</span>Submissions</h2></div>
 
-      <section class="box" id="boxCanvas" hidden>
+      <section class="box" id="boxCanvas">
         <div class="box-h"><span class="tag">A</span><h3>From a Canvas assignment</h3><span class="chosen">Using this</span></div>
-        <p class="hint">Not available in local MVP. Upload PDF, DOCX or ZIP files instead.</p>
-        <select class="sel" id="assnSel" aria-label="Canvas assignment" disabled title="Not available in local MVP">
-          <option value="">Not available in local MVP</option>
-        </select>
+        <p class="hint" id="cvHint">Pulls every submitted file the connected Canvas account can see. Read-only: nothing is sent back to Canvas.</p>
+        <div class="cv-pick">
+          <select class="sel" id="cvCourseSel" aria-label="Canvas course" disabled><option value="">Connect Canvas in the account menu</option></select>
+          <select class="sel" id="assnSel" aria-label="Canvas assignment" disabled><option value="">Choose an assignment…</option></select>
+        </div>
         <div class="assn" id="assnInfo"></div>
+        <div class="files" id="assnFiles"></div>
       </section>
 
+      <div class="or">or</div>
+
       <section class="box" id="boxZip">
-        <div class="box-h"><h3>Upload submissions</h3><span class="chosen">Using this</span></div>
+        <div class="box-h"><span class="tag">B</span><h3>Upload submissions</h3><span class="chosen">Using this</span></div>
         <p class="hint">Upload a ZIP or individual PDF, DOCX and TXT files. SIDs are matched from filenames; you only fix the exceptions.</p>
         <div class="dropzone" id="drop" tabindex="0" role="button" aria-label="Upload submission files"><span class="ic">⤒</span><b>Drop submission files here</b> or click to browse</div>
         <input type="file" id="zipIn" accept=".zip,.pdf,.docx,.txt" multiple hidden>
@@ -692,20 +698,56 @@
     S = s;
     $('boxCanvas').classList.toggle('active', !!s && s.kind === 'canvas');
     $('boxZip').classList.toggle('active', !!s && s.kind === 'zip');
-    if (!s || s.kind !== 'canvas'){ $('assnSel').value = ''; $('assnInfo').classList.remove('show'); }
+    if (!s || s.kind !== 'canvas'){ $('assnSel').value = ''; $('assnInfo').classList.remove('show'); $('assnFiles').innerHTML = ''; }
     if (!s || s.kind !== 'zip') $('zipFiles').innerHTML = '';
     update();
   }
+  /* Canvas: course → assignment; the files are pulled into the batch when it is created. */
+  function canvasInit(){
+    var courseSel=$('cvCourseSel'),assnSel=$('assnSel');
+    MarkerAPI.getSettings().then(function(config){
+      var cv=config.canvas||{};
+      if(!cv.has_token){courseSel.disabled=true;assnSel.disabled=true;courseSel.innerHTML='<option value="">Connect Canvas in the account menu (top right)</option>';$('cvHint').textContent='Connect Canvas first: account menu → Canvas → paste an access token. Read-only: nothing is sent back to Canvas.';return;}
+      $('cvHint').textContent='Pulls every submitted file '+(cv.user?cv.user+'’s ':'this ')+'Canvas account can see: a tutor token sees the class, a student token only its own. Read-only.';
+      courseSel.innerHTML='<option value="">Loading your courses…</option>';
+      return MarkerAPI.canvasCourses().then(function(data){
+        var items=data.items||[];
+        courseSel.innerHTML='<option value="">Choose a course…</option>'+items.map(function(c){return '<option value="'+esc(c.id)+'">'+esc((c.code?c.code+' · ':'')+c.name)+'</option>';}).join('');
+        courseSel.disabled=false;
+        var guess=items.filter(function(c){return /ELEC5623/i.test(c.code+' '+c.name);})[0];
+        if(guess){courseSel.value=String(guess.id);canvasAssignments(guess.id);}
+      });
+    }).catch(function(error){courseSel.innerHTML='<option value="">Canvas unavailable</option>';$('cvHint').textContent='Could not load Canvas: '+error.message;});
+  }
+  function canvasAssignments(courseId){
+    var assnSel=$('assnSel');ASSN={};assnSel.disabled=true;
+    if(!courseId){assnSel.innerHTML='<option value="">Choose an assignment…</option>';return;}
+    assnSel.innerHTML='<option value="">Loading assignments…</option>';
+    MarkerAPI.canvasAssignments(courseId).then(function(data){
+      (data.items||[]).forEach(function(a){ASSN[a.id]=Object.assign({course_id:courseId},a);});
+      assnSel.innerHTML='<option value="">Choose an assignment…</option>'+(data.items||[]).map(function(a){return '<option value="'+esc(a.id)+'">'+esc(a.name+(a.has_rubric?' · rubric':''))+'</option>';}).join('');
+      assnSel.disabled=false;
+    }).catch(function(error){assnSel.innerHTML='<option value="">'+esc(error.message)+'</option>';});
+  }
+  $('cvCourseSel').addEventListener('change',function(){if(S&&S.kind==='canvas'){discardPendingBatch();setSubs(null);}canvasAssignments(this.value);});
   $('assnSel').addEventListener('change', function(){
     var a = ASSN[this.value];
+    discardPendingBatch();
     if (!a){ setSubs(null); return; }
-    $('assnInfo').innerHTML = '<dl class="kv"><dt>Unit</dt><dd>' + a.unit + '</dd><dt>Due</dt><dd>' + a.due + '</dd><dt>Total marks</dt><dd>' + a.marks + '</dd><dt>Submitted</dt><dd>' + fmt(a.count) + '</dd></dl>' +
-      (a.scanned ? '<div class="files"><div class="file warn"><span class="nm">⚠ ' + a.scanned + ' scanned files</span><span class="mt">will need OCR</span></div></div>' : '') +
-      (!a.count ? '<div class="files"><div class="file warn"><span class="nm">No submissions yet</span><span class="mt">due ' + a.due + '</span></div></div>' : '');
+    var due=a.due_at?new Date(a.due_at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'—';
+    $('assnInfo').innerHTML = '<dl class="kv"><dt>Due</dt><dd>' + esc(due) + '</dd><dt>Total marks</dt><dd>' + esc(a.points_possible==null?'—':a.points_possible) + '</dd><dt>Rubric</dt><dd>' + (a.has_rubric ? a.criteria + ' criteria' : 'none in Canvas') + '</dd><dt>Type</dt><dd>' + esc(a.group?'group':'individual') + '</dd></dl>' +
+      (a.has_rubric ? '<button class="linkbtn use-rubric" type="button" id="useCanvasRubric">Use this assignment’s rubric →</button>' : '');
     $('assnInfo').classList.add('show');
-    setSubs({ kind:'canvas', label:a.label, count:a.count, scanned:a.scanned });
+    setSubs({ kind:'canvas', label:a.name, count:0, countKnown:false, scanned:0, course_id:a.course_id, assignment_id:a.id });
     $('assnSel').value = this.value; $('assnInfo').classList.add('show');
+    var use=$('useCanvasRubric');
+    if(use)use.addEventListener('click',function(){
+      $('parseState').innerHTML='<span class="spin"></span>Importing the rubric from Canvas…';
+      MarkerAPI.canvasRubric(a.course_id,a.id).then(function(result){var r=result.rubric;$('parseState').textContent='Found '+r.criteria.length+' criteria in Canvas · '+a.name;load({libId:null,title:r.title,source:'Canvas · '+a.name+' · '+result.parser,parser:result.parser,warnings:result.warnings||[],assumptions:result.assumptions||[],questions:result.questions||[],total_score:r.total_score,total_score_source:r.total_score_source,criteria:r.criteria},'paste');}).catch(function(error){$('parseState').innerHTML='<span style="color:var(--risk)">'+esc(error.message)+'</span>';});
+    });
   });
+  window.addEventListener('marker:canvas',canvasInit);
+  document.addEventListener('DOMContentLoaded',canvasInit); /* api.js loads after this script */
   function zipLoaded(files,preservedRows){
     discardPendingBatch();
     var rows=preservedRows||files.map(function(file,i){var m=file.name.match(/SID[-_ ]?(\d+)/i),sid=m?('SID-'+m[1]):'',archive=/\.zip$/i.test(file.name);return {file:file,sid:sid,index:i,archive:archive};}),matched=rows.filter(function(row){return !row.archive&&row.sid;}),unmatched=rows.filter(function(row){return !row.archive&&!row.sid;}),archives=rows.filter(function(row){return row.archive;});
@@ -759,7 +801,7 @@
     return value||String(title||'Untitled rubric');
   }
   function update(){
-    var rOK = rubricOK(), sOK = !!S && (S.count > 0||(S.rows&&S.rows.length>0)) && (!S.rows||S.rows.every(function(row){return row.archive||!!canonicalSid(row.sid);}));
+    var rOK = rubricOK(), sOK = !!S && (S.kind==='canvas'||S.count > 0||(S.rows&&S.rows.length>0)) && (!S.rows||S.rows.every(function(row){return row.archive||!!canonicalSid(row.sid);}));
     if(pendingBatch){var unresolved=(pendingBatch.upload.files||[]).filter(function(item){return item.status==='accepted'&&!item.sid_guess;});sOK=pendingBatch.upload.summary.accepted>0&&unresolved.every(function(item){return !!canonicalSid(item.manual_sid||'');});}
     $('dRub').className = 'sb-dot ' + (R ? (rOK ? 'ok' : 'bad') : '');
     $('vRub').textContent = R ? compactRubricTitle(R.title) : 'Not chosen';
@@ -768,7 +810,7 @@
     $('vCrit').innerHTML = R ? '<span class="mono">' + R.criteria.length + '</span> · ' + L.total(R) + ' marks' : '—';
     $('dSub').className = 'sb-dot ' + (S ? (sOK ? 'ok' : 'bad') : '');
     var archiveOnly=S&&S.countKnown===false&&S.rows&&S.rows.every(function(row){return row.archive;});
-    $('vSub').innerHTML = S ? (S.countKnown===false?(archiveOnly?'<span class="mono">'+fmt(S.archiveCount)+' ZIP'+(S.archiveCount===1?'':'s')+'</span> · count after upload':'<span class="mono">'+fmt(S.count)+' files</span> · final count after ZIP unpacking'):'<span class="mono">' + fmt(S.count) + '</span>' + (S.scanned ? ' · ' + S.scanned + ' need OCR' : '')) : '—';
+    $('vSub').innerHTML = S ? (S.kind==='canvas'&&S.countKnown===false?'<span class="mono">Canvas</span> · count after import':S.countKnown===false?(archiveOnly?'<span class="mono">'+fmt(S.archiveCount)+' ZIP'+(S.archiveCount===1?'':'s')+'</span> · count after upload':'<span class="mono">'+fmt(S.count)+' files</span> · final count after ZIP unpacking'):'<span class="mono">' + fmt(S.count) + '</span>' + (S.scanned ? ' · ' + S.scanned + ' need OCR' : '')) : '—';
     $('vSub').classList.toggle('muted', !S);
     var estimate=estimateAiPrep(R,S),estimateBox=$('aiPrepEstimate');
     $('vTime').textContent=estimate?estimate.text:'—';
@@ -779,15 +821,16 @@
   }
   function showUploadManifest(context){
     pendingBatch=context;
+    var target=S&&S.kind==='canvas'?$('assnFiles'):$('zipFiles');
     var upload=context.upload,summary=upload.summary,unresolved=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}),problems=upload.files.filter(function(item){return item.status==='rejected'||item.status==='unsupported';});summary.needs_sid=unresolved.length;
     S.count=summary.accepted;S.countKnown=true;S.archiveCount=0;
-    $('zipFiles').innerHTML='<div class="upload-summary"><span><b>'+fmt(summary.accepted)+'</b> accepted</span><span><b>'+fmt(summary.accepted-summary.needs_sid)+'</b> matched</span>'+(summary.duplicates?'<span><b>'+fmt(summary.duplicates)+'</b> duplicates skipped</span>':'')+(summary.skipped?'<span><b>'+fmt(summary.skipped)+'</b> skipped</span>':'')+(summary.needs_sid?'<span><b>'+fmt(summary.needs_sid)+'</b> need attention</span>':'')+'</div>'+
+    target.innerHTML='<div class="upload-summary"><span><b>'+fmt(summary.accepted)+'</b> accepted</span><span><b>'+fmt(summary.accepted-summary.needs_sid)+'</b> matched</span>'+(summary.duplicates?'<span><b>'+fmt(summary.duplicates)+'</b> duplicates skipped</span>':'')+(summary.skipped?'<span><b>'+fmt(summary.skipped)+'</b> skipped</span>':'')+(summary.needs_sid?'<span><b>'+fmt(summary.needs_sid)+'</b> need attention</span>':'')+(summary.scope==='own'?'<span title="Canvas lists every submission only to accounts with grading rights">Student access: only this account’s own submission</span>':summary.scope==='class'?'<span>From Canvas: the whole class</span>':'')+'</div>'+
       (unresolved.length?'<details class="file-details fix-details" open><summary></summary><div class="sid-format">Enter 5–12 digits or <code>SID-123456</code></div><div class="file-list-scroll">'+unresolved.map(function(item,index){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span>'+sidField({sid:''},'data-fix-index="'+index+'"')+'</div>';}).join('')+'</div></details>':'')+
       problems.map(function(item){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span><span class="mt">'+esc(item.message||'Skipped')+'</span></div>';}).join('')+
       (!unresolved.length&&summary.accepted?'<div class="file ok"><span class="nm">✓ All accepted submissions have an SID</span><span class="mt">Ready to process</span></div>':'')+
       '<div class="row-btns"><button class="linkbtn" type="button" id="clearZip">Remove</button></div>';
     $('clearZip').addEventListener('click',function(){discardPendingBatch();setSubs(null);});
-    wireSidQueue($('zipFiles').querySelector('.fix-details'),'[data-fix-index]',function(input,value){unresolved[Number(input.dataset.fixIndex)].manual_sid=value;});
+    wireSidQueue(target.querySelector('.fix-details'),'[data-fix-index]',function(input,value){unresolved[Number(input.dataset.fixIndex)].manual_sid=value;});
     $('startBtn').textContent=unresolved.length?'Continue batch →':'Start processing →';
     update();
   }
@@ -861,7 +904,10 @@
       rubricPromise=R.libId?MarkerAPI.getRubric(R.libId):MarkerAPI.createRubric(rubricPayload);
     }
     rubricPromise.then(function(saved){var rubric=saved.rubric;return MarkerAPI.createBatch({name:R.title+' — validation batch',unit:null,rubric_id:rubric.id,rubric_version:rubric.version});}).then(function(created){
-      var batch=created.batch;return MarkerAPI.uploadFiles(batch.id,S.rows.map(function(row){return row.file;})).then(function(upload){var directRows=S.rows.filter(function(row){return !row.archive;}),used={};return Promise.all(upload.files.filter(function(item){return item.status==='accepted'&&!item.source_archive;}).map(function(item){var matchIndex=-1;directRows.some(function(row,index){if(!used[index]&&row.file.name===item.name){matchIndex=index;return true;}return false;});if(matchIndex<0)return Promise.resolve();used[matchIndex]=true;var sid=S.rows[directRows[matchIndex].index].sid;if(!sid||item.sid_guess===sid)return Promise.resolve();return MarkerAPI.patchSubmission(batch.id,item.submission_id,{student_id:sid,version:item.version||1}).then(function(saved){item.sid_guess=sid;item.version=saved.submission.version;});})).then(function(){upload.summary.needs_sid=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}).length;return {batch:batch,upload:upload};});});
+      var batch=created.batch;
+      if(S.kind==='canvas'){button.textContent='Pulling files from Canvas…';$('why').textContent='Downloading the submissions Canvas lets this account see';var dropEmpty=function(error){return MarkerAPI.deleteBatch(batch.id,batch.version).catch(function(){}).then(function(){throw error;});};
+        return MarkerAPI.canvasImport(batch.id,{course_id:S.course_id,assignment_id:S.assignment_id}).then(function(upload){if(!upload.summary.accepted)return dropEmpty(new Error(upload.summary.canvas_submissions?'Canvas returned '+upload.summary.canvas_submissions+' submission'+(upload.summary.canvas_submissions===1?'':'s')+' but none had a file this app can mark':'This Canvas account cannot see any submissions for this assignment'));return {batch:batch,upload:upload};},dropEmpty);}
+      return MarkerAPI.uploadFiles(batch.id,S.rows.map(function(row){return row.file;})).then(function(upload){var directRows=S.rows.filter(function(row){return !row.archive;}),used={};return Promise.all(upload.files.filter(function(item){return item.status==='accepted'&&!item.source_archive;}).map(function(item){var matchIndex=-1;directRows.some(function(row,index){if(!used[index]&&row.file.name===item.name){matchIndex=index;return true;}return false;});if(matchIndex<0)return Promise.resolve();used[matchIndex]=true;var sid=S.rows[directRows[matchIndex].index].sid;if(!sid||item.sid_guess===sid)return Promise.resolve();return MarkerAPI.patchSubmission(batch.id,item.submission_id,{student_id:sid,version:item.version||1}).then(function(saved){item.sid_guess=sid;item.version=saved.submission.version;});})).then(function(){upload.summary.needs_sid=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}).length;return {batch:batch,upload:upload};});});
     }).then(function(context){
       var unresolved=context.upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}).length;
       if(unresolved||!context.upload.summary.accepted){context.upload.summary.needs_sid=unresolved;showUploadManifest(context);button.disabled=!!unresolved;return;}

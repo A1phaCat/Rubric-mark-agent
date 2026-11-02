@@ -222,14 +222,43 @@ paths:
       operationId: getCanvasSettings
       responses:
         '200':
-          description: Disabled Canvas settings
+          description: Canvas connection (read-only); the token never leaves the server
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CanvasSettings'}
     put:
       operationId: updateCanvasSettings
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CanvasSettings'}}}}
-      responses: {'501': {$ref: '#/components/responses/Error'}}
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {base_url: {type: string}, token: {type: [string, 'null']}, clear_token: {type: boolean}}}}}}
+      responses:
+        '200': {description: Saved settings, content: {application/json: {schema: {$ref: '#/components/schemas/CanvasSettings'}}}}
+        '422': {$ref: '#/components/responses/Error'}
+  /api/v1/settings/canvas/test:
+    post:
+      operationId: testCanvasSettings
+      requestBody: {required: false, content: {application/json: {schema: {type: object, properties: {base_url: {type: [string, 'null']}, token: {type: [string, 'null']}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}}
+  /api/v1/canvas/courses:
+    get:
+      operationId: listCanvasCourses
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '401': {$ref: '#/components/responses/Error'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/canvas/courses/{course_id}/assignments:
+    get:
+      operationId: listCanvasAssignments
+      parameters: [{name: course_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/canvas/courses/{course_id}/assignments/{assignment_id}/rubric:
+    post:
+      operationId: importCanvasRubric
+      description: Parse the assignment's Canvas rubric exactly like an uploaded Canvas export
+      parameters: [{name: course_id, in: path, required: true, schema: {type: string}}, {name: assignment_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/canvas-import:
+    post:
+      operationId: importCanvasSubmissions
+      description: Download every submission the connected account may see into the batch, as uploaded files
+      parameters: [{$ref: '#/components/parameters/BatchId'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [course_id, assignment_id], properties: {course_id: {type: string}, assignment_id: {type: string}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}, '422': {$ref: '#/components/responses/Error'}}
 components:
   parameters:
     BatchId: {name: batch_id, in: path, required: true, schema: {type: string, pattern: '^bat_'}}
@@ -373,4 +402,4 @@ components:
         remaining: {type: object, required: [ready, processing, failed], properties: {ready: {type: integer}, processing: {type: integer}, failed: {type: integer}}}
     AISettings: {type: object, required: [provider, model, base_url, uses_university_gateway, has_api_key, available_models], properties: {provider: {type: string}, model: {type: string}, base_url: {type: [string, 'null']}, uses_university_gateway: {type: boolean}, has_api_key: {type: boolean}, available_models: {type: array, items: {type: string}}}}
     AISettingsWrite: {type: object, required: [provider, model, uses_university_gateway], properties: {provider: {type: string}, model: {type: string}, base_url: {type: [string, 'null']}, api_key: {type: [string, 'null']}, uses_university_gateway: {type: boolean}, clear_api_key: {type: boolean}}}
-    CanvasSettings: {type: object, required: [enabled, base_url, has_token], properties: {enabled: {const: false}, base_url: {type: [string, 'null']}, has_token: {type: boolean}}}
+    CanvasSettings: {type: object, required: [enabled, base_url, has_token], properties: {enabled: {type: boolean}, base_url: {type: [string, 'null']}, has_token: {type: boolean}, user: {type: [string, 'null']}}}

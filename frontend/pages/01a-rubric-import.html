@@ -86,6 +86,7 @@
   .badge.saved{ color:var(--conf-high); }
   .badge.new{ color:var(--primary); }
   .badge.none{ color:var(--ink-soft); }
+  .cv-off{ padding:12px 14px; border:1px dashed var(--border-strong); border-radius:10px; background:var(--tint); line-height:1.5; }
   .inline{ display:flex; gap:8px; }
   .inline input{ flex:1 1 auto; min-width:0; font-size:13px; }
   .btn{ min-height:44px; padding:0 16px; border-radius:8px; font-weight:600; cursor:pointer; border:0; display:inline-flex; align-items:center; justify-content:center; gap:8px; text-decoration:none; transition:opacity .15s, background .15s; }
@@ -344,13 +345,22 @@
     <!-- Source -->
     <section class="card source" aria-label="Source">
       <div class="tabs" role="tablist" aria-label="Import source">
-        <button role="tab" data-tab="canvas" aria-selected="false" disabled hidden>From Canvas</button>
+        <button role="tab" data-tab="canvas" aria-selected="false">From Canvas</button>
         <button role="tab" data-tab="upload" aria-selected="true">Upload file</button>
         <button role="tab" data-tab="paste" aria-selected="false">Paste / Image</button>
       </div>
 
       <div class="pane" data-pane="canvas" hidden>
-        <p class="lead">Importing from Canvas is not available in the local MVP. Export the rubric from Canvas and upload the file, or paste the rubric text.</p>
+        <p class="lead">Rubrics attached to Canvas assignments come straight from the API — structure and wording are kept, nothing is re-typed. Read-only: nothing is sent back to Canvas.</p>
+        <p class="muted cv-off" id="cvOff" hidden>Connect Canvas first: open the account menu (top right) → <b>Canvas</b>, paste an access token and press Save.</p>
+        <div class="field" id="cvCourseField" hidden>
+          <label for="cvCourse">Course</label>
+          <select id="cvCourse"></select>
+        </div>
+        <div class="field" id="cvAssignField" hidden>
+          <div class="row-between"><span class="label">Assignments</span><span class="muted" id="cvState"></span></div>
+          <div id="cvAssignments" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
       </div>
 
       <div class="pane" data-pane="upload" hidden>
@@ -589,6 +599,58 @@
     note.textContent = !R ? '' : a.issues.length ? 'Fix to save: ' + a.issues.join(', ') : FROM_SETUP ? 'Ready — saves to your library and returns to this batch' : 'Ready — saves to your rubric library (pinned to the top)';
   }
 
+  /* ---------- Canvas: pick a course and an assignment with a rubric ---------- */
+  var CANVAS = { loaded:false, assignments:[] };
+  function cvState(text){ document.getElementById('cvState').textContent = text || ''; }
+  function loadCanvas(force){
+    if (CANVAS.loaded && !force) return;
+    CANVAS.loaded = true;
+    var off = document.getElementById('cvOff'), courseField = document.getElementById('cvCourseField'), assignField = document.getElementById('cvAssignField');
+    MarkerAPI.getSettings().then(function(config){
+      var connected = !!(config.canvas && config.canvas.has_token);
+      off.hidden = connected; courseField.hidden = !connected; assignField.hidden = !connected;
+      if (!connected) return;
+      var select = document.getElementById('cvCourse');
+      select.innerHTML = '<option value="">Loading your courses…</option>'; select.disabled = true;
+      return MarkerAPI.canvasCourses().then(function(data){
+        var items = data.items || [];
+        select.innerHTML = '<option value="">Choose a course</option>' + items.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc((c.code ? c.code + ' · ' : '') + c.name + (c.term ? ' · ' + c.term : '')) + '</option>'; }).join('');
+        select.disabled = false;
+        var guess = items.filter(function(c){ return /ELEC5623/i.test(c.code + ' ' + c.name); })[0];
+        if (guess){ select.value = String(guess.id); loadAssignments(guess.id); } else cvState(items.length + ' courses');
+      });
+    }).catch(function(error){ off.hidden = false; off.textContent = 'Could not load Canvas: ' + error.message; courseField.hidden = true; assignField.hidden = true; });
+  }
+  function loadAssignments(courseId){
+    var list = document.getElementById('cvAssignments');
+    list.innerHTML = ''; CANVAS.assignments = []; CANVAS.course = courseId;
+    if (!courseId){ cvState(''); return; }
+    cvState('Loading…');
+    MarkerAPI.canvasAssignments(courseId).then(function(data){
+      CANVAS.assignments = (data.items || []).slice().sort(function(a, b){ return (b.has_rubric ? 1 : 0) - (a.has_rubric ? 1 : 0); });
+      var withRubric = CANVAS.assignments.filter(function(a){ return a.has_rubric; }).length;
+      cvState(withRubric + ' of ' + CANVAS.assignments.length + ' have a rubric');
+      list.innerHTML = CANVAS.assignments.map(function(a, i){
+        var due = a.due_at ? new Date(a.due_at).toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' }) : 'no due date';
+        var meta = [a.points_possible != null ? a.points_possible + ' pts' : '', 'due ' + due, a.group ? 'group' : ''].filter(Boolean).join(' · ');
+        return '<button type="button" class="assign" data-cv="' + i + '"' + (a.has_rubric ? '' : ' disabled') + '><span class="t"><b>' + esc(a.name) + '</b><span class="muted">' + esc(meta) + '</span></span>' +
+          '<span class="badge ' + (a.has_rubric ? 'new' : 'none') + '">' + (a.has_rubric ? a.criteria + ' criteria · Import' : 'No rubric') + '</span></button>';
+      }).join('') || '<p class="muted">No assignments in this course.</p>';
+    }).catch(function(error){ cvState(''); list.innerHTML = '<p class="muted">' + esc(error.message) + '</p>'; });
+  }
+  document.getElementById('cvCourse').addEventListener('change', function(){ loadAssignments(this.value); });
+  document.getElementById('cvAssignments').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-cv]'); if (!b || b.disabled) return;
+    var a = CANVAS.assignments[Number(b.dataset.cv)];
+    function run(){
+      Array.prototype.forEach.call(document.querySelectorAll('#cvAssignments .assign'), function(x){ x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      parse(MarkerAPI.canvasRubric(CANVAS.course, a.id), 'Imported from Canvas · ' + a.name);
+    }
+    if (state.dirty) MarkerDialog.confirm({ title: 'Replace the rubric you are editing?', icon: 'warn', confirmLabel: 'Replace it', cancelLabel: 'Keep editing', message: 'Your unsaved changes to the current rubric will be lost.' }).then(function(ok){ if (ok) run(); });
+    else run();
+  });
+  window.addEventListener('marker:canvas', function(){ CANVAS.loaded = false; if (state.tab === 'canvas') loadCanvas(true); });
+
   /* ---------- Parse: upload or paste, both through the API ---------- */
   function parse(task, source){
     state.busy = true; R = null; render();
@@ -674,7 +736,7 @@
     if(!found)return; state.open=found.i; render(); var target=document.querySelector('[data-i="'+found.i+'"][data-j="'+found.j+'"]'); if(target){target.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(function(){var input=target.querySelector(cellError(R.criteria[found.i],found.j)?'.pts-in':'.label-in');if(input)input.focus();},250);}
   });
   document.querySelector('.tabs').addEventListener('click', function(e){
-    var b = e.target.closest('button[data-tab]'); if (!b || b.disabled) return; state.tab = b.dataset.tab; render();
+    var b = e.target.closest('button[data-tab]'); if (!b || b.disabled) return; state.tab = b.dataset.tab; render(); if (state.tab === 'canvas') loadCanvas();
   });
 
   function rubricPayload(){

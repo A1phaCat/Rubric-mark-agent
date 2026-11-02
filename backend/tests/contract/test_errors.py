@@ -3,15 +3,14 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def test_canvas_is_visible_as_disabled_and_uses_stable_error_shape() -> None:
+def test_canvas_settings_start_disconnected_and_reject_a_blank_address() -> None:
     with TestClient(app) as client:
         settings = client.get("/api/v1/settings/canvas")
         assert settings.status_code == 200
-        assert settings.json() == {"enabled": False, "base_url": None, "has_token": False}
-
-        update = client.put("/api/v1/settings/canvas", json={})
-        assert update.status_code == 501
-        assert update.json()["error"]["code"] == "feature_not_enabled"
+        assert settings.json()["has_token"] is False and settings.json()["enabled"] is False
+        update = client.put("/api/v1/settings/canvas", json={"base_url": "  "})
+        assert update.status_code == 422
+        assert update.json()["error"]["code"] == "validation_error"
 
 
 def test_batch_pdf_export_is_an_explicit_post_mvp_stub() -> None:

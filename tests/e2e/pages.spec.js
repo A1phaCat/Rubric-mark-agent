@@ -433,7 +433,7 @@ test('provider model discovery exposes every model in a real select control', as
 
   await page.goto('/00-home.html');
   await page.locator('.ab-user').click();
-  await page.locator('.am-sum').click();
+  await page.locator('.am-row[data-id="ai"] .am-sum').click();
   await page.getByRole('button', {name:'Test'}).click();
   await expect(page.locator('#amAiMsg')).toContainText('9 models available');
   await expect(page.locator('select#amModel option')).toHaveCount(9);

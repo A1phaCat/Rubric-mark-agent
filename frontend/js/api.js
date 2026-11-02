@@ -56,6 +56,12 @@
     getReport: function (submissionId, audience) { return request('/submissions/' + id(submissionId) + '/report?audience=' + (audience || 'internal')); },
     getSettings: function () { return Promise.all([request('/settings/ai'), request('/settings/canvas')]).then(function (x) { return { ai: x[0], canvas: x[1] }; }); },
     updateAISettings: function (value) { return request('/settings/ai', { method: 'PUT', body: JSON.stringify(value) }); },
-    testAI: function (value) { return request('/settings/ai/test', { method: 'POST', body: JSON.stringify(value || {}) }); }
+    testAI: function (value) { return request('/settings/ai/test', { method: 'POST', body: JSON.stringify(value || {}) }); },
+    updateCanvasSettings: function (value) { return request('/settings/canvas', { method: 'PUT', body: JSON.stringify(value) }); },
+    testCanvas: function (value) { return request('/settings/canvas/test', { method: 'POST', body: JSON.stringify(value || {}) }); },
+    canvasCourses: function () { return request('/canvas/courses'); },
+    canvasAssignments: function (courseId) { return request('/canvas/courses/' + id(courseId) + '/assignments'); },
+    canvasRubric: function (courseId, assignmentId) { return request('/canvas/courses/' + id(courseId) + '/assignments/' + id(assignmentId) + '/rubric', { method: 'POST', body: '{}' }); },
+    canvasImport: function (batchId, value) { return request('/batches/' + id(batchId) + '/canvas-import', { method: 'POST', body: JSON.stringify(value) }); }
   };
 })();

@@ -53,8 +53,11 @@ def _release(pointer: ctypes.POINTER(ctypes.c_byte)) -> None:
     kernel32.LocalFree(pointer)
 
 
-def protect_secret(value: str) -> str:
-    """Protect a secret with the current user's native OS credential store."""
+def protect_secret(value: str, account: str = _KEYCHAIN_ACCOUNT) -> str:
+    """Protect a secret with the current user's native OS credential store.
+
+    On macOS each secret has its own Keychain ``account``, so storing one never replaces another.
+    """
 
     if not value:
         return ""
@@ -68,7 +71,7 @@ def protect_secret(value: str) -> str:
                     "-s",
                     _KEYCHAIN_SERVICE,
                     "-a",
-                    _KEYCHAIN_ACCOUNT,
+                    account,
                     "-w",
                     value,
                 ],
@@ -78,7 +81,7 @@ def protect_secret(value: str) -> str:
             )
         except (OSError, subprocess.CalledProcessError) as exc:
             raise RuntimeError("Could not save the API key in macOS Keychain") from exc
-        return f"keychain:{_KEYCHAIN_SERVICE}:{_KEYCHAIN_ACCOUNT}"
+        return f"keychain:{_KEYCHAIN_SERVICE}:{account}"
     if os.name != "nt":
         raise RuntimeError("Persistent API-key storage requires Windows DPAPI or macOS Keychain")
     source, _source_buffer = _blob(value.encode("utf-8"))
