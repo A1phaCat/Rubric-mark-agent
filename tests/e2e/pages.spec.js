@@ -680,3 +680,34 @@ test('confirmations use the in-app dialog, never the browser one', async ({ page
   await expect(page.locator('#resetSamples')).toBeEnabled();  // nothing was reset
   expect(native).toEqual([]);
 });
+
+test('overall feedback is drafted on the report page, approved by the tutor and then shown to the student', async ({ page, request }) => {
+  const results = await (await request.get('/api/v1/batches/bat_sample_asgn1/results')).json();
+  const submission = results.submissions.items[0];
+  const before = (await (await request.get(`/api/v1/submissions/${submission.id}/report?audience=internal`)).json()).feedback;
+  await request.put(`/api/v1/submissions/${submission.id}/feedback`, { data: {} });
+  await page.route(/\/feedback\/draft$/, async (route) => {
+    const report = await (await request.get(`/api/v1/submissions/${submission.id}/report?audience=internal`)).json();
+    report.feedback = { summary: 'A clear essay with a well-argued middle section.', strengths: ['Clear structure'], improvements: ['Cite more sources'], next_steps: ['Plan the conclusion first'], status: 'draft', source: 'ai', stale: false };
+    await route.fulfill({ json: report });
+  });
+  await page.goto(`/05-mark-report.html?submission_id=${submission.id}`);
+  await expect(page.locator('html')).toHaveAttribute('data-api-state', 'ready');
+  const panel = page.locator('.ai-sum');
+  await expect(panel).toContainText('Not shown to the student until you approve it');
+  await expect(page.locator('#fbSummary')).toHaveValue(/well-argued/);
+  await page.locator('#fbSummary').fill('Your argument is clear and well organised.');
+  await page.locator('#fbImprovements').fill('Cite more sources\nTighten the conclusion');
+  await page.getByRole('button', { name: 'Save draft' }).click();
+  await expect(page.locator('#fbSummary')).toHaveValue('Your argument is clear and well organised.');
+  const hidden = await (await request.get(`/api/v1/submissions/${submission.id}/report?audience=student`)).json();
+  expect(hidden.feedback).toBeNull();
+  await page.getByRole('button', { name: 'Approve for the student' }).click();
+  await expect(panel).toContainText('Approved by');
+  await expect(panel).toContainText('Tighten the conclusion');
+  await page.locator('.audience [data-a="student"]').click();
+  await expect(page.locator('.ai-sum')).toContainText('Your argument is clear and well organised.');
+  await expect(page.locator('.ai-sum .fb-btn')).toHaveCount(0);
+  await expect(page.locator('.ai-sum')).not.toContainText('Not shown to the student');
+  await request.put(`/api/v1/submissions/${submission.id}/feedback`, { data: before ? { ...before, approve: before.status !== 'draft' } : {} });
+});

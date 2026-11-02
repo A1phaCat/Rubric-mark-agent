@@ -54,6 +54,8 @@
     getResults: function (batchId) { return request('/batches/' + id(batchId) + '/results'); },
     exportCsvUrl: function (batchId) { return base + '/batches/' + id(batchId) + '/export.csv'; },
     getReport: function (submissionId, audience) { return request('/submissions/' + id(submissionId) + '/report?audience=' + (audience || 'internal')); },
+    draftFeedback: function (submissionId) { return request('/submissions/' + id(submissionId) + '/feedback/draft', { method: 'POST', body: '{}' }); },
+    saveFeedback: function (submissionId, value) { return request('/submissions/' + id(submissionId) + '/feedback', { method: 'PUT', body: JSON.stringify(value) }); },
     getSettings: function () { return Promise.all([request('/settings/ai'), request('/settings/canvas')]).then(function (x) { return { ai: x[0], canvas: x[1] }; }); },
     updateAISettings: function (value) { return request('/settings/ai', { method: 'PUT', body: JSON.stringify(value) }); },
     testAI: function (value) { return request('/settings/ai/test', { method: 'POST', body: JSON.stringify(value || {}) }); },

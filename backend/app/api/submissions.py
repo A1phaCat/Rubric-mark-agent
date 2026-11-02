@@ -20,6 +20,7 @@ from app.db.models.submission import File, Submission
 from app.deps import get_current_user, get_db, get_settings
 from app.grading import prompt_version
 from app.jobs.queue import JobQueue
+from app.services.feedback_service import FeedbackUseCases
 from app.services.review_service import ReviewUseCases
 from app.services.settings_service import load_ai_settings
 from app.services.submission_service import marker_names, submission_row
@@ -290,6 +291,31 @@ def report(
 ) -> dict:
     try:
         return AnalyticsUseCases(db).submission_report(submission_id, audience)
+    except Exception as exc:
+        raise translate_error(exc) from exc
+
+
+@router.post("/submissions/{submission_id}/feedback/draft")
+async def draft_feedback(
+    submission_id: str, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)
+) -> dict:
+    """Draft the overall feedback from the confirmed marks (internal view; a tutor approves it)."""
+
+    try:
+        return await FeedbackUseCases(db).draft(submission_id, settings)
+    except Exception as exc:
+        raise translate_error(exc) from exc
+
+
+@router.put("/submissions/{submission_id}/feedback")
+def save_feedback(
+    submission_id: str,
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+) -> dict:
+    try:
+        return FeedbackUseCases(db).save(submission_id, payload, user["id"])
     except Exception as exc:
         raise translate_error(exc) from exc
 

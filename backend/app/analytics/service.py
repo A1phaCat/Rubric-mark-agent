@@ -22,6 +22,7 @@ from app.domain.bands import BAND_NAMES, band_ranges, level_for_score, percent
 from app.domain.states import BatchStatus, Level, SubmissionStatus
 from app.domain.timefmt import iso_utc
 from app.report import project_for_audience
+from app.report.feedback import basis as feedback_basis
 from app.services.batch_service import BatchUseCases
 from app.services.review_service import MANUAL_STATES, READY_STATES, ReviewUseCases
 from app.services.submission_service import marker_names, submission_row
@@ -378,7 +379,7 @@ class AnalyticsUseCases:
             }
             if submission.confirmed_by
             else None,
-            "feedback": json.loads(submission.feedback_json) if submission.feedback_json else None,
+            "feedback": _feedback(submission.feedback_json, criteria),
             "criteria": criteria,
         }
         return project_for_audience(payload, audience)
@@ -404,3 +405,16 @@ class AnalyticsUseCases:
         if not ids:
             return {}
         return {item.id: item for item in self.session.scalars(select(File).where(File.id.in_(ids)))}
+
+
+def _feedback(stored: str | None, criteria: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The overall feedback with its status; ``stale`` when marks or comments changed since it was written."""
+
+    if not stored:
+        return None
+    value = json.loads(stored)
+    if not isinstance(value, dict):
+        return None
+    value.setdefault("status", "approved")  # feedback stored before drafts existed was written by people
+    value["stale"] = bool(value.get("basis")) and value["basis"] != feedback_basis(criteria)
+    return value

@@ -10,6 +10,12 @@ from app.llm.protocol import ChatResponse, LLMResponse, ToolCall, ToolSpec
 # offline path (see app.grading.service); these cover the remaining purposes.
 _RESPONSES: dict[str, dict[str, Any]] = {
     "connection_test": {"ok": True},
+    "feedback_draft": {
+        "summary": "A clear submission with a well-defined problem; the evaluation plan is the part to develop next.",
+        "strengths": ["The problem and its users are described specifically"],
+        "improvements": ["Define how success will be measured before building"],
+        "next_steps": ["Write one measurable success criterion for each requirement"],
+    },
     "criterion_grade": {
         "score": 0,
         "level": "FL",

@@ -152,6 +152,19 @@ paths:
   /api/v1/submissions/{submission_id}/report:
     parameters: [{$ref: '#/components/parameters/SubmissionId'}, {$ref: '#/components/parameters/Audience'}]
     get: {operationId: getSubmissionReport, responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
+  /api/v1/submissions/{submission_id}/feedback/draft:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}]
+    post:
+      operationId: draftOverallFeedback
+      description: Draft the overall feedback with the batch's AI model from the confirmed marks and comments; marks are not changed. Returns the internal report.
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/submissions/{submission_id}/feedback:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}]
+    put:
+      operationId: saveOverallFeedback
+      description: Save the tutor's overall feedback as a draft, or approve it so the student report shows it. An empty body clears it. Returns the internal report.
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {summary: {type: string}, strengths: {oneOf: [{type: string}, {type: array, items: {type: string}}]}, improvements: {oneOf: [{type: string}, {type: array, items: {type: string}}]}, next_steps: {oneOf: [{type: string}, {type: array, items: {type: string}}]}, approve: {type: boolean}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
   /api/v1/submissions/{submission_id}/report.pdf:
     parameters: [{$ref: '#/components/parameters/SubmissionId'}, {$ref: '#/components/parameters/Audience'}]
     get: {operationId: getSubmissionReportPdf, responses: {'200': {description: PDF report, content: {application/pdf: {schema: {type: string, format: binary}}}}}}
