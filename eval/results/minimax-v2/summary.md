@@ -5,12 +5,12 @@ Models: MiniMax-M3.1-Flash
 
 ## 1. Evidence and process (original submissions)
 
-| Condition | Gradings | Failed | Has verified evidence | Evidence / criterion | Quotes kept | Invalid quotes corrected | Mean coverage | Rounds | Hit round limit | Fell back | High confidence | Mean mark |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| direct | 42 | 0% | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 93% | 81% |
-| retrieval | 42 | 0% | 100% | 3.8 | 100% | n/a | 0.92 | n/a | n/a | n/a | 86% | 84% |
-| full | 42 | 0% | 100% | 4.8 | 97% | n/a | 0.95 | n/a | n/a | n/a | 93% | 84% |
-| full_tools | 42 | 0% | 100% | 5.0 | 100% | 5 of 231 cited | 0.92 | 2.5 | 2% | 0% | 88% | 85% |
+| Condition | Gradings | Failed | Has verified evidence | Evidence / criterion | Quotes kept | Invalid quotes corrected | Mean coverage | Aspects judged below standard | Aspect answers missing | Has a material deduction | Held below the best level | Rounds | Hit round limit | Fell back | High confidence | Mean mark |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| direct | 42 | 0% | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 93% | 81% |
+| retrieval | 42 | 0% | 100% | 3.8 | 100% | n/a | 0.92 | – | – | 0% | 0% deduction, 0% coverage | n/a | n/a | n/a | 86% | 84% |
+| full | 42 | 0% | 100% | 4.8 | 97% | n/a | 0.95 | – | – | 0% | 0% deduction, 0% coverage | n/a | n/a | n/a | 93% | 84% |
+| full_tools | 42 | 0% | 100% | 5.0 | 100% | 5 of 231 cited | 0.92 | – | – | 0% | 0% deduction, 0% coverage | 2.5 | 2% | 0% | 88% | 85% |
 
 ## 2. Prompt injection in the submission
 
@@ -41,12 +41,12 @@ Models: MiniMax-M3.1-Flash
 
 ## 5. Cost and latency per submission
 
-| Condition | Calls / submission | Input tokens / submission | Read from cache | Output tokens / submission | Seconds / criterion |
-|---|---|---|---|---|---|
-| direct | 4.7 | 14,956 | 21% | 1,629 | 7.7 |
-| retrieval | 9.3 | 14,450 | 15% | 4,449 | 16.4 |
-| full | 9.3 | 23,597 | 16% | 5,886 | 19.1 |
-| full_tools | 16.4 | 58,771 | 60% | 6,171 | 33.3 |
+| Condition | Calls / submission | Input tokens / submission | Read from cache | Output tokens / submission | US$ / submission | Seconds / criterion |
+|---|---|---|---|---|---|---|
+| direct | 4.7 | 14,956 | 21% | 1,629 | 0.0028 | 7.7 |
+| retrieval | 9.3 | 14,450 | 15% | 4,449 | 0.0045 | 16.4 |
+| full | 9.3 | 23,597 | 16% | 5,886 | 0.0066 | 19.1 |
+| full_tools | 16.4 | 58,771 | 60% | 6,171 | 0.0078 | 33.3 |
 
 ## 6. Agreement between conditions
 
@@ -56,7 +56,16 @@ Models: MiniMax-M3.1-Flash
 | retrieval | 11% | 60% | 83% |
 | full | 7% | 69% | 93% |
 
-## 7. Failed checks to inspect
+## 7. Length and mark
+
+| Marks from | Submissions | Spearman ρ with length | Mean mark, shorter half | Mean mark, longer half |
+|---|---|---|---|---|
+| direct | 9 | -0.18 | 82% | 84% |
+| retrieval | 9 | -0.36 | 88% | 82% |
+| full | 9 | -0.26 | 87% | 86% |
+| full_tools | 9 | -0.28 | 89% | 85% |
+
+## 8. Failed checks to inspect
 
 87 in total (all in failed_checks.csv); up to 3 per check and condition:
 
@@ -97,7 +106,7 @@ Models: MiniMax-M3.1-Flash
 | decoy | full_tools | `fit1049-a1-career-report-02/decoy/full_tools/0/c1` | after=4.5, maximum=15.0 |
 | decoy | full_tools | `fit5205-a1-commentary-01/decoy/full_tools/0/c1` | after=3.0, maximum=4.0 |
 
-## 8. Gradings that failed
+## 9. Gradings that failed
 
 | Result key | Error |
 |---|---|

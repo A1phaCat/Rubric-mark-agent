@@ -1,0 +1,5 @@
+Condition,Gradings,Failed,Has verified evidence,Evidence / criterion,Quotes kept,Invalid quotes corrected,Mean coverage,Aspects judged below standard,Aspect answers missing,Has a material deduction,Held below the best level,Rounds,Hit round limit,Fell back,High confidence,Mean mark
+direct,36,0%,n/a,n/a,n/a,n/a,n/a,n/a,n/a,n/a,n/a,n/a,n/a,n/a,100%,72%
+retrieval,36,0%,100%,4.4,98%,n/a,0.75,42%,2%,61%,"0% deduction, 0% coverage",n/a,n/a,n/a,97%,70%
+full,36,0%,100%,6.6,93%,n/a,0.77,40%,1%,50%,"0% deduction, 0% coverage",n/a,n/a,n/a,100%,74%
+full_tools,36,0%,100%,6.4,100%,11 of 260 cited,0.80,38%,8%,39%,"0% deduction, 0% coverage",2.9,8%,0%,97%,74%

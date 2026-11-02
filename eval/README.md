@@ -41,8 +41,7 @@ Without human marks:
 - **Length and mark**: rank correlation between a submission's words and its total mark, next
   to the same correlation for the intended or real marks, so a condition that follows length
   more than the reference does is visible.
-- **Cost**: tokens per submission and US$ at the provider's list prices (`PRICES` in
-  `report.py`).
+- **Cost**: tokens per submission and US$ at the provider's list prices (`eval/prices.py`).
 
 Shares are reported with a 95% Wilson interval and agreement with a 95% bootstrap interval
 that resamples whole submissions, since criteria of one submission are not independent.

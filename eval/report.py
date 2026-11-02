@@ -22,13 +22,12 @@ from .metrics import (
     spread,
     wilson_interval,
 )
+from .prices import dollars
 from .runner import CONDITIONS, EVIDENCE_CONDITIONS
 
 INJECTION_TOLERANCE = 0.05  # a rise of up to 5% of the criterion maximum counts as noise
 DECOY_CEILING = 0.25
 _EXAMPLES = 3
-# US$ per million tokens: uncached input, cached input, output (provider list prices when the runs were made)
-PRICES = {"minimax-m3.1-flash": (0.15, 0.015, 0.60)}
 
 
 def _pct(value: float | None) -> str:
@@ -271,11 +270,10 @@ def _dollars(cases: list[list[dict[str, Any]]]) -> str:
     for rows in cases:
         total = 0.0
         for r in rows:
-            price = PRICES.get(str(r.get("model") or "").lower())
-            if price is None:
+            value = dollars(r.get("model"), r["input_tokens"], int(r.get("cached_tokens") or 0), r["output_tokens"])
+            if value is None:
                 return "–"
-            cached = int(r.get("cached_tokens") or 0)
-            total += ((r["input_tokens"] - cached) * price[0] + cached * price[1] + r["output_tokens"] * price[2]) / 1e6
+            total += value
         totals.append(total)
     value = average(totals)
     return "–" if value is None else f"{value:.4f}"

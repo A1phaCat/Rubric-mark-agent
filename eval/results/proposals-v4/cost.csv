@@ -1,0 +1,5 @@
+Condition,Calls / submission,Input tokens / submission,Read from cache,Output tokens / submission,US$ / submission,Seconds / criterion
+direct,6.0,"25,911",27%,"1,485",0.0038,5.4
+retrieval,12.0,"23,592",18%,"10,160",0.0091,15.2
+full,12.0,"44,610",16%,"13,176",0.0137,21.2
+full_tools,23.2,"115,090",58%,"11,010",0.0148,30.8

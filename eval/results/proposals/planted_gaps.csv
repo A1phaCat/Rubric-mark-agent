@@ -1,5 +1,5 @@
-Condition,Planted gaps,Flagged as not supported,Mark below the top level,Aspects flagged in the all-strong submission
-direct,n/a,n/a,100%,n/a
-retrieval,28,36%,93%,5%
-full,28,29%,86%,0%
-full_tools,28,14%,86%,0%
+Condition,Planted gaps,Flagged as not supported,Named in a material deduction,Flagged either way,Mark below the top level,Aspects flagged in the all-strong submission,Material deductions in the all-strong submission
+direct,n/a,n/a,n/a,n/a,100% (78–100%),n/a,n/a
+retrieval,28,36% (21–54%),0% (0–12%),36% (21–54%),93% (69–99%),5%,0 of 6 criteria
+full,28,29% (15–47%),0% (0–12%),29% (15–47%),86% (60–96%),0%,0 of 6 criteria
+full_tools,28,14% (6–31%),0% (0–12%),14% (6–31%),86% (60–96%),0%,0 of 6 criteria
