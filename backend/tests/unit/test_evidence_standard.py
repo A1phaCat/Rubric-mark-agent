@@ -66,10 +66,16 @@ def test_evidence_the_model_itself_calls_unaddressed_is_partial() -> None:
     assert _status(_gate(raw, evidence_standard="presence"))["measures"] == "partial"
 
 
-def test_without_answers_the_evidence_decides_and_the_gap_is_counted() -> None:
-    gate = _gate({"evidence": [MEASURED], "aspects": [_answer("measures", meets=False)]})
-    assert _status(gate) == {"measures": "partial", "reports": "supported"}
+def test_an_aspect_left_unjudged_is_at_most_partial_and_the_gap_is_counted() -> None:
+    gate = _gate({"evidence": [MEASURED], "aspects": [_answer("measures")]})
+    assert _status(gate) == {"measures": "supported", "reports": "partial"}  # relevant is not "meets the standard"
     assert gate["answers_missing"] == 1
+
+
+def test_without_any_answers_direct_evidence_is_only_partial_under_quality() -> None:
+    assert _status(_gate({"evidence": [MEASURED]})) == {"measures": "partial", "reports": "partial"}
+    assert _status(_gate({"evidence": [MEASURED]}, evidence_standard="presence")) == {
+        "measures": "supported", "reports": "supported"}
 
 
 # ---------------------------------------------------------------- deductions
@@ -77,7 +83,8 @@ FULL = {"score": 10, "level": "Good", "rationale": "Measured and reported.", "co
 
 
 def _graded(deductions: list, **criterion) -> dict:
-    llm = ScriptedLLM({"evidence": [MEASURED]}, {**FULL, "deductions": deductions})
+    llm = ScriptedLLM({"evidence": [MEASURED], "aspects": [_answer("measures"), _answer("reports")]},
+                      {**FULL, "deductions": deductions})
     return _run_criterion(llm, {**_criterion(), **criterion}), llm
 
 

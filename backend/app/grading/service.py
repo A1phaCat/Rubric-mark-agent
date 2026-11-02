@@ -16,9 +16,9 @@ from app.retrieval import FullDocument, RetrievedPassage, find_quote
 from app.rubric.assessment import evidence_standard, normalise_assessment_plan
 
 PROMPT_VERSIONS = {
-    "full_tools": "criterion-grade-fulltools-v3",
-    "full": "criterion-grade-fulltext-v3",
-    "retrieval": "criterion-grade-coverage-v5",
+    "full_tools": "criterion-grade-fulltools-v4",
+    "full": "criterion-grade-fulltext-v4",
+    "retrieval": "criterion-grade-coverage-v6",
 }
 _DEDUCTION_SEVERITIES = ("minor", "material")
 _MAX_DEDUCTIONS = 8
@@ -284,9 +284,10 @@ def _normalise_gate(
 
     Coverage is recomputed here from the verified evidence. Under the ``quality`` standard
     an aspect with supporting evidence counts as supported only when the evidence step also
-    judged that it meets the standard the aspect describes; otherwise it is partial. The
-    model's answers can lower a status but never raise one: without verified evidence an
-    aspect stays missing whatever the model says.
+    judged that it meets the standard the aspect describes; otherwise, including when the
+    evidence step gave no answer for it (a check cut short), it is partial. The model's answers
+    can lower a status but never raise one: without verified evidence an aspect stays missing
+    whatever the model says.
     """
     mode, aspects = normalise_assessment_plan(criterion)
     standard = evidence_standard(criterion)
@@ -356,6 +357,8 @@ def _normalise_gate(
         if status == "supported" and answer is not None:
             if not answer["addressed"] or (standard == "quality" and not answer["meets_standard"]):
                 status = "partial"
+        elif status == "supported" and standard == "quality":
+            status = "partial"  # relevant evidence alone does not show the standard was met
         coverage.append(
             {
                 "aspect_id": aspect_id,
@@ -415,7 +418,10 @@ def _fake_gate(
                 "aspect_ids": [aspects[index % len(aspects)]["id"]],
             }
         )
-    return {"evidence": raw_evidence, "notes": "Deterministic FakeLLM evidence gate."}
+    cited = {aspect for item in raw_evidence for aspect in item["aspect_ids"]}
+    answers = [{"aspect_id": aspect["id"], "addressed": aspect["id"] in cited, "meets_standard": aspect["id"] in cited,
+                "reason": "Deterministic FakeLLM answer."} for aspect in aspects]
+    return {"evidence": raw_evidence, "aspects": answers, "notes": "Deterministic FakeLLM evidence gate."}
 
 
 @dataclass

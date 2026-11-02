@@ -30,6 +30,7 @@
   function describe(step, labels) {
     var data = step.data || {};
     if (step.kind === 'read') return ['info', 'Read the whole submission', step.detail];
+    if (step.kind === 'nudge' && data.closing) return ['warn', 'Out of rounds · asked to judge every aspect now', 'Only finish was available'];
     if (step.kind === 'nudge') return ['info', 'Asked to search first', aspectNames(data.aspect_ids, labels)];
     if (step.kind === 'limit') return ['warn', 'Stopped at the round limit', 'Kept the evidence already verified'];
     if (step.kind === 'fallback') return ['warn', 'Switched to a single read', step.detail.replace(/^Read in one pass instead: /, '')];
@@ -75,13 +76,15 @@
 
   // The two answers per aspect given when the check finished, as timeline rows.
   function answerRows(step, labels) {
-    var answers = (step.data && step.data.aspects) || [];
+    var answers = (step.data && step.data.aspects) || [], unjudged = (step.data && step.data.unanswered) || [];
     return answers.map(function (answer) {
       var state = answer.meets_standard ? 'ok' : answer.addressed ? 'warn' : 'bad';
       var verdict = answer.meets_standard ? 'Meets the standard' : answer.addressed ? 'Covered, below the standard' : 'Not covered';
       return '<li class="aspect ' + state + '"><b>' + esc(labels[answer.aspect_id] || answer.aspect_id) + '</b><span>'
         + esc(verdict) + (answer.reason ? ' — ' + esc(clip(answer.reason, 200)) : '') + '</span></li>';
-    });
+    }).concat(unjudged.map(function (id) {
+      return '<li class="aspect warn"><b>' + esc(labels[id] || id) + '</b><span>Not judged — counted as partial, not as meeting the standard</span></li>';
+    }));
   }
 
   // What the grade step listed as falling short of the best level, and whether that held the mark down.

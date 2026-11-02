@@ -48,3 +48,19 @@ timeline.
 - Prompt versions: `criterion-grade-fulltools-v2`, `-fulltext-v2`, `-coverage-v4` (v3/v5 after ADR 0009).
 - Judging novelty against literature the submission does not cite remains outside what a
   submission-only check can do.
+
+## Amendment, 2026-11-02: an unjudged aspect is never supported
+
+A review found that relevant evidence still made an aspect *supported* whenever the evidence
+step gave no answer for it, which happens when the tool-based check stops at its round limit.
+In the evaluation data this affected about 6% of criteria (34 of 600 in the 100-submission
+product run), and those criteria were marked 21% of the maximum above their specification
+against 9% for the rest.
+
+- Under the `quality` standard an aspect with supporting evidence but no answer is *partial*:
+  relevant text is not evidence that the standard was met.
+- A check that reaches its round limit without finishing gets one closing round in which only
+  `finish` is offered, so it can still judge every aspect; whatever it returns is accepted.
+- The evidence-check timeline shows the closing round and lists unjudged aspects.
+- Prompt versions: `criterion-grade-fulltools-v4`, `-fulltext-v4`, `-coverage-v6`.
+

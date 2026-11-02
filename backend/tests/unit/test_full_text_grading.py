@@ -109,6 +109,7 @@ def test_gate_keeps_verified_quotes_relocates_wrong_ids_and_drops_invented_ones(
         ],
         # the model's own coverage claim is ignored
         "coverage": [{"aspect_id": "reports", "status": "supported"}],
+        "aspects": [{"aspect_id": "measures", "addressed": True, "meets_standard": True, "reason": "shown"}, {"aspect_id": "reports", "addressed": True, "meets_standard": True, "reason": "shown"}],
     }
     gate = _normalise_gate(_criterion(), full.passages, raw, max_items=8)
     assert [(e["passage_id"], e["quote"]) for e in gate["evidence"]] == [("p4", "We measured latency under load")]
@@ -143,7 +144,8 @@ def _run_criterion(llm, criterion=None):
 
 def test_evidence_step_reads_everything_and_grade_step_sees_only_verified_evidence() -> None:
     gate = {"evidence": [{"passage_id": "p4", "quote": "We measured latency under load", "role": "primary",
-                          "relevance": "direct", "aspect_ids": ["measures", "reports"]}]}
+                          "relevance": "direct", "aspect_ids": ["measures", "reports"]}],
+            "aspects": [{"aspect_id": "measures", "addressed": True, "meets_standard": True, "reason": "shown"}, {"aspect_id": "reports", "addressed": True, "meets_standard": True, "reason": "shown"}]}
     grade = {"score": 10, "level": "Good", "rationale": "Measured and reported.", "confidence": "high"}
     llm = ScriptedLLM(gate, grade)
     result = _run_criterion(llm)

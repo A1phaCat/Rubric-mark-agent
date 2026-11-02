@@ -123,7 +123,7 @@ def test_a_check_that_never_answers_is_read_again_in_one_pass() -> None:
     endless = tuple((call("search", query="latency"),) for _ in range(10))
     llm = ToolLLM(*endless)
     result = _run(llm, agent_max_rounds=2)
-    assert llm.purposes == ["evidence_check", "evidence_check", "evidence_gate"]
+    assert llm.purposes == ["evidence_check", "evidence_check", "evidence_check", "evidence_gate"]  # + closing round
     assert [step["kind"] for step in result["evidence_trace"]][-2:] == ["limit", "fallback"]
 
 
@@ -139,7 +139,7 @@ def test_the_check_is_stored_with_the_result_and_its_calls_are_logged(stored) ->
     with stored() as session:
         result = session.scalar(select(AIResult))
         trace = json.loads(result.trace_json)
-        assert result.prompt_version == "criterion-grade-fulltools-v3"
+        assert result.prompt_version == "criterion-grade-fulltools-v4"
         minor = json.loads(result.minor_json)
         assert minor["context"] == "full_tools" and minor["deductions"] == [] and minor["capped"] is None
         check = _evidence_check(result)

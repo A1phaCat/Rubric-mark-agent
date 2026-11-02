@@ -111,8 +111,24 @@ def test_a_searched_aspect_can_be_reported_missing() -> None:
 def test_rounds_are_bounded() -> None:
     endless = tuple((call("search", query="baseline"),) for _ in range(20))
     check = _run(Scripted(*endless), max_rounds=3)
-    assert check.rounds == 3 and not check.finished
+    assert check.rounds == 4 and not check.finished  # three rounds, then one closing round
     assert check.steps[-1].kind == "limit"
+    assert any(step.kind == "nudge" and step.data.get("closing") for step in check.steps)
+
+
+def test_a_check_cut_short_gets_one_round_to_finish_with_only_finish_offered() -> None:
+    seen_tools = []
+
+    class Watching(Scripted):
+        async def chat(self, *, purpose, messages, tools, metadata=None):
+            seen_tools.append([tool.name for tool in tools])
+            return await super().chat(purpose=purpose, messages=messages, tools=tools, metadata=metadata)
+
+    turns = [(call("search", query="baseline"),), (call("search", query="metrics"),), (done(),)]
+    check = _run(Watching(*turns), max_rounds=2)
+    assert check.finished and check.rounds == 3
+    assert seen_tools[-1] == ["finish"] and "cite" in seen_tools[0]
+    assert {answer["aspect_id"] for answer in check.gate_raw["aspects"]} == {"baseline", "metrics", "failures"}
 
 
 def test_the_same_quote_for_two_aspects_is_one_piece_of_evidence() -> None:
