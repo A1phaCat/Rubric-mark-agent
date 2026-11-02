@@ -9,6 +9,7 @@ from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.config import settings as app_settings
 from app.db.models.audit import AuditLog
 from app.db.models.batch import Batch
 from app.db.models.core import Term
@@ -22,6 +23,7 @@ from app.domain.ids import new_id
 from app.domain.states import BatchStatus, SubmissionStatus
 from app.domain.timefmt import iso_utc
 from app.grading import prompt_version
+from app.jobs import heartbeat
 from app.jobs.queue import JobQueue
 
 PROCESSING_STATES = ("extracting", "ocr_running", "queued", "marking")
@@ -648,6 +650,7 @@ class BatchUseCases:
         term = self.session.get(Term, batch.term_id)
         counts = self.counts(batch.id)
         queue = self.queue_wait(batch, counts)
+        agents = self.live_agents(batch.id) if counts["processing"] else None
         return {
             "id": batch.id,
             "name": batch.name,
@@ -668,6 +671,7 @@ class BatchUseCases:
             "rubric": rubric_summary,
             "counts": counts,
             "queue": queue,
+            "agents": agents,
             "insights": self._insights(batch.id, maximum),
             "model": {"provider": batch.model_provider, "name": batch.model_name}
             if batch.model_provider
@@ -679,6 +683,19 @@ class BatchUseCases:
             "finalised_at": _iso(batch.finalised_at),
             "version": batch.version,
         }
+
+    def live_agents(self, batch_id: str) -> dict[str, int] | None:
+        """Evidence agents running now for this batch's submissions, from the worker's heartbeat."""
+
+        running = heartbeat.evidence_agents(app_settings)
+        if running is None:
+            return None
+        ids = set(
+            self.session.scalars(
+                select(Submission.id).where(Submission.batch_id == batch_id, Submission.id.in_(list(running)))
+            )
+        ) if running else set()
+        return {"evidence": sum(running[item] for item in ids)}
 
     def estimate_eta(
         self,

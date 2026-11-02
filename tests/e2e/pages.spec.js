@@ -188,6 +188,14 @@ test('large processing batches show compact live activity without overlapping ac
   expect(await row.locator('.bar span').evaluate(el => getComputedStyle(el, '::after').animationName)).toBe('batch-flow');
   expect(await row.locator('.pill.processing').evaluate(el => getComputedStyle(el).animationName)).toBe('batch-breathe');
 
+  const workingBatch = {...batch, agents:{evidence:7}};
+  await page.route(/\/api\/v1\/batches\/bat_ui_activity$/, async route => route.fulfill({contentType:'application/json',body:JSON.stringify({batch:workingBatch})}));
+  await page.route(/\/api\/v1\/batches\/bat_ui_activity\/submissions/, async route => route.fulfill({contentType:'application/json',body:JSON.stringify({total:0,page:1,page_size:50,items:[]})}));
+  await page.goto('/02-batch-status.html?batch_id=bat_ui_activity');
+  await expect(page.locator('.live-work')).toHaveText(/3 submissions in progress\s*· 7 evidence agents working\s*· 104 queued/);
+  await page.unrouteAll({behavior:'ignoreErrors'});
+  await page.route(/\/api\/v1\/batches$/, async route => route.fulfill({contentType:'application/json',body:JSON.stringify({items:[batch]})}));
+
   const waitingBatch = JSON.parse(JSON.stringify(batch));
   waitingBatch.counts.active = 0;
   waitingBatch.counts.processed = 15;

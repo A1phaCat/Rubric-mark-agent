@@ -5,11 +5,11 @@ import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import func, select
 
+from app.agent import activity
 from app.config import settings
 from app.db.models.batch import Batch
 from app.db.models.job import Job
@@ -17,6 +17,7 @@ from app.db.models.rubric import RubricCriterion
 from app.db.models.submission import AIResult, File, Submission
 from app.db.session import SessionLocal
 from app.domain.states import BatchStatus, SubmissionStatus
+from app.jobs import heartbeat
 from app.jobs.queue import JobQueue
 from app.services.batch_service import BatchUseCases
 from app.services.grading_service import (
@@ -296,17 +297,7 @@ def run_once(owner: str | None = None) -> bool:
 
 
 def write_heartbeat() -> None:
-    target = settings.runtime_paths()["cache"] / "worker-heartbeat.json"
-    target.write_text(
-        json.dumps(
-            {
-                "worker_id": settings.worker_id,
-                "concurrency": settings.worker_concurrency,
-                "last_seen": datetime.now(timezone.utc).isoformat(),
-            }
-        ),
-        encoding="utf-8",
-    )
+    heartbeat.write(settings, activity.snapshot())
 
 
 def _slot_loop(slot: int, stop: threading.Event) -> None:

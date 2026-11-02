@@ -325,6 +325,7 @@ components:
         display_status: {type: string}
         rubric: {anyOf: [{$ref: '#/components/schemas/RubricSummary'}, {type: 'null'}]}
         counts: {$ref: '#/components/schemas/Counts'}
+        agents: {type: [object, 'null'], description: 'Evidence agents running now, from the worker heartbeat; null when the worker has not reported recently or nothing is processing', properties: {evidence: {type: integer}}}
         eta_seconds: {type: [integer, 'null']}
         created_at: {type: string, format: date-time}
         started_at: {type: [string, 'null'], format: date-time}

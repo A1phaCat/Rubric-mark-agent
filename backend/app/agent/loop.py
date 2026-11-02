@@ -15,6 +15,7 @@ from typing import Any, Callable, Mapping
 from app.llm.protocol import ChatResponse, ToolChatLLM
 from app.retrieval import FullDocument
 
+from . import activity
 from .tools import TOOL_SPECS, EvidenceWorkspace
 
 # Identical for every criterion of a submission and sent first, so providers that cache
@@ -81,6 +82,24 @@ def criterion_message(brief: str, aspects: list[dict[str, Any]], max_citations: 
 
 
 async def run_evidence_check(
+    llm: ToolChatLLM,
+    full: FullDocument,
+    brief: str,
+    aspects: list[dict[str, Any]],
+    *,
+    max_citations: int,
+    max_rounds: int = 4,
+    metadata: Mapping[str, str] | None = None,
+    after_first_turn: Callable[[], None] | None = None,
+) -> EvidenceCheck:
+    """One evidence agent: counted as running while it works, for the live batch view."""
+
+    with activity.running((metadata or {}).get("submission_id")):
+        return await _check(llm, full, brief, aspects, max_citations=max_citations, max_rounds=max_rounds,
+                            metadata=metadata, after_first_turn=after_first_turn)
+
+
+async def _check(
     llm: ToolChatLLM,
     full: FullDocument,
     brief: str,

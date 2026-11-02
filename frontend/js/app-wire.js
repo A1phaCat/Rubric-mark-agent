@@ -43,7 +43,11 @@
       return '<div class="live-work queue-wait paused-work" role="status"><span class="queue-clock" aria-hidden="true">❚❚</span><strong>' +
         (active > 0 ? 'Pausing — ' + active + ' finishing the criteria already sent' : 'Paused') + '</strong><span>· ' + queued + ' on hold · resume to continue</span></div>';
     }
-    if (active > 0) return '<div class="live-work" role="status"><span class="live-bars" aria-hidden="true"><i></i><i></i><i></i></span><strong>' + active + ' actively processing</strong><span>· ' + queued + ' queued</span></div>';
+    if (active > 0) {
+      var agents = batch.agents && batch.agents.evidence != null ? Number(batch.agents.evidence) : null;
+      var working = agents == null ? '' : '<span class="agent-count" title="Evidence agents: one per criterion being checked against the submission">· ' + agents + ' evidence agent' + (agents === 1 ? '' : 's') + ' working</span>';
+      return '<div class="live-work" role="status"><span class="live-bars" aria-hidden="true"><i></i><i></i><i></i></span><strong>' + active + ' submission' + (active === 1 ? '' : 's') + ' in progress</strong>' + working + '<span>· ' + queued + ' queued</span></div>';
+    }
     var queue = batch.queue || {}, blocker = queue.blocked_by, jobs = Number(queue.jobs_ahead || 0);
     if (blocker) {
       var label = queueBlockerText(batch), suffix = jobs + ' job' + (jobs === 1 ? '' : 's') + ' ahead';
