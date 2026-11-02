@@ -200,6 +200,9 @@
   .score-max{ font-size:12.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; }
   .accept-btn{ font-size:12.5px; font-weight:500; padding:8px 14px; border-radius:6px; border:1px solid var(--info); background:#fff; color:var(--info); cursor:pointer; }
   .accept-btn:hover{ background:var(--info-bg); }
+  .confirm-btn{ font-size:12.5px; font-weight:500; padding:8px 14px; border-radius:6px; border:1px solid var(--info); background:var(--info); color:#fff; cursor:pointer; }
+  .confirm-btn:hover{ filter:brightness(.95); }
+  .confirm-btn[hidden]{ display:none; }
   .status-text{ font-size:12px; color:var(--ink-soft); margin-left:auto; }
   .status-text.confirmed{ color:var(--info); }
   .comment-field{ margin-top:14px; }
@@ -527,6 +530,7 @@
           <input class="score-input" type="number" value="" data-max="" data-ai="">
           <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <button class="confirm-btn" type="button" hidden>Confirm</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
         <div class="comment-field"><label class="lbl" for="cm1">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm1" placeholder="Feedback for the student on this criterion"></textarea></div>
@@ -548,6 +552,7 @@
           <input class="score-input" type="number" value="" data-max="" data-ai="">
           <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <button class="confirm-btn" type="button" hidden>Confirm</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
         <div class="comment-field"><label class="lbl" for="cm2">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm2" placeholder="Feedback for the student on this criterion"></textarea></div>
@@ -569,6 +574,7 @@
           <input class="score-input" type="number" value="" data-max="" data-ai="">
           <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <button class="confirm-btn" type="button" hidden>Confirm</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
         <div class="comment-field"><label class="lbl" for="cm3">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm3" placeholder="Feedback for the student on this criterion"></textarea></div>
@@ -590,6 +596,7 @@
           <input class="score-input" type="number" value="" data-max="" data-ai="">
           <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <button class="confirm-btn" type="button" hidden>Confirm</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
         <div class="comment-field"><label class="lbl" for="cm4">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm4" placeholder="Feedback for the student on this criterion"></textarea></div>

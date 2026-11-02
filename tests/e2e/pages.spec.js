@@ -1,5 +1,17 @@
 const { test, expect } = require('@playwright/test');
 
+async function acceptAll(page) {
+  /* Every criterion must be confirmed before "Confirm & next": accept the ones still open. */
+  const cards = page.locator('.crit-card:visible');
+  for (let index = 0; index < await cards.count(); index += 1) {
+    const card = cards.nth(index);
+    const status = (await card.locator('.status-text').textContent()) || '';
+    if (status.startsWith('Confirmed')) continue;
+    if (await card.locator('.confirm-btn').isVisible()) await card.locator('.confirm-btn').click();
+    else if (await card.locator('.accept-btn').isVisible()) await card.locator('.accept-btn').click();
+  }
+}
+
 async function cleanupBatch(request, batchId) {
   if (!batchId) return;
   let response = await request.get(`/api/v1/batches/${batchId}`);
@@ -158,6 +170,10 @@ test('end-of-review dialog discovers the next AI-ready submission without refres
   });
 
   await page.goto(`/03b-review-split.html?submission_id=${current.id}`);
+  await page.locator('#btnNext').click();
+  await expect(page.locator('[role="alertdialog"]')).toContainText('Confirm every criterion first');
+  await page.keyboard.press('Escape');
+  await acceptAll(page);
   await page.locator('#btnNext').click();
   await expect(page.locator('#endCard')).toContainText('Waiting for the AI');
   await expect(page.locator('#endCard')).toContainText('no refresh needed');
@@ -375,6 +391,7 @@ test('local-fake API completes a new single-file batch', async ({ request, page 
   await expect(trace.locator('ol')).toContainText('Read the whole submission');
   await expect(trace.locator('ol')).toContainText('Quote verified');
   await expect(trace).toContainText('Tutor view only');
+  await acceptAll(page);
   await page.locator('#btnNext').click();
   await expect(page.locator('#endCard')).toContainText('Batch complete');
   const results = await request.get(`/api/v1/batches/${batch.id}/results`);
@@ -572,6 +589,12 @@ test('setup UI parses variable levels and opens the newly created batch', async 
     await expect(page.getByText('Show all evidence')).toBeVisible();
     await page.locator('.crit-card').first().locator('.score-input').fill('2');
     await page.locator('.crit-card').first().locator('.comment-field textarea').fill('Adjusted during E2E review.');
+    const adjusted = page.locator('.crit-card').first();
+    await expect(adjusted.locator('.confirm-btn')).toBeVisible();
+    await adjusted.locator('.confirm-btn').click();
+    await expect(adjusted.locator('.status-text')).toHaveText('Confirmed · adjusted from AI');
+    await expect(adjusted.locator('.confirm-btn')).toBeHidden();
+    await acceptAll(page);
     await page.locator('#btnNext').click();
     await expect(page.locator('#endCard')).toContainText('Batch complete');
     await page.goto('/07-batches.html');

@@ -6,6 +6,48 @@
   /* ---------------------------------------------------------------- helpers */
   function esc(value) { return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
   function num(value) { if (value == null || value === '') return '—'; var n = Number(value); return Math.abs(n - Math.round(n)) < 0.005 ? String(Math.round(n)) : String(Math.round(n * 100) / 100); }
+  /* Each criterion must be confirmed before "Confirm & next": by accepting the AI suggestion, or,
+     when the tutor changed the score, with the Confirm button that then appears. */
+  function scoreChanged(card) {
+    var input = card.querySelector('.score-input');
+    return !!input && input.value !== '' && (input.dataset.ai === '' || Number(input.value) !== Number(input.dataset.ai));
+  }
+  function refreshConfirm(card) {
+    var button = card.querySelector('.confirm-btn'), input = card.querySelector('.score-input');
+    if (button) button.hidden = card.dataset.confirmed === '1' || !scoreChanged(card) || !!(input && input.disabled);
+  }
+  function navDot(card, done) {
+    var dot = document.getElementById('nav' + (Array.prototype.indexOf.call(document.querySelectorAll('.crit-card'), card) + 1));
+    if (dot) dot.classList.toggle('done', done);
+  }
+  function wireCriterionConfirm() {
+    document.addEventListener('input', function (event) {
+      var input = event.target.closest && event.target.closest('.score-input'); if (!input) return;
+      var card = input.closest('.crit-card'); card.dataset.confirmed = ''; navDot(card, false); refreshConfirm(card);
+    });
+    document.addEventListener('click', function (event) {
+      var accept = event.target.closest('.accept-btn');
+      if (accept) { var accepted = accept.closest('.crit-card'); accepted.dataset.confirmed = '1'; refreshConfirm(accepted); return; }
+      var button = event.target.closest('.confirm-btn'); if (!button) return;
+      var card = button.closest('.crit-card'), input = card.querySelector('.score-input'), status = card.querySelector('.status-text');
+      var value = Number(input.value), max = Number(input.dataset.max);
+      if (input.value === '' || isNaN(value) || value < 0 || value > max) { status.classList.remove('confirmed'); status.textContent = 'Enter a score between 0 and ' + num(max); return; }
+      card.dataset.confirmed = '1'; input.classList.add('confirmed');
+      status.textContent = input.dataset.ai === '' ? 'Confirmed' : 'Confirmed · adjusted from AI'; status.classList.add('confirmed');
+      navDot(card, true); refreshConfirm(card);
+      if (typeof updateSummary === 'function') updateSummary(card);
+    });
+  }
+
+  /* The score box's arrow step: the largest of 1, 0.5, 0.25, 0.1, 0.05, 0.01 that every level's points
+     and the criterion maximum are multiples of (1.5 / 1 / 0.5 / 0 → 0.5). With step="any" browsers
+     step by 1, so 1 could never reach 1.5. Typed values are not restricted. */
+  function scoreStep(def) {
+    var values = (def.levels || []).map(function (level) { return Number(level.points); }).concat([Number(def.weight)]).filter(function (v) { return isFinite(v); });
+    return [1, 0.5, 0.25, 0.1, 0.05, 0.01].filter(function (step) {
+      return values.every(function (v) { return Math.abs(v / step - Math.round(v / step)) < 1e-6; });
+    })[0] || 0.01;
+  }
   function date(value) { var d = value ? new Date(value) : null; return d && !isNaN(d.getTime()) ? d : null; }
   function shortDate(value) { var d = date(value); return d ? d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }) : '—'; }
   function longDate(value) { var d = date(value); return d ? d.toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' }) : '—'; }
@@ -464,11 +506,12 @@
         var ai = card.querySelector('.ai-box .badge'); if (ai) ai.textContent = noAI ? 'Manual marking' : 'AI · ' + num(item.ai_score) + '/' + num(def.weight) + (item.ai_level ? ' · ' + item.ai_level : '');
         var reason = card.querySelector('.ai-box .reason'); if (reason) reason.textContent = item.rationale || '';
         var aiBox = card.querySelector('.ai-box'), trace = window.EvidenceTrace ? EvidenceTrace.render(item.evidence_check, item.coverage) : null; Array.prototype.forEach.call(card.querySelectorAll('.trace'), function (node) { node.remove(); }); if (trace && aiBox) aiBox.insertAdjacentElement('afterend', trace);
-        var score = card.querySelector('.score-input'); if (score) { score.value = item.score == null ? '' : item.score; score.dataset.ai = noAI ? '' : item.ai_score; score.dataset.max = def.weight; score.max = def.weight; score.min = 0; score.step = 'any'; score.disabled = locked; if (noAI) score.placeholder = '—'; }
+        var score = card.querySelector('.score-input'); if (score) { score.value = item.score == null ? '' : item.score; score.dataset.ai = noAI ? '' : item.ai_score; score.dataset.max = def.weight; score.max = def.weight; score.min = 0; score.step = String(scoreStep(def)); score.disabled = locked; if (noAI) score.placeholder = '—'; }
         var accept = card.querySelector('.accept-btn'); if (accept) accept.style.display = noAI || locked ? 'none' : '';
         var max = card.querySelector('.score-max'); if (max) max.textContent = '/ ' + num(def.weight);
         var comment = card.querySelector('.comment-field textarea'); if (comment) { comment.value = item.comment || ''; comment.disabled = locked; }
         var status = card.querySelector('.status-text'); if (status) status.textContent = item.status === 'confirmed' ? 'Confirmed' : noAI ? 'Needs your score' : item.status === 'edited' ? 'Adjusted — not yet confirmed' : 'Not yet confirmed';
+        card.dataset.confirmed = item.status === 'confirmed' ? '1' : ''; refreshConfirm(card);
         var criterionEvidence = allEvidence.filter(function (evidence) { return evidence.criterion_id === def.id; }), evidenceNode = card.querySelector('.evidence'), alsoNode = card.querySelector('.also'), control = card.querySelector('.crit-ctl');
         if (criterionEvidence.length) {
           card.dataset.evs = criterionEvidence.map(function (evidence) { EV_CARD[evidence.id] = card.id; return evidence.id; }).join(',');
@@ -479,7 +522,7 @@
           Array.prototype.forEach.call(card.querySelectorAll('.evidence,.also,.crit-ctl'), function (node) { node.style.display = 'none'; });
         }
         updateSummary(card);
-        if (nav[index]) { nav[index].style.display = ''; nav[index].dataset.c = card.id; nav[index].title = 'C' + (index + 1) + ' · ' + def.name; nav[index].innerHTML = '<span class="st" id="nav' + (index + 1) + '"></span>C' + (index + 1) + ' <span class="w">' + num(def.weight) + ' pts</span>'; }
+        if (nav[index]) { nav[index].style.display = ''; nav[index].dataset.c = card.id; nav[index].title = 'C' + (index + 1) + ' · ' + def.name; nav[index].innerHTML = '<span class="st' + (card.dataset.confirmed === '1' ? ' done' : '') + '" id="nav' + (index + 1) + '"></span>C' + (index + 1) + ' <span class="w">' + num(def.weight) + ' pts</span>'; }
       });
       var heading = document.querySelector('.doc-header h1'); if (heading) heading.textContent = 'Review — ' + sid;
       var summary = document.querySelector('.doc-header p'); if (summary) summary.textContent = criteria.length + ' criteria · rubric maximum ' + num(total) + ' marks' + (manual ? ' · manual marking' : ' · ' + pageCount + '-page submission parsed') + (batch.is_sample ? ' · sample batch' : '');
@@ -493,6 +536,7 @@
         event.preventDefault(); event.stopImmediatePropagation();
         MarkerAPI.nextInQueue(batch.id, submissionId).then(function (next) { if (next.next_id) location.href = '03b-review-split.html?submission_id=' + encodeURIComponent(next.next_id); else location.href = batchUrl; }).catch(reportError);
       }, true);
+      if (!locked) wireCriterionConfirm();
       var next = document.getElementById('btnNext');
       if (next && locked) { next.disabled = true; next.textContent = 'Finalised · read only'; }
       else if (next && submission.status === 'confirmed') next.textContent = 'Save changes & next →';
@@ -502,6 +546,8 @@
         event.preventDefault(); event.stopImmediatePropagation();
         var missing = criteria.filter(function (item, index) { var input = cards[index] && cards[index].querySelector('.score-input'); return !input || input.value === '' || isNaN(Number(input.value)) || Number(input.value) < 0 || Number(input.value) > Number(item.definition.weight); });
         if (missing.length) { MarkerDialog.alert({ title: 'Some scores are missing', message: 'Enter a score between 0 and the maximum for: ' + missing.map(function (item) { return item.definition.name; }).join(', '), icon: 'warn' }); return; }
+        var unconfirmed = criteria.map(function (item, index) { return cards[index] && cards[index].dataset.confirmed !== '1' ? 'C' + (index + 1) + ' · ' + item.definition.name : null; }).filter(Boolean);
+        if (unconfirmed.length) { MarkerDialog.alert({ title: 'Confirm every criterion first', message: 'Not confirmed yet: ' + unconfirmed.join('; ') + '. Accept the AI suggestion or confirm your own score for each one — or use Skip to come back to this submission later.', icon: 'warn' }); return; }
         button.disabled = true; button.textContent = 'Saving…';
         var chain = Promise.resolve();
         criteria.forEach(function (item, index) {
