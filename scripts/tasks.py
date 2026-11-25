@@ -21,6 +21,9 @@ def run(*args: str, cwd: Path = ROOT) -> None:
 
 def main() -> None:
     task = sys.argv[1] if len(sys.argv) > 1 else "help"
+    if task in {"api", "dev"}:
+        # Keep the schema current so the startup sample reset never meets an old database.
+        run(sys.executable, "-m", "alembic", "-c", "alembic.ini", "upgrade", "head", cwd=BACKEND)
     if task == "api":
         run(
             sys.executable,
@@ -72,10 +75,11 @@ def main() -> None:
             cwd=BACKEND,
         )
     elif task == "seed":
-        run(sys.executable, str(ROOT / "scripts" / "build_demo_fixtures.py"))
-        run(sys.executable, "-m", "app.db.seed", cwd=BACKEND)
+        run(sys.executable, "-m", "app.sample.seed", cwd=BACKEND)
+    elif task == "eval":
+        run(sys.executable, "-m", "eval", *sys.argv[2:])
     elif task == "test":
-        run(sys.executable, "-m", "pytest", "backend/tests", "tests/architecture", "-q")
+        run(sys.executable, "-m", "pytest", "backend/tests", "tests/architecture", "tests/eval", "-q")
     elif task == "lint":
         run(
             sys.executable,
@@ -85,6 +89,8 @@ def main() -> None:
             "backend/app",
             "backend/tests",
             "tests/architecture",
+            "tests/eval",
+            "eval",
             "scripts",
         )
         run(
@@ -103,6 +109,8 @@ def main() -> None:
             "backend/app",
             "backend/tests",
             "tests/architecture",
+            "tests/eval",
+            "eval",
             "scripts",
         )
     elif task == "check":
@@ -114,7 +122,7 @@ def main() -> None:
         else:
             print("SKIP browser checks: run npm install first")
     else:
-        print("tasks: dev api worker migrate seed test lint fmt check")
+        print("tasks: dev api worker migrate seed test lint fmt check eval")
 
 
 if __name__ == "__main__":

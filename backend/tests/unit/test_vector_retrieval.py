@@ -219,7 +219,8 @@ def test_evidence_gate_does_not_treat_five_hits_as_full_coverage(tmp_path) -> No
                 "aspect_ids": ["metrics"],
             }
             for item in passages[:5]
-        ]
+        ],
+        "aspects": [{"aspect_id": "metrics", "addressed": True, "meets_standard": True, "reason": "shown"}],
     }
 
     gate = _normalise_gate(criterion, passages, raw)

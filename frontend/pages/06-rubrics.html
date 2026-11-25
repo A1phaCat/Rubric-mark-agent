@@ -93,6 +93,7 @@
   .ck{ font-size:12px; padding:3px 10px; border-radius:20px; }
   .ck.ok{ background:var(--conf-high-bg); color:var(--conf-high); }
   .ck.bad{ background:var(--risk-bg); color:var(--risk); }
+  .ck.warn{ background:var(--conf-med-bg, #FBF1DC); color:var(--conf-med, #8A5A00); }
   .d-body{ flex:1; overflow:auto; padding:18px 26px 26px; }
   .crit{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:14px; }
   .crit-h{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
@@ -109,6 +110,10 @@
   .band p{ margin:5px 0 0; font-size:12.5px; line-height:1.45; color:var(--ink); overflow-wrap:anywhere; }
   .band.missing{ border-color:var(--risk); background:var(--risk-bg); }
   .band.missing p{ color:var(--risk); font-style:italic; }
+  .band.plain p{ color:var(--ink-soft); font-style:italic; }
+  .c-desc{ margin:-4px 0 12px; font-size:13px; line-height:1.5; color:var(--ink-soft); white-space:pre-line; }
+  .editing .c-desc{ border:1px dashed var(--border); border-radius:6px; padding:6px 8px; min-height:1.5em; }
+  .editing .c-desc:empty::before{ content:attr(data-ph); color:var(--ink-soft); opacity:.7; }
   .drawer.editing [contenteditable="true"]{ outline:1px dashed var(--border-strong); outline-offset:2px; border-radius:3px; min-height:1.2em; cursor:text; }
   .drawer.editing [contenteditable="true"]:hover, .drawer.editing [contenteditable="true"]:focus{ outline:1.5px solid var(--primary); background:#fff; }
   .d-foot{ padding:14px 26px; background:var(--surface); border-top:1px solid var(--border); }
@@ -190,6 +195,8 @@
   }
   .ab-crumbs .bc-up .t{ overflow:hidden; text-overflow:ellipsis; }
   @media print{ header.app-bar, .ab-steps{ display:none; } }
+  .tag-sample{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--primary); border:1px solid var(--primary); border-radius:4px; padding:1px 5px; margin-left:8px; vertical-align:2px; }
+  .pin-btn[aria-pressed="true"]{ color:var(--primary); }
 </style>
 </head>
 <body>
@@ -205,7 +212,7 @@
     <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><span aria-current="page" id="bcCur">Rubrics</span></li></ol><a class="bc-up" href="00-home.html"><span aria-hidden="true">‹</span><span class="t">Home</span></a></nav>
   </div>
   <div class="ab-right">
-    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+    <div class="ab-user" title="Local single-user mode"><span class="ab-uname">&nbsp;</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true"></span></div>
   </div>
 </header>
 
@@ -294,15 +301,16 @@
       var t = L.total(r);
       var used = r.usedBy.length ? r.usedBy.map(function(b){ return '<span class="used">' + esc(b) + '</span>'; }).join('') : '<span class="unused">Not in use</span>';
       var weights = r.criteria.map(function(c){ return '<i style="flex:' + (Number(c.weight) || 1) + '" title="' + esc(c.name) + ' · ' + c.weight + ' pts"></i>'; }).join('');
-      return '<article class="rub" data-id="' + r.id + '">' +
+      return '<article class="rub' + (r.pinned ? ' pinned' : '') + '" data-id="' + r.id + '">' +
         '<div class="rub-main">' +
-          '<button class="rub-title" type="button" data-act="preview">' + esc(r.title) + '</button>' +
+          '<button class="rub-title" type="button" data-act="preview">' + esc(r.title) + '</button>' + (r.isSample ? '<span class="tag-sample">Sample</span>' : '') +
           '<div class="rub-meta"><span class="mono">' + r.criteria.length + ' criteria · ' + t + ' pts</span><span>·</span><span>' + esc(r.source) + '</span><span>·</span><span>Updated ' + L.ago(r.updated) + '</span></div>' +
           '<div class="weights" aria-hidden="true">' + weights + '</div>' +
           '<div class="rub-crit">' + r.criteria.map(function(c){ return esc(c.name); }).join(' · ') + '</div>' +
         '</div>' +
         '<div class="rub-used">' + used + '</div>' +
         '<div class="rub-act">' +
+          '<button class="btn btn-ghost sm pin-btn" type="button" data-act="pin" aria-pressed="' + !!r.pinned + '" title="' + (r.pinned ? 'Unpin' : 'Pin to top') + '">' + (r.pinned ? '📌 Pinned' : 'Pin') + '</button>' +
           '<button class="btn btn-ghost sm" type="button" data-act="preview">Preview</button>' +
           '<button class="btn btn-ghost sm" type="button" data-act="edit">Edit</button>' +
         '</div>' +
@@ -311,7 +319,13 @@
   }
   $('list').addEventListener('click', function(e){
     var b = e.target.closest('[data-act]'); if (!b) return;
-    open(b.closest('.rub').dataset.id, b.dataset.act === 'edit');
+    var id = b.closest('.rub').dataset.id;
+    if (b.dataset.act === 'pin'){
+      var r = L.get(id); b.disabled = true;
+      MarkerAPI.pinRubric(id, !r.pinned).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){ render(); toast(r.pinned ? 'Unpinned' : 'Pinned to top'); }).catch(function(err){ b.disabled = false; MarkerDialog.alert(MarkerUI.actionError('Could not change the pin', err)); });
+      return;
+    }
+    open(id, b.dataset.act === 'edit');
   });
   $('q').addEventListener('input', render);
   document.querySelectorAll('.filters .chip').forEach(function(c){
@@ -326,12 +340,17 @@
     if (c.levels && c.levels.length) return c.levels;
     return (c.bands || []).map(function(description, index){ return { id:'level-'+(index+1), label:LV[index] || ('Level '+(index+1)), points:'', description:description }; });
   }
+  function criterionPayload(c){
+    return {name:c.name,weight:Number(c.weight),description:c.description||'',stated_percent:c.stated_percent,grading_mode:c.grading_mode,scoring_mode:c.scoring_mode,score_mapping:c.score_mapping,granularity:c.granularity,aspects:c.aspects||[],prov:c.prov||{},source_text:c.source_text||{},levels:levelsFor(c)};
+  }
   function checks(r){
     var t = L.total(r), list = [];
     list.push(t > 0 ? ['ok', 'Maximum total: ' + t + ' marks'] : ['bad', 'Maximum total is missing']);
     var miss = 0, tooFew = 0;
-    r.criteria.forEach(function(c){ var levels=levelsFor(c);if(levels.length<2)tooFew++;levels.forEach(function(level){if(!String(level.label||'').trim()||!String(level.description||'').trim())miss++;}); });
-    list.push(tooFew ? ['bad', tooFew + ' criteria need at least two levels'] : miss ? ['bad', miss + ' level field' + (miss > 1 ? 's' : '') + ' empty'] : ['ok', 'Source level counts and labels preserved']);
+    var labelOnly = 0;
+    r.criteria.forEach(function(c){ var levels=levelsFor(c);if(levels.length<2)tooFew++;levels.forEach(function(level){if(!String(level.label||'').trim()||level.points===''||level.points==null||isNaN(Number(level.points)))miss++;});if(!levels.some(function(level){return String(level.description||'').trim();}))labelOnly++; });
+    list.push(tooFew ? ['bad', tooFew + ' criteria need at least two levels'] : miss ? ['bad', miss + ' level' + (miss > 1 ? 's need' : ' needs') + ' a label and points'] : ['ok', 'Source level counts and labels preserved']);
+    if (labelOnly) list.push(['warn', labelOnly + ' criteri' + (labelOnly > 1 ? 'a use' : 'on uses') + ' level labels only — judged against the criterion description']);
     if (r.criteria.some(function(c){ return !String(c.name || '').trim(); })) list.push(['bad', 'A criterion has no name']);
     return list;
   }
@@ -352,9 +371,10 @@
         '<div class="crit-h"><h3 data-f="name"' + ce + '>' + esc(c.name) + '</h3>' +
         '<span class="w">' + (editing ? '<input type="number" min="0" data-f="weight" value="' + c.weight + '" aria-label="Maximum marks">' : c.weight) + '<small>pts</small></span>' +
         (editing ? '<button class="rm" type="button" data-rm="' + i + '" aria-label="Remove criterion">×</button>' : '') + '</div>' +
+        (c.description || editing ? '<p class="c-desc" data-f="description"' + ce + (editing ? ' data-ph="What this criterion assesses (optional)"' : '') + '>' + esc(c.description || '') + '</p>' : '') +
         '<div class="bands" style="--levels:' + Math.max(1, levelsFor(c).length) + '">' + levelsFor(c).map(function(level, j){
           var txt = level.description || '', label=level.label || ('Level '+(j+1)), points=level.points;
-          return '<div class="band lv' + ((j % 5) + 1) + (txt.trim() ? '' : ' missing') + '"><span class="lv">' + esc(label) + (points === '' || points == null ? '' : ' · ' + esc(points) + ' pts') + '</span><p data-f="level-description" data-j="' + j + '"' + ce + '>' + (txt.trim() ? esc(txt) : (editing ? '' : 'Not written yet')) + '</p></div>';
+          return '<div class="band lv' + ((j % 5) + 1) + (String(label).trim() ? '' : ' missing') + (txt.trim() ? '' : ' plain') + '"><span class="lv">' + esc(label) + (points === '' || points == null ? '' : ' · ' + esc(points) + ' pts') + '</span><p data-f="level-description" data-j="' + j + '"' + ce + '>' + (txt.trim() ? esc(txt) : (editing ? '' : 'No descriptor')) + '</p></div>';
         }).join('') + '</div></section>';
     }).join('');
     drawChecks(r);
@@ -367,7 +387,14 @@
     try { history.replaceState(null, '', location.pathname + location.search + '#open=' + id); } catch(e){}
   }
   function close(){
-    if (editing && !confirm('Close without saving your changes?')) return;
+    if (editing){
+      MarkerDialog.confirm({ title: 'Close without saving?', icon: 'warn', tone: 'danger', confirmLabel: 'Discard changes', cancelLabel: 'Keep editing',
+        message: 'Your edits to this rubric have not been saved.' }).then(function(yes){ if (yes) closeNow(); });
+      return;
+    }
+    closeNow();
+  }
+  function closeNow(){
     editing = false; draft = null; openId = null;
     $('scrim').hidden = true; $('drawer').classList.remove('open'); $('drawer').setAttribute('aria-hidden', 'true');
     try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
@@ -386,8 +413,9 @@
     var sec = el.closest('.crit'); if (!sec) return;
     var c = draft.criteria[Number(sec.dataset.i)];
     if (el.dataset.f === 'name') c.name = el.textContent.trim();
+    if (el.dataset.f === 'description') c.description = el.innerText.trim();
     if (el.dataset.f === 'weight') c.weight = Number(el.value) || 0;
-    if (el.dataset.f === 'level-description'){ var levels=levelsFor(c);levels[Number(el.dataset.j)].description=el.textContent.trim();c.levels=levels;c.bands=levels.map(function(level){return level.description;});el.parentNode.classList.toggle('missing', !el.textContent.trim()); }
+    if (el.dataset.f === 'level-description'){ var levels=levelsFor(c);levels[Number(el.dataset.j)].description=el.textContent.trim();c.levels=levels;c.bands=levels.map(function(level){return level.description;});el.parentNode.classList.toggle('plain', !el.textContent.trim()); }
     drawChecks(draft);
     $('dMeta').firstChild && ($('dMeta').innerHTML = draft.criteria.length + ' criteria · ' + L.total(draft) + ' pts · ' + esc(draft.source) + ' · editing');
   });
@@ -401,13 +429,22 @@
   });
   $('dSave').addEventListener('click', function(){
     if (!draft.title) draft.title = 'Untitled rubric';
-    L.upsert(draft); editing = false; draft = null; drawBody(); render(); toast('Rubric saved');
+    var btn = $('dSave'); btn.disabled = true;
+    var payload = { version: draft.version, title: draft.title, source: draft.source, criteria: draft.criteria.map(criterionPayload) };
+    MarkerAPI.updateRubric(draft.id, payload).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){
+      editing = false; draft = null; drawBody(); render(); toast('Rubric saved as a new version');
+    }).catch(function(err){ btn.disabled = false; MarkerDialog.alert(MarkerUI.actionError('Could not save the rubric', err)); });
   });
   $('dDelete').addEventListener('click', function(){
     var r = L.get(openId);
-    if (r.usedBy.length){ alert('“' + r.title + '” is used by ' + r.usedBy.join(', ') + '. It can be deleted once that batch is closed.'); return; }
-    if (!confirm('Delete “' + r.title + '” from your library?')) return;
-    L.remove(openId); editing = false; close(); render(); toast('Rubric deleted');
+    if (r.usedBy.length){ MarkerDialog.alert({ title: 'This rubric is in use', icon: 'info', message: '“' + r.title + '” is used by ' + r.usedBy.join(', ') + '. It can be deleted once that batch is closed.' }); return; }
+    MarkerDialog.confirm({ title: 'Delete this rubric?', icon: 'trash', tone: 'danger', kicker: r.title, confirmLabel: 'Delete rubric', cancelLabel: 'Keep it',
+      message: '“' + r.title + '” will be removed from your library.' }).then(function(yes){
+      if (!yes) return;
+      MarkerAPI.deleteRubric(openId, r.version).then(function(){ return window.MarkerReloadRubrics(); }).then(function(){
+        closeNow(); render(); toast('Rubric deleted');
+      }).catch(function(err){ MarkerDialog.alert(MarkerUI.actionError('Could not delete the rubric', err)); });
+    });
   });
   $('dUse').addEventListener('click', function(e){
     e.preventDefault();
@@ -424,7 +461,8 @@
 })();
 </script>
 
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
+<script src="/js/dialog.js"></script>
+<script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

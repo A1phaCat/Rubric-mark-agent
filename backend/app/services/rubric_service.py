@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.models.batch import Batch
 from app.db.models.rubric import Rubric, RubricCriterion
 from app.domain.ids import new_id
+from app.domain.timefmt import iso_utc
 
 
 class RubricUseCases:
@@ -18,7 +19,9 @@ class RubricUseCases:
 
     def list(self, query: str | None = None, page: int = 1, page_size: int = 50) -> dict[str, Any]:
         statement = (
-            select(Rubric).where(Rubric.archived_at.is_(None)).order_by(Rubric.updated_at.desc())
+            select(Rubric)
+            .where(Rubric.archived_at.is_(None))
+            .order_by(Rubric.pinned.desc(), Rubric.created_at.desc())
         )
         if query:
             statement = statement.where(Rubric.title.ilike(f"%{query}%"))
@@ -51,7 +54,7 @@ class RubricUseCases:
             "rubric": {
                 **self._summary(rubric),
                 "criteria": [self._criterion(item) for item in criteria],
-                "created_at": rubric.created_at.isoformat(),
+                "created_at": iso_utc(rubric.created_at),
             },
             "used_by": [
                 {"batch_id": b.id, "batch_name": b.name, "rubric_version": b.rubric_version}
@@ -59,9 +62,18 @@ class RubricUseCases:
             ],
         }
 
-    def create(self, payload: dict[str, Any], actor_id: str) -> dict[str, Any]:
+    def create(
+        self,
+        payload: dict[str, Any],
+        actor_id: str,
+        *,
+        rubric_id: str | None = None,
+        is_sample: bool = False,
+    ) -> dict[str, Any]:
+        """Create a library rubric. ``rubric_id``/``is_sample`` are used only by the sample seeder."""
+
         now = datetime.now(timezone.utc)
-        rubric_id = new_id("rub")
+        rubric_id = rubric_id or new_id("rub")
         rubric = Rubric(
             id=rubric_id,
             title=payload["title"],
@@ -70,6 +82,8 @@ class RubricUseCases:
             created_by=actor_id,
             created_at=now,
             updated_at=now,
+            is_sample=is_sample,
+            pinned=True,
         )
         self.session.add(rubric)
         self._add_criteria(rubric_id, 1, payload["criteria"])
@@ -94,6 +108,14 @@ class RubricUseCases:
         self.session.flush()
         return self.get(rubric_id)
 
+    def set_pinned(self, rubric_id: str, pinned: bool) -> dict[str, Any]:
+        rubric = self.session.get(Rubric, rubric_id)
+        if rubric is None or rubric.archived_at is not None:
+            raise KeyError(rubric_id)
+        rubric.pinned = bool(pinned)
+        self.session.flush()
+        return {"rubric_id": rubric.id, "pinned": rubric.pinned}
+
     def delete(self, rubric_id: str, version: int) -> dict[str, Any]:
         rubric = self.session.get(Rubric, rubric_id)
         if rubric is None:
@@ -110,6 +132,16 @@ class RubricUseCases:
     def _add_criteria(self, rubric_id: str, version: int, criteria: list[dict[str, Any]]) -> None:
         for position, item in enumerate(criteria):
             levels = self._normalise_levels(item.get("levels", []), float(item["weight"]))
+            metadata = {
+                "flags": item.get("flags", []),
+                "stated_percent": item.get("stated_percent"),
+                "scoring_mode": item.get("scoring_mode", "fixed_levels"),
+                "score_mapping": item.get("score_mapping", "explicit"),
+                "granularity": item.get("granularity"),
+                "evidence_standard": item.get("evidence_standard"),
+                "prov": item.get("prov", {}),
+                "source_text": item.get("source_text", {}),
+            }
             descriptions = [level["description"] for level in levels]
             descriptions += [""] * (5 - len(descriptions))
             points = [float(level["points"]) for level in levels]
@@ -122,6 +154,7 @@ class RubricUseCases:
                     position=position,
                     name=item["name"],
                     weight=float(item["weight"]),
+                    description=str(item.get("description") or "").strip(),
                     level_hd=descriptions[0],
                     level_di=descriptions[1],
                     level_cr=descriptions[2],
@@ -133,12 +166,14 @@ class RubricUseCases:
                     pts_ps=points[3],
                     pts_fl=points[4],
                     levels_json=json.dumps(levels, ensure_ascii=False),
-                    # Evidence requirements are submission-specific runtime
-                    # data.  They are derived by the grading pipeline, not
-                    # during rubric parsing or library persistence.
+                    # Keep parser/editor metadata with each library version so
+                    # importing, editing and reusing a rubric is lossless.
                     grading_mode=str(item.get("grading_mode") or ""),
-                    aspects_json="[]",
-                    flags_json=json.dumps(item.get("flags", [])),
+                    aspects_json=json.dumps(item.get("aspects", []), ensure_ascii=False),
+                    # This column originally held only a list of flags. Keep
+                    # accepting that legacy shape while using it as the
+                    # criterion metadata envelope for lossless import/save.
+                    flags_json=json.dumps(metadata, ensure_ascii=False),
                 )
             )
 
@@ -212,7 +247,9 @@ class RubricUseCases:
             "criteria_count": criteria_count,
             "total_weight": float(total_weight),
             "used_by_count": used_by_count,
-            "updated_at": rubric.updated_at.isoformat(),
+            "is_sample": bool(rubric.is_sample),
+            "pinned": bool(rubric.pinned),
+            "updated_at": iso_utc(rubric.updated_at),
         }
 
     @staticmethod
@@ -234,12 +271,22 @@ class RubricUseCases:
                 }
                 for label, desc, point in zip(labels, descriptions, points)
             ]
+        stored_metadata = json.loads(item.flags_json or "[]")
+        metadata = stored_metadata if isinstance(stored_metadata, dict) else {"flags": stored_metadata}
         return {
             "id": item.id,
             "name": item.name,
             "weight": item.weight,
-            "description": "",
+            "description": item.description or "",
             "levels": levels,
             "grading_mode": item.grading_mode,
             "aspects": json.loads(item.aspects_json or "[]"),
+            "flags": metadata.get("flags", []),
+            "stated_percent": metadata.get("stated_percent"),
+            "scoring_mode": metadata.get("scoring_mode", "fixed_levels"),
+            "score_mapping": metadata.get("score_mapping", "explicit"),
+            "granularity": metadata.get("granularity"),
+            "evidence_standard": metadata.get("evidence_standard"),
+            "prov": metadata.get("prov", {}),
+            "source_text": metadata.get("source_text", {}),
         }

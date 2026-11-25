@@ -1,0 +1,5 @@
+Marks from,Submissions,Spearman ρ with length,"Mean mark, shorter half","Mean mark, longer half"
+direct,9,-0.38,86%,80%
+retrieval,9,-0.33,87%,81%
+full,9,-0.09,85%,84%
+full_tools,9,-0.08,83%,85%

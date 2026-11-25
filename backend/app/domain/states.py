@@ -7,6 +7,7 @@ from typing import Mapping, Set, TypeVar
 class BatchStatus(str, Enum):
     DRAFT = "draft"
     PROCESSING = "processing"
+    PAUSED = "paused"  # queued work held back; resumable (CANCELLED is not)
     IN_REVIEW = "in_review"
     COMPLETED = "completed"
     FINALISED = "finalised"
@@ -57,7 +58,9 @@ BATCH_TRANSITIONS: Mapping[BatchStatus, Set[BatchStatus]] = {
         BatchStatus.IN_REVIEW,
         BatchStatus.FAILED_ALL,
         BatchStatus.CANCELLED,
+        BatchStatus.PAUSED,
     },
+    BatchStatus.PAUSED: {BatchStatus.PROCESSING, BatchStatus.IN_REVIEW, BatchStatus.CANCELLED},
     BatchStatus.IN_REVIEW: {BatchStatus.COMPLETED},
     BatchStatus.COMPLETED: {BatchStatus.FINALISED},
     BatchStatus.FINALISED: {BatchStatus.COMPLETED},

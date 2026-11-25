@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,8 +7,8 @@ from app.db.base import Base
 from app.db.models.batch import Batch
 from app.db.models.core import Term, User
 from app.db.models.review import Review
+from app.db.models.rubric import Rubric
 from app.db.models.submission import Submission
-from app.services.fixture_service import FixtureStore
 from app.services.review_service import ReviewUseCases
 
 
@@ -23,6 +22,17 @@ def test_confirm_completes_batch_in_same_transaction() -> None:
             [
                 User(id="usr_test", name="Test", email="test@example.test", role="tutor"),
                 Term(id="term_test", label="Test"),
+                Rubric(
+                    id="rub_test",
+                    title="Test rubric",
+                    source="test",
+                    version=1,
+                    created_by="usr_test",
+                    created_at=now,
+                    updated_at=now,
+                    is_sample=False,
+                    pinned=False,
+                ),
                 Batch(
                     id="bat_test",
                     name="One",
@@ -31,6 +41,8 @@ def test_confirm_completes_batch_in_same_transaction() -> None:
                     total_count=1,
                     created_by="usr_test",
                     created_at=now,
+                    rubric_library_id="rub_test",
+                    rubric_version=1,
                     version=1,
                 ),
                 Submission(
@@ -39,7 +51,6 @@ def test_confirm_completes_batch_in_same_transaction() -> None:
                     sid="SID-1",
                     status="in_review",
                     flags_json="[]",
-                    is_mock=True,
                     version=1,
                     updated_at=now,
                 ),
@@ -56,9 +67,18 @@ def test_confirm_completes_batch_in_same_transaction() -> None:
                 ),
             ]
         )
-    root = Path(__file__).resolve().parents[3] / "fixtures/demo"
     with factory.begin() as session:
-        result = ReviewUseCases(session, FixtureStore(root)).confirm("sub_test", "usr_test", 1)
+        result = ReviewUseCases(session).confirm("sub_test", "usr_test", 1)
         assert result["batch_status"] == "completed"
         assert result["next_id"] is None
         assert session.get(Batch, "bat_test").status == "completed"
+
+    with factory.begin() as session:
+        opened = ReviewUseCases(session).open("sub_test", "usr_test")
+        assert opened["can_edit"] is True
+        saved = ReviewUseCases(session).save_criterion(
+            "sub_test", "crt_test", {"score": 75, "comment": "Corrected", "version": 2}
+        )
+        assert saved["score"] == 75
+        assert session.get(Submission, "sub_test").status == "in_review"
+        assert session.get(Batch, "bat_test").status == "in_review"

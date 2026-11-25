@@ -100,7 +100,9 @@
   .wbar i{ height:100%; }
   .wbar i:nth-child(4n+1){ background:var(--lv1); } .wbar i:nth-child(4n+2){ background:var(--lv2); } .wbar i:nth-child(4n+3){ background:var(--lv3); } .wbar i:nth-child(4n+4){ background:var(--lv4); }
   .checks{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-  .ck{ font-size:12px; padding:3px 10px; border-radius:20px; }
+  .ck{ font-size:12px; padding:3px 10px; border-radius:20px; border:0; font-family:inherit; line-height:1.5; }
+  button.ck{ cursor:pointer; }
+  button.ck:hover, button.ck:focus-visible{ box-shadow:0 0 0 2px currentColor; outline:none; }
   .ck.ok{ background:var(--conf-high-bg); color:var(--conf-high); }
   .ck.bad{ background:var(--risk-bg); color:var(--risk); }
   .ck.warn{ background:var(--conf-med-bg); color:var(--conf-med); }
@@ -123,6 +125,9 @@
   .c-w:focus-within{ box-shadow:0 0 0 2px var(--primary); }
   .c-rm{ width:24px; height:24px; flex:none; border:0; background:none; color:var(--ink-soft); cursor:pointer; border-radius:6px; font-size:16px; line-height:1; }
   .c-rm:hover{ color:var(--risk); background:var(--risk-bg); }
+  .c-desc{ grid-column:1 / -1; display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--ink-soft); }
+  .c-desc em{ font-style:normal; color:var(--conf-med); }
+  .c-desc textarea{ width:100%; min-height:54px; resize:vertical; border:1px solid var(--border); border-radius:7px; padding:7px 8px; font-size:12.5px; line-height:1.45; background:#fff; }
   .bands{ display:none; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:8px; padding:2px 20px 16px 54px; }
   .crit.open .bands{ display:grid; }
   .band{ display:flex; flex-direction:column; gap:4px; }
@@ -131,8 +136,13 @@
   .band.l1{ --c:var(--lv1); } .band.l2{ --c:var(--lv2); } .band.l3{ --c:var(--lv3); } .band.l4{ --c:var(--lv4); } .band.l5{ --c:var(--lv5); }
   .band textarea{ width:100%; min-height:92px; resize:vertical; border:1px solid var(--border); border-radius:7px; padding:7px 8px; font-size:12.5px; line-height:1.45; background:var(--tint); }
   .band textarea:focus{ outline:none; border-color:var(--primary); background:#fff; }
-  .level-head{ display:grid; grid-template-columns:minmax(0,1fr) 62px; gap:5px; }
+  .level-head{ display:grid; grid-template-columns:minmax(0,1fr) 62px 24px; gap:5px; }
   .level-head input{ width:100%; min-width:0; border:1px solid var(--border); border-radius:5px; padding:4px 6px; font-size:11.5px; background:#fff; }
+  .level-rm{ width:24px; height:26px; border:0; border-radius:5px; background:transparent; color:var(--ink-soft); cursor:pointer; padding:0; font-size:16px; line-height:1; }
+  .level-rm:hover{ color:var(--risk); background:var(--risk-bg); }
+  .level-actions{ grid-column:1 / -1; display:flex; align-items:center; padding-top:2px; }
+  .add-level{ border:0; background:none; padding:3px 0; color:var(--ink-soft); font-size:12.5px; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+  .add-level:hover{ color:var(--primary); }
   .sid-input{ width:135px; border:1px solid var(--border-strong); border-radius:5px; padding:4px 7px; font:12px 'IBM Plex Mono',monospace; }
   .band.missing textarea{ border-color:var(--risk); background:var(--risk-bg); }
   .band.missing label{ color:var(--risk); }
@@ -149,6 +159,8 @@
   select.sel:focus{ outline:none; border-color:var(--primary); }
   .assn{ margin-top:12px; display:none; border:1px solid var(--border); border-radius:8px; background:var(--tint); padding:12px 14px; }
   .assn.show{ display:block; }
+  .cv-pick{ display:grid; gap:8px; }
+  .assn .use-rubric{ margin-top:10px; }
   .kv{ display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:12.5px; }
   .kv dt{ color:var(--ink-soft); } .kv dd{ margin:0; text-align:right; font-family:'IBM Plex Mono',monospace; }
   .dropzone{ border:1.5px dashed var(--border-strong); border-radius:8px; padding:22px 16px; text-align:center; color:var(--ink-soft); font-size:13px; cursor:pointer; background:var(--tint); transition:border-color .15s, background .15s; }
@@ -161,12 +173,31 @@
   .file .mt{ color:var(--ink-soft); white-space:nowrap; }
   .file.warn{ background:var(--ai-bg); border-color:transparent; color:var(--ai); }
   .file.warn .mt{ color:var(--ai); }
+  .file.ok{ background:var(--conf-high-bg); border-color:transparent; color:var(--conf-high); }
+  .upload-summary{ display:flex; gap:12px; flex-wrap:wrap; padding:9px 10px; border-radius:6px; background:var(--tint); font:12px 'IBM Plex Mono',monospace; }
+  .upload-summary b{ color:var(--ink); }
+  .file-details{ border:1px solid var(--border); border-radius:6px; background:var(--surface); }
+  .file-details summary{ padding:8px 10px; cursor:pointer; color:var(--primary); font-size:12.5px; font-weight:500; }
+  .file-details summary:hover{ text-decoration:underline; text-underline-offset:2px; }
+  .file-list-scroll{ max-height:280px; overflow:auto; display:flex; flex-direction:column; gap:6px; padding:0 6px 6px; }
+  .file-details .file{ flex:none; }
+  .fix-details{ border-color:var(--primary); background:var(--tint); }
+  .fix-details summary{ color:var(--ink); display:flex; justify-content:space-between; gap:10px; }
+  .fix-details summary::after{ content:attr(data-progress); color:var(--ink-soft); font:11.5px 'IBM Plex Mono',monospace; font-weight:400; }
+  .sid-format{ margin:-2px 10px 7px; color:var(--ink-soft); font-size:11.5px; }
+  .sid-format code{ color:var(--ai); font:11px 'IBM Plex Mono',monospace; }
+  .fix-details .file{ transition:background .2s,border-color .2s,opacity .2s; }
+  .fix-details .file.ok{ background:var(--conf-high-bg); border-color:transparent; color:var(--conf-high); }
+  .sid-field{ display:flex; align-items:center; gap:5px; white-space:nowrap; }
+  .sid-check{ width:18px; height:18px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:var(--conf-high); color:#fff; font-size:12px; opacity:0; transform:scale(.7); transition:opacity .15s,transform .15s; }
+  .file.ok .sid-check{ opacity:1; transform:scale(1); }
+  .file.ok .sid-input{ border-color:var(--conf-high); }
   .note{ font-size:12.5px; color:var(--ink-soft); display:flex; gap:8px; margin:4px 0 0; }
   .note .dot{ width:5px; height:5px; border-radius:50%; background:var(--primary); margin-top:7px; flex:none; }
 
   /* Bottom bar */
   footer.setupbar{ position:fixed; left:0; right:0; bottom:0; z-index:30; background:var(--surface); border-top:1px solid var(--border); box-shadow:0 -6px 18px rgba(66,66,66,.06); }
-  .sb-in{ max-width:1180px; margin:0 auto; height:72px; padding:0 40px; display:flex; align-items:center; gap:28px; }
+  .sb-in{ max-width:1180px; margin:0 auto; height:72px; padding:0 40px; display:flex; align-items:center; gap:20px; }
   .sb-item{ display:flex; flex-direction:column; min-width:0; }
   .sb-item .k{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); display:flex; align-items:center; gap:6px; }
   .sb-item .v{ font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -174,12 +205,29 @@
   .sb-item .v.muted{ color:var(--ink-soft); font-weight:400; }
   .sb-dot{ width:7px; height:7px; border-radius:50%; background:var(--border-strong); }
   .sb-dot.ok{ background:var(--conf-high); } .sb-dot.bad{ background:var(--risk); }
-  .sb-rub{ flex:1 1 auto; max-width:330px; }
+  .sb-rub{ flex:0 1 260px; max-width:260px; }
+  .sb-criteria{ flex:0 1 105px; }
+  .sb-submissions{ flex:0 0 90px; }
+  .sb-time{ flex:0 0 108px; }
+  .sb-time .v{ overflow:visible; text-overflow:clip; }
   .sb-sp{ flex:1; }
-  .sb-why{ font-size:12.5px; color:var(--risk); text-align:right; max-width:220px; }
+  .sb-why{ font-size:12.5px; color:var(--risk); text-align:right; max-width:180px; }
   .sb-start{ height:44px; padding:0 22px; font-size:14px; }
   .toast{ position:fixed; left:50%; bottom:90px; transform:translate(-50%,8px); background:var(--chrome); color:#fff; font-size:13px; padding:9px 16px; border-radius:999px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60; }
   .toast.show{ opacity:1; transform:translate(-50%,0); }
+
+  /* External AI consent — same modal language as the review queue end card. */
+  .consent-modal{ position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(40,36,33,.42); }
+  .consent-modal[hidden]{ display:none; }
+  .consent-box{ width:min(460px,100%); padding:30px 30px 22px; border-radius:14px; background:var(--surface); box-shadow:0 24px 60px rgba(40,36,33,.3); text-align:center; }
+  .consent-icon{ width:56px; height:56px; margin:0 auto 14px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--conf-med-bg); color:var(--conf-med); }
+  .consent-kicker{ font:11px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:var(--conf-med); }
+  .consent-box h2{ margin:4px 0 8px; font-family:'Source Serif 4',serif; font-size:24px; font-weight:600; }
+  .consent-copy{ max-width:370px; margin:0 auto 16px; color:var(--ink-soft); font-size:14px; }
+  .consent-copy b{ color:var(--ink); font-weight:600; }
+  .consent-note{ margin-bottom:18px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--tint); color:var(--ink-soft); font-size:12px; }
+  .consent-actions{ display:flex; flex-direction:column; gap:8px; }
+  .consent-actions .btn{ width:100%; height:48px; justify-content:center; }
 
   @media (max-width:1000px){ .sb-why{ display:none; } .sb-time{ display:none; } }
   @media (max-width:900px){
@@ -274,7 +322,7 @@
     <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><span aria-current="page" id="bcCur">Set up batch</span></li></ol><a class="bc-up" href="00-home.html"><span aria-hidden="true">‹</span><span class="t">Home</span></a></nav>
   </div>
   <div class="ab-right">
-    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+    <div class="ab-user" title="Local single-user mode"><span class="ab-uname">&nbsp;</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true"></span></div>
   </div>
 </header>
 <div class="ab-steps"><div class="ab-steps-in"><div class="step-track">
@@ -303,7 +351,6 @@
         <p class="hint">The parser keeps the criteria and scoring levels from your rubric. It does not force a five-band HD–FL scale.</p>
         <textarea class="paste" id="pasteText" spellcheck="false" placeholder="e.g.&#10;1. Analysis — 3 marks&#10;Excellent (3): …&#10;Good (2): …&#10;Basic (1): …&#10;Missing (0): …"></textarea>
         <div class="row-btns">
-          <button class="linkbtn" type="button" id="fillSample">Paste an example</button>
           <button class="linkbtn" type="button" id="rubricFileBtn">Upload PDF, DOCX or TXT</button>
           <input type="file" id="rubricFile" accept=".pdf,.docx,.txt,.md,.csv,.tsv,.json" hidden>
           <span class="sp"></span>
@@ -341,21 +388,23 @@
 
       <section class="box" id="boxCanvas">
         <div class="box-h"><span class="tag">A</span><h3>From a Canvas assignment</h3><span class="chosen">Using this</span></div>
-        <p class="hint">Not available in local MVP. Upload PDF, DOCX or ZIP files instead.</p>
-        <select class="sel" id="assnSel" aria-label="Canvas assignment" disabled title="Not available in local MVP">
-          <option value="">Not available in local MVP</option>
-        </select>
+        <p class="hint" id="cvHint">Pulls every submitted file the connected Canvas account can see. Read-only: nothing is sent back to Canvas.</p>
+        <div class="cv-pick">
+          <select class="sel" id="cvCourseSel" aria-label="Canvas course" disabled><option value="">Connect Canvas in the account menu</option></select>
+          <select class="sel" id="assnSel" aria-label="Canvas assignment" disabled><option value="">Choose an assignment…</option></select>
+        </div>
         <div class="assn" id="assnInfo"></div>
+        <div class="files" id="assnFiles"></div>
       </section>
 
       <div class="or">or</div>
 
       <section class="box" id="boxZip">
         <div class="box-h"><span class="tag">B</span><h3>Upload submissions</h3><span class="chosen">Using this</span></div>
-        <p class="hint">Upload one PDF, DOCX or TXT for this check. Put the SID in the filename or enter it in the Fix files field.</p>
+        <p class="hint">Upload a ZIP or individual PDF, DOCX and TXT files. SIDs are matched from filenames; you only fix the exceptions.</p>
         <div class="dropzone" id="drop" tabindex="0" role="button" aria-label="Upload submission files"><span class="ic">⤒</span><b>Drop submission files here</b> or click to browse</div>
         <input type="file" id="zipIn" accept=".zip,.pdf,.docx,.txt" multiple hidden>
-        <div class="row-btns"><button class="linkbtn" type="button" id="sampleZip">Use the sample zip</button></div>
+        <div class="row-btns" hidden><button class="linkbtn" type="button" id="sampleZip">Use the sample zip</button></div>
         <div class="files" id="zipFiles"></div>
       </section>
 
@@ -367,14 +416,24 @@
 <footer class="setupbar" aria-label="Batch summary">
   <div class="sb-in">
     <div class="sb-item sb-rub"><span class="k"><span class="sb-dot" id="dRub"></span>Rubric</span><span class="v" id="vRub">Not chosen</span></div>
-    <div class="sb-item"><span class="k">Criteria</span><span class="v" id="vCrit">—</span></div>
-    <div class="sb-item"><span class="k"><span class="sb-dot" id="dSub"></span>Submissions</span><span class="v" id="vSub">—</span></div>
-    <div class="sb-item sb-time"><span class="k">Est. time</span><span class="v" id="vTime">—</span></div>
+    <div class="sb-item sb-criteria"><span class="k">Criteria</span><span class="v" id="vCrit">—</span></div>
+    <div class="sb-item sb-submissions"><span class="k"><span class="sb-dot" id="dSub"></span>Submissions</span><span class="v" id="vSub">—</span></div>
+    <div class="sb-item sb-time" id="aiPrepEstimate"><span class="k">AI prep</span><span class="v" id="vTime">—</span></div>
     <span class="sb-sp"></span>
     <span class="sb-why" id="why"></span>
     <button class="btn btn-primary sb-start" id="startBtn" type="button" disabled>Start batch →</button>
   </div>
 </footer>
+<div class="consent-modal" id="externalConsent" hidden role="dialog" aria-modal="true" aria-labelledby="consentTitle" aria-describedby="consentCopy">
+  <div class="consent-box">
+    <div class="consent-icon" aria-hidden="true"><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><rect x="4" y="15" width="16" height="6" rx="2"/></svg></div>
+    <div class="consent-kicker">External AI processing</div>
+    <h2 id="consentTitle">Send submissions?</h2>
+    <p class="consent-copy" id="consentCopy">Uploaded submission text will be sent to an external AI provider.</p>
+    <div class="consent-note">Submission text · evidence retrieval · AI-assisted marking</div>
+    <div class="consent-actions"><button class="btn btn-primary" type="button" id="consentContinue">Continue →</button><button class="btn btn-ghost" type="button" id="consentCancel">Cancel</button></div>
+  </div>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="rubric-library.js"></script>
@@ -402,40 +461,19 @@
   }
   $('libList').addEventListener('click', function(e){
     var b = e.target.closest('.lib-row'); if (!b) return;
-    if (dirty && !confirm('Replace the rubric you are editing?')) return;
+    if (dirty && !b.dataset.replaceOk){ MarkerDialog.confirm({ title: 'Replace the rubric you are editing?', icon: 'warn', confirmLabel: 'Replace it', cancelLabel: 'Keep editing', message: 'Your unsaved changes to the current rubric will be lost.' }).then(function(ok){ if (ok){ b.dataset.replaceOk = '1'; b.click(); delete b.dataset.replaceOk; } }); return; }
     var r = L.get(b.dataset.id);
     load({ libId:r.id, title:r.title, source:'From your rubric library · ' + r.source, criteria:clone(r.criteria) }, 'library');
     setTimeout(function(){ $('critBox').scrollIntoView({ behavior:'smooth', block:'start' }); }, 60);
   });
 
   /* ---------- B. Paste + parse ---------- */
-  var SAMPLE = [
-    'Short response rubric (9 marks)',
-    '',
-    '1. Accuracy — 3 marks',
-    'Excellent (3): Correct and complete.',
-    'Good (2): Mostly correct with a minor omission.',
-    'Basic (1): Partly correct.',
-    'Missing (0): Incorrect or absent.',
-    '',
-    '2. Reasoning — 3 marks',
-    'Excellent (3): Reasoning is clear and fully supported.',
-    'Good (2): Reasoning is sound but brief.',
-    'Basic (1): Limited reasoning.',
-    'Missing (0): No relevant reasoning.',
-    '',
-    '3. Communication — 3 marks',
-    'Excellent (3): Precise and easy to follow.',
-    'Good (2): Clear overall.',
-    'Basic (1): Meaning is sometimes unclear.',
-    'Missing (0): Cannot be assessed.'
-  ].join('\n');
   $('pasteText').addEventListener('input', function(){ $('parseBtn').disabled = !this.value.trim(); });
-  $('fillSample').addEventListener('click', function(){ var t = $('pasteText'); t.value = SAMPLE; $('parseBtn').disabled = false; t.focus(); t.setSelectionRange(0, 0); t.scrollTop = 0; });
   $('parseBtn').addEventListener('click', function(){
     var text = $('pasteText').value; if (!text.trim()) return;
-    if (dirty && !confirm('Replace the rubric you are editing?')) return;
-    var btn = this; btn.disabled = true;
+    var btn = this;
+    if (dirty && !btn.dataset.replaceOk){ MarkerDialog.confirm({ title: 'Replace the rubric you are editing?', icon: 'warn', confirmLabel: 'Replace it', cancelLabel: 'Keep editing', message: 'Your unsaved changes to the current rubric will be lost.' }).then(function(ok){ if (ok){ btn.dataset.replaceOk = '1'; btn.click(); delete btn.dataset.replaceOk; } }); return; }
+    btn.disabled = true;
     $('parseState').innerHTML = '<span class="spin"></span>Reading rubric structure…';
     MarkerAPI.parseRubric(text,'pasted-rubric.txt').then(function(result){
       var p = result.rubric; btn.disabled = false;
@@ -474,20 +512,30 @@
     })};
   }
   function load(r, from){
-    R = r; R.criteria=(R.criteria||[]).map(normaliseCriterion); origin = from; dirty = false; openSet = {};
+    var nextCriteria=(r.criteria||[]).map(normaliseCriterion);
+    var currentShape=R&&JSON.stringify({title:R.title,criteria:R.criteria});
+    var nextShape=JSON.stringify({title:r.title,criteria:nextCriteria});
+    if(pendingBatch&&currentShape!==nextShape)invalidatePendingBatchForRubricChange();
+    R = r; R.criteria=nextCriteria; origin = from; dirty = false; openSet = {};
     R.criteria.forEach(function(c, i){ if (c.flag) openSet[i] = true; });
     $('boxLib').classList.toggle('active', from === 'library');
     $('boxPaste').classList.toggle('active', from === 'paste');
     drawLib(); drawEditor(); update();
   }
+  /* A level needs a label and points. Descriptors are optional: many real rubrics give level
+     labels and points only, and the AI then judges against the criterion description. */
+  function levelOK(level){ return String(level.label||'').trim() && String(level.points).trim()!=='' && !isNaN(Number(level.points)); }
+  function described(c){ return c.levels.some(function(level){ return String(level.description||'').trim(); }); }
   function checks(){
     var list = [], t = L.total(R);
     list.push(t > 0 ? ['ok','Maximum total: ' + t + ' marks'] : ['bad','Total marks must be greater than zero']);
-    var miss = 0, short=0, missingWeight=0; R.criteria.forEach(function(c){ if(!(Number(c.weight)>0))missingWeight++; if(c.levels.length<2)short++; c.levels.forEach(function(level){ if(!String(level.label||'').trim()||!String(level.description||'').trim()||String(level.points).trim()===''||isNaN(Number(level.points)))miss++; }); });
-    list.push(miss ? ['bad', miss + ' incomplete scoring level' + (miss > 1 ? 's' : '')] : ['ok','All detected scoring levels are complete']);
-    if(short)list.push(['bad','Each criterion needs at least 2 scoring levels']);
-    if(missingWeight)list.push(['bad',missingWeight+' criterion'+(missingWeight>1?'s have':' has')+' no maximum marks']);
-    if (R.criteria.some(function(c){ return !String(c.name || '').trim(); })) list.push(['bad','A criterion has no name']);
+    var miss = 0, short=0, missingWeight=0, labelOnly=0, partial=0; R.criteria.forEach(function(c){ if(!(Number(c.weight)>0))missingWeight++; if(c.levels.length<2)short++; c.levels.forEach(function(level){ if(!levelOK(level))miss++; }); if(!described(c))labelOnly++; else if(c.levels.some(function(level){ return !String(level.description||'').trim(); }))partial++; });
+    list.push(miss ? ['bad', miss + ' level' + (miss > 1 ? 's need' : ' needs') + ' a label and points','level-fields'] : ['ok','Every level has a label and points']);
+    if(labelOnly)list.push(['warn',labelOnly+' criteri'+(labelOnly>1?'a use':'on uses')+' level labels only — judged against the criterion description','label-only']);
+    if(partial)list.push(['warn',partial+' criteri'+(partial>1?'a have':'on has')+' some levels without a descriptor','partial-descriptor']);
+    if(short)list.push(['bad',short+' criterion'+(short>1?' need':' needs')+' at least 2 scoring levels','short-levels']);
+    if(missingWeight)list.push(['bad',missingWeight+' criterion'+(missingWeight>1?'s have':' has')+' no maximum marks','weight']);
+    if (R.criteria.some(function(c){ return !String(c.name || '').trim(); })) list.push(['bad','A criterion has no name','name']);
     if (!R.criteria.length) list.push(['bad','No criteria']);
     list.push(['ok','Level count and labels come from this rubric']);
     return list;
@@ -495,7 +543,10 @@
   function rubricOK(){ return R && !checks().some(function(c){ return c[0] === 'bad'; }); }
   function drawHead(){
     $('wbar').innerHTML = R.criteria.map(function(c){ return '<i style="flex:' + Math.max(Number(c.weight) || 0, 0.5) + '" title="' + esc(c.name) + ' · ' + c.weight + ' marks"></i>'; }).join('');
-    $('checks').innerHTML = checks().map(function(c){ return '<span class="ck ' + c[0] + '">' + (c[0] === 'ok' ? '✓ ' : '! ') + esc(c[1]) + '</span>'; }).join('');
+    $('checks').innerHTML = checks().map(function(c){
+      var content=(c[0] === 'ok' ? '✓ ' : '! ')+esc(c[1]);
+      return c[2] ? '<button type="button" class="ck '+c[0]+'" data-check="'+c[2]+'" title="Show the first matching criterion">'+content+'</button>' : '<span class="ck '+c[0]+'">'+content+'</span>';
+    }).join('');
     var showSave = origin === 'paste' || dirty;
     $('saveLibWrap').style.display = showSave ? '' : 'none';
     $('saveLibLbl').textContent = origin === 'library' ? 'Update “' + R.title + '” in the library' : 'Save to rubric library';
@@ -504,21 +555,22 @@
   function drawEditor(){
     $('critEmpty').hidden = !!R; $('critEditor').hidden = !R;
     if (!R) return;
-    $('rTitle').value = R.title; $('rSrc').textContent = R.source;
+    $('rTitle').value = R.title; $('rSrc').textContent = String(R.source||'').replace(/ai-recovery:[^·]+/i,'Recovered with AI').replace(/ai-draft:[^·]+/i,'Drafted with AI');
     $('crits').innerHTML = R.criteria.map(function(c, i){
-      var miss = c.levels.filter(function(level){ return !String(level.label||'').trim()||!String(level.description||'').trim()||String(level.points).trim()===''||isNaN(Number(level.points)); }).length;
-      return '<div class="crit' + (openSet[i] ? ' open' : '') + (miss ? ' flagged' : '') + '" data-i="' + i + '">' +
+      var miss = c.levels.filter(function(level){ return !levelOK(level); }).length, short = c.levels.length < 2, plain = !described(c), issue = miss || short || !(Number(c.weight)>0) || !String(c.name||'').trim();
+      var flagText = miss ? (miss + (miss > 1 ? ' levels' : ' level') + ' missing') : short ? 'Add a scoring level' : !(Number(c.weight)>0) ? 'Maximum missing' : !String(c.name||'').trim() ? 'Name missing' : '';
+      return '<div class="crit' + (openSet[i] ? ' open' : '') + (issue ? ' flagged' : '') + '" data-i="' + i + '">' +
         '<div class="crit-row">' +
           '<button class="fold" type="button" aria-label="Show grade levels" aria-expanded="' + !!openSet[i] + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>' +
           '<input class="c-name" data-f="name" value="' + esc(c.name) + '" aria-label="Criterion name" placeholder="Criterion name">' +
-          (miss ? '<span class="c-flag">' + miss + (miss > 1 ? ' levels' : ' level') + ' missing</span>' : '') +
+          (flagText ? '<span class="c-flag">' + flagText + '</span>' : '') +
           '<span class="c-w"><input type="number" min="0" step="0.5" data-f="weight" value="' + c.weight + '" aria-label="Maximum marks"> pts</span>' +
           '<button class="c-rm" type="button" data-rm aria-label="Remove criterion">×</button>' +
         '</div>' +
-        '<div class="bands">' + c.levels.map(function(level, j){
-          var complete=String(level.label||'').trim()&&String(level.description||'').trim()&&String(level.points).trim()!==''&&!isNaN(Number(level.points));
-          return '<div class="band l' + ((j%5)+1) + (complete ? '' : ' missing') + '"><div class="level-head"><input data-f="level-label" data-j="'+j+'" value="'+esc(level.label)+'" aria-label="Level label"><input type="number" step="0.5" min="0" data-f="level-points" data-j="'+j+'" value="'+level.points+'" aria-label="Level points"></div><textarea id="b' + i + '_' + j + '" data-f="level-description" data-j="' + j + '" placeholder="Describe this level…">' + esc(level.description) + '</textarea></div>';
-        }).join('') + '</div></div>';
+        '<div class="bands"><label class="c-desc"><span>What this criterion assesses' + (plain ? ' <em>· levels have no descriptors, so the AI judges against this</em>' : '') + '</span><textarea data-f="description" placeholder="Criterion description (optional)">' + esc(c.description) + '</textarea></label>' + c.levels.map(function(level, j){
+          var complete=levelOK(level);
+          return '<div class="band l' + ((j%5)+1) + (complete ? '' : ' missing') + '"><div class="level-head"><input data-f="level-label" data-j="'+j+'" value="'+esc(level.label)+'" aria-label="Level label"><input type="number" step="0.5" min="0" data-f="level-points" data-j="'+j+'" value="'+level.points+'" aria-label="Level points"><button class="level-rm" type="button" data-rm-level="'+j+'" aria-label="Remove '+esc(level.label||('level '+(j+1)))+'" title="Remove performance level">×</button></div><textarea id="b' + i + '_' + j + '" data-f="level-description" data-j="' + j + '" placeholder="No descriptor (optional)">' + esc(level.description) + '</textarea></div>';
+        }).join('') + '<div class="level-actions"><button type="button" class="add-level" data-add-level>+ Add performance level</button></div></div></div>';
     }).join('');
     $('toggleAll').textContent = R.criteria.every(function(_, i){ return openSet[i]; }) ? 'Collapse all' : 'Expand all';
     drawHead();
@@ -526,23 +578,26 @@
   function refreshCriterionState(row, c){
     var missing=0;
     Array.prototype.forEach.call(row.querySelectorAll('.band'),function(band,j){
-      var level=c.levels[j]||{}, complete=String(level.label||'').trim()&&String(level.description||'').trim()&&String(level.points).trim()!==''&&!isNaN(Number(level.points));
+      var level=c.levels[j]||{}, complete=levelOK(level);
       band.classList.toggle('missing',!complete);
       if(!complete)missing++;
     });
-    row.classList.toggle('flagged',missing>0);
+    var short=c.levels.length<2, missingWeight=!(Number(c.weight)>0), missingName=!String(c.name||'').trim();
+    row.classList.toggle('flagged',missing>0||short||missingWeight||missingName);
     var flag=row.querySelector('.c-flag');
-    if(missing){
+    var message=missing ? missing+(missing>1?' levels':' level')+' missing' : short ? 'Add a scoring level' : missingWeight ? 'Maximum missing' : missingName ? 'Name missing' : '';
+    if(message){
       if(!flag){flag=document.createElement('span');flag.className='c-flag';row.querySelector('.c-w').before(flag);}
-      flag.textContent=missing+(missing>1?' levels':' level')+' missing';
+      flag.textContent=message;
     }else if(flag){
       flag.remove();
     }
   }
   $('crits').addEventListener('input', function(e){
     var el = e.target, row = el.closest('.crit'); if (!row) return;
-    var i = Number(row.dataset.i), c = R.criteria[i]; dirty = true;
+    var i = Number(row.dataset.i), c = R.criteria[i]; invalidatePendingBatchForRubricChange(); dirty = true;
     if (el.dataset.f === 'name'){c.name=el.value;c.prov.name='edited';}
+    if (el.dataset.f === 'description'){c.description=el.value;c.prov.description='edited';}
     if (el.dataset.f === 'weight'){c.weight=el.value===''?'':Number(el.value);c.prov.weight='edited';}
     if (el.dataset.f === 'level-label'){c.levels[Number(el.dataset.j)].label=el.value;c.levels[Number(el.dataset.j)].prov.label='edited';}
     if (el.dataset.f === 'level-points'){var editedLevel=c.levels[Number(el.dataset.j)];editedLevel.points=el.value===''?'':Number(el.value);editedLevel.min_score=editedLevel.points;editedLevel.max_score=editedLevel.points;editedLevel.prov.points='edited';}
@@ -554,14 +609,47 @@
   $('crits').addEventListener('click', function(e){
     var row = e.target.closest('.crit'); if (!row) return;
     var i = Number(row.dataset.i);
+    var removeLevel=e.target.closest('[data-rm-level]');
+    if(removeLevel){
+      invalidatePendingBatchForRubricChange();
+      var levelIndex=Number(removeLevel.dataset.rmLevel);
+      R.criteria[i].levels.splice(levelIndex,1); dirty=true; openSet[i]=true; drawEditor(); update(); return;
+    }
+    if(e.target.closest('[data-add-level]')){
+      invalidatePendingBatchForRubricChange();
+      R.criteria[i].levels.push({id:'level-'+(R.criteria[i].levels.length+1),label:'',points:'',min_score:null,max_score:null,min_inclusive:true,max_inclusive:true,description:'',prov:{label:'edited',points:'edited',description:'missing'},source_text:{}});
+      dirty=true; openSet[i]=true; drawEditor(); update();
+      var addedBands=document.querySelectorAll('.crit[data-i="'+i+'"] .band'), added=addedBands[addedBands.length-1]&&addedBands[addedBands.length-1].querySelector('[data-f="level-label"]'); if(added)added.focus(); return;
+    }
     if (e.target.closest('.fold')){ openSet[i] = !openSet[i]; row.classList.toggle('open', !!openSet[i]); e.target.closest('.fold').setAttribute('aria-expanded', !!openSet[i]); return; }
     if (e.target.closest('[data-rm]')){
-      if (!confirm('Remove “' + (R.criteria[i].name || 'this criterion') + '”?')) return;
+      var rm = e.target.closest('[data-rm]');
+      if (!rm.dataset.removeOk){ MarkerDialog.confirm({ title: 'Remove this criterion?', icon: 'trash', tone: 'danger', confirmLabel: 'Remove', cancelLabel: 'Keep it', message: '“' + (R.criteria[i].name || 'this criterion') + '” and its levels will be removed from this rubric.' }).then(function(ok){ if (ok){ rm.dataset.removeOk = '1'; rm.click(); delete rm.dataset.removeOk; } }); return; }
+      invalidatePendingBatchForRubricChange();
       R.criteria.splice(i, 1); var o = {}; Object.keys(openSet).forEach(function(k){ k = Number(k); if (k < i) o[k] = openSet[k]; if (k > i) o[k - 1] = openSet[k]; }); openSet = o;
       dirty = true; drawEditor(); update();
     }
   });
+  $('checks').addEventListener('click',function(e){
+    var button=e.target.closest('[data-check]'); if(!button||!R)return;
+    var kind=button.dataset.check, index=R.criteria.findIndex(function(c){
+      if(kind==='level-fields')return c.levels.some(function(level){return !levelOK(level);});
+      if(kind==='short-levels')return c.levels.length<2;
+      if(kind==='weight')return !(Number(c.weight)>0);
+      if(kind==='name')return !String(c.name||'').trim();
+      if(kind==='label-only')return !described(c);
+      if(kind==='partial-descriptor')return described(c)&&c.levels.some(function(level){return !String(level.description||'').trim();});
+      return false;
+    });
+    if(index<0)return;
+    openSet[index]=true; drawEditor();
+    var row=document.querySelector('.crit[data-i="'+index+'"]'); if(!row)return;
+    row.scrollIntoView({behavior:'smooth',block:'center'});
+    var target=kind==='weight'?row.querySelector('[data-f="weight"]'):kind==='name'?row.querySelector('[data-f="name"]'):kind==='short-levels'?row.querySelector('[data-add-level]'):kind==='partial-descriptor'||kind==='label-only'?row.querySelector('[data-f="level-description"]'):row.querySelector('.band.missing input');
+    if(target)setTimeout(function(){target.focus();},250);
+  });
   $('addCrit').addEventListener('click', function(){
+    invalidatePendingBatchForRubricChange();
     R.criteria.push({ name:'', weight:3, levels:[{id:'3',label:'3',points:3,description:''},{id:'2',label:'2',points:2,description:''},{id:'1',label:'1',points:1,description:''},{id:'0',label:'0',points:0,description:''}] }); openSet[R.criteria.length - 1] = true; dirty = true; drawEditor(); update();
     var last = document.querySelector('.crit:last-of-type .c-name'); if (last) last.focus();
   });
@@ -569,38 +657,113 @@
     var all = R.criteria.every(function(_, i){ return openSet[i]; });
     R.criteria.forEach(function(_, i){ openSet[i] = !all; }); drawEditor();
   });
-  $('rTitle').addEventListener('input', function(){ R.title = this.value; dirty = true; drawHead(); update(); });
+  $('rTitle').addEventListener('input', function(){ invalidatePendingBatchForRubricChange(); R.title = this.value; dirty = true; drawHead(); update(); });
 
   /* ---------- 2. Submissions ---------- */
   var ASSN = {};
+  var pendingBatch = null;
+  function discardPendingBatch(){
+    var discarded=pendingBatch;
+    pendingBatch=null;
+    if(discarded&&discarded.batch)MarkerAPI.deleteBatch(discarded.batch.id,discarded.batch.version).catch(function(){});
+  }
+  function invalidatePendingBatchForRubricChange(){
+    if(!pendingBatch)return;
+    var selectedRows=S&&S.kind==='zip'&&S.rows?S.rows.slice():null;
+    discardPendingBatch();
+    if(selectedRows&&selectedRows.length)zipLoaded(selectedRows.map(function(row){return row.file;}),selectedRows);
+  }
   function fmt(n){ return n.toLocaleString('en-AU'); }
+  function canonicalSid(value){var match=String(value||'').trim().match(/^(?:SID[-_ ]?)?(\d{5,12})$/i);return match?('SID-'+match[1]):null;}
+  function sidField(row,indexAttr){return '<label class="sid-field">SID <input class="sid-input" '+indexAttr+' value="'+esc(row.sid||'')+'" placeholder="Student ID" required><span class="sid-check" aria-hidden="true">✓</span></label>';}
+  function wireSidQueue(details,selector,onChange){
+    if(!details)return;
+    var list=details.querySelector('.file-list-scroll'),inputs=Array.prototype.slice.call(details.querySelectorAll(selector));
+    function progress(){var complete=inputs.filter(function(input){return !!canonicalSid(input.value);}).length,remaining=inputs.length-complete;details.querySelector('summary').textContent=remaining?'Fix '+remaining+' file'+(remaining===1?'':'s'):'All files confirmed';details.querySelector('summary').dataset.progress=complete+' / '+inputs.length+' complete';}
+    inputs.forEach(function(input){
+      var row=input.closest('.file'),initial=canonicalSid(input.value);input.dataset.valid=initial?'true':'false';row.classList.toggle('ok',!!initial);row.classList.toggle('warn',!initial);
+      input.addEventListener('input',function(){
+        clearTimeout(input._sidTimer);var canonical=canonicalSid(input.value),valid=!!canonical;input.dataset.valid=valid?'true':'false';row.classList.toggle('ok',valid);row.classList.toggle('warn',!valid);onChange(input,canonical||input.value.trim());progress();update();
+        input._sidTimer=setTimeout(function(){
+          if(valid){var shouldAdvance=document.activeElement===input;input.value=canonical;onChange(input,canonical);list.appendChild(row);var next=inputs.find(function(candidate){return candidate.dataset.valid!=='true';});if(next&&shouldAdvance){next.focus();next.scrollIntoView({block:'nearest'});}}
+          else {var firstDone=inputs.find(function(candidate){return candidate.dataset.valid==='true';});if(firstDone&&firstDone.closest('.file')!==row)list.insertBefore(row,firstDone.closest('.file'));}
+          progress();update();
+        },550);
+      });
+    });
+    progress();
+    if(inputs.length)setTimeout(function(){if(document.activeElement===document.body||document.activeElement&&document.activeElement.type==='file')inputs[0].focus();},80);
+  }
   function setSubs(s){
     S = s;
     $('boxCanvas').classList.toggle('active', !!s && s.kind === 'canvas');
     $('boxZip').classList.toggle('active', !!s && s.kind === 'zip');
-    if (!s || s.kind !== 'canvas'){ $('assnSel').value = ''; $('assnInfo').classList.remove('show'); }
+    if (!s || s.kind !== 'canvas'){ $('assnSel').value = ''; $('assnInfo').classList.remove('show'); $('assnFiles').innerHTML = ''; }
     if (!s || s.kind !== 'zip') $('zipFiles').innerHTML = '';
     update();
   }
+  /* Canvas: course → assignment; the files are pulled into the batch when it is created. */
+  function canvasInit(){
+    var courseSel=$('cvCourseSel'),assnSel=$('assnSel');
+    MarkerAPI.getSettings().then(function(config){
+      var cv=config.canvas||{};
+      if(!cv.has_token){courseSel.disabled=true;assnSel.disabled=true;courseSel.innerHTML='<option value="">Connect Canvas in the account menu (top right)</option>';$('cvHint').textContent='Connect Canvas first: account menu → Canvas → paste an access token. Read-only: nothing is sent back to Canvas.';return;}
+      $('cvHint').textContent='Pulls every submitted file '+(cv.user?cv.user+'’s ':'this ')+'Canvas account can see: a tutor token sees the class, a student token only its own. Read-only.';
+      courseSel.innerHTML='<option value="">Loading your courses…</option>';
+      return MarkerAPI.canvasCourses().then(function(data){
+        var items=data.items||[];
+        courseSel.innerHTML='<option value="">Choose a course…</option>'+items.map(function(c){return '<option value="'+esc(c.id)+'">'+esc((c.code?c.code+' · ':'')+c.name)+'</option>';}).join('');
+        courseSel.disabled=false;
+        var guess=items.filter(function(c){return /ELEC5623/i.test(c.code+' '+c.name);})[0];
+        if(guess){courseSel.value=String(guess.id);canvasAssignments(guess.id);}
+      });
+    }).catch(function(error){courseSel.innerHTML='<option value="">Canvas unavailable</option>';$('cvHint').textContent='Could not load Canvas: '+error.message;});
+  }
+  function canvasAssignments(courseId){
+    var assnSel=$('assnSel');ASSN={};assnSel.disabled=true;
+    if(!courseId){assnSel.innerHTML='<option value="">Choose an assignment…</option>';return;}
+    assnSel.innerHTML='<option value="">Loading assignments…</option>';
+    MarkerAPI.canvasAssignments(courseId).then(function(data){
+      (data.items||[]).forEach(function(a){ASSN[a.id]=Object.assign({course_id:courseId},a);});
+      assnSel.innerHTML='<option value="">Choose an assignment…</option>'+(data.items||[]).map(function(a){return '<option value="'+esc(a.id)+'">'+esc(a.name+(a.has_rubric?' · rubric':''))+'</option>';}).join('');
+      assnSel.disabled=false;
+    }).catch(function(error){assnSel.innerHTML='<option value="">'+esc(error.message)+'</option>';});
+  }
+  $('cvCourseSel').addEventListener('change',function(){if(S&&S.kind==='canvas'){discardPendingBatch();setSubs(null);}canvasAssignments(this.value);});
   $('assnSel').addEventListener('change', function(){
     var a = ASSN[this.value];
+    discardPendingBatch();
     if (!a){ setSubs(null); return; }
-    $('assnInfo').innerHTML = '<dl class="kv"><dt>Unit</dt><dd>' + a.unit + '</dd><dt>Due</dt><dd>' + a.due + '</dd><dt>Total marks</dt><dd>' + a.marks + '</dd><dt>Submitted</dt><dd>' + fmt(a.count) + '</dd></dl>' +
-      (a.scanned ? '<div class="files"><div class="file warn"><span class="nm">⚠ ' + a.scanned + ' scanned files</span><span class="mt">will need OCR</span></div></div>' : '') +
-      (!a.count ? '<div class="files"><div class="file warn"><span class="nm">No submissions yet</span><span class="mt">due ' + a.due + '</span></div></div>' : '');
+    var due=a.due_at?new Date(a.due_at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'—';
+    $('assnInfo').innerHTML = '<dl class="kv"><dt>Due</dt><dd>' + esc(due) + '</dd><dt>Total marks</dt><dd>' + esc(a.points_possible==null?'—':a.points_possible) + '</dd><dt>Rubric</dt><dd>' + (a.has_rubric ? a.criteria + ' criteria' : 'none in Canvas') + '</dd><dt>Type</dt><dd>' + esc(a.group?'group':'individual') + '</dd></dl>' +
+      (a.has_rubric ? '<button class="linkbtn use-rubric" type="button" id="useCanvasRubric">Use this assignment’s rubric →</button>' : '');
     $('assnInfo').classList.add('show');
-    setSubs({ kind:'canvas', label:a.label, count:a.count, scanned:a.scanned });
+    setSubs({ kind:'canvas', label:a.name, count:0, countKnown:false, scanned:0, course_id:a.course_id, assignment_id:a.id });
     $('assnSel').value = this.value; $('assnInfo').classList.add('show');
+    var use=$('useCanvasRubric');
+    if(use)use.addEventListener('click',function(){
+      $('parseState').innerHTML='<span class="spin"></span>Importing the rubric from Canvas…';
+      MarkerAPI.canvasRubric(a.course_id,a.id).then(function(result){var r=result.rubric;$('parseState').textContent='Found '+r.criteria.length+' criteria in Canvas · '+a.name;load({libId:null,title:r.title,source:'Canvas · '+a.name+' · '+result.parser,parser:result.parser,warnings:result.warnings||[],assumptions:result.assumptions||[],questions:result.questions||[],total_score:r.total_score,total_score_source:r.total_score_source,criteria:r.criteria},'paste');}).catch(function(error){$('parseState').innerHTML='<span style="color:var(--risk)">'+esc(error.message)+'</span>';});
+    });
   });
-  function zipLoaded(files){
-    var rows=files.map(function(file,i){var m=file.name.match(/SID[-_ ]?(\d+)/i),sid=m?('SID-'+m[1]):'';return {file:file,sid:sid,index:i};});
-    $('zipFiles').innerHTML = rows.map(function(row){return '<div class="file"><span class="nm">'+esc(row.file.name)+'</span><label>SID <input class="sid-input" data-sid-index="'+row.index+'" value="'+esc(row.sid)+'" placeholder="SID-40219" required></label></div>';}).join('')+
+  window.addEventListener('marker:canvas',canvasInit);
+  document.addEventListener('DOMContentLoaded',canvasInit); /* api.js loads after this script */
+  function zipLoaded(files,preservedRows){
+    discardPendingBatch();
+    var rows=preservedRows||files.map(function(file,i){var m=file.name.match(/SID[-_ ]?(\d+)/i),sid=m?('SID-'+m[1]):'',archive=/\.zip$/i.test(file.name);return {file:file,sid:sid,index:i,archive:archive};}),matched=rows.filter(function(row){return !row.archive&&row.sid;}),unmatched=rows.filter(function(row){return !row.archive&&!row.sid;}),archives=rows.filter(function(row){return row.archive;});
+    function fileRow(row,warning){return '<div class="file'+(warning?' warn':'')+'"><span class="nm">'+esc(row.file.name)+'</span>'+(row.archive?'<span class="mt">Will unpack and match SIDs</span>':sidField(row,'data-sid-index="'+row.index+'"'))+'</div>';}
+    var matchedRows=matched.map(function(row){return fileRow(row,false);}).join('');
+    $('zipFiles').innerHTML = '<div class="upload-summary"><span><b>'+fmt(rows.length)+'</b> file'+(rows.length===1?'':'s')+' selected</span>'+(matched.length?'<span><b>'+fmt(matched.length)+'</b> SIDs found</span>':'')+(unmatched.length?'<span><b>'+fmt(unmatched.length)+'</b> need attention</span>':'')+(archives.length?'<span><b>'+fmt(archives.length)+'</b> ZIP'+(archives.length===1?'':'s')+' to unpack</span>':'')+'</div>'+
+      (unmatched.length?'<details class="file-details fix-details" open><summary></summary><div class="sid-format">Enter 5–12 digits or <code>SID-123456</code></div><div class="file-list-scroll">'+unmatched.map(function(row){return fileRow(row,true);}).join('')+'</div></details>':'')+archives.map(function(row){return fileRow(row,false);}).join('')+
+      (matched.length>8?'<details class="file-details"><summary>View all '+fmt(matched.length)+' matched files</summary><div class="file-list-scroll">'+matchedRows+'</div></details>':matchedRows)+
       '<div class="row-btns"><button class="linkbtn" type="button" id="clearZip">Remove</button></div>';
     $('assnSel').value = ''; $('assnInfo').classList.remove('show');
-    S = { kind:'zip', label:files.length===1?files[0].name:(files.length+' files'), count:files.length, scanned:0, rows:rows };
+    S = { kind:'zip', label:files.length===1?files[0].name:(files.length+' files'), count:files.length, countKnown:!archives.length, archiveCount:archives.length, scanned:0, rows:rows };
+    $('startBtn').textContent='Start batch →';
     $('boxCanvas').classList.remove('active'); $('boxZip').classList.add('active'); update();
     $('clearZip').addEventListener('click', function(){ setSubs(null); });
-    Array.prototype.forEach.call(document.querySelectorAll('[data-sid-index]'),function(input){input.addEventListener('input',function(){S.rows[Number(this.dataset.sidIndex)].sid=this.value.trim();update();});});
+    wireSidQueue($('zipFiles').querySelector('.fix-details'),'[data-sid-index]',function(input,value){S.rows[Number(input.dataset.sidIndex)].sid=value;});
+    Array.prototype.forEach.call(document.querySelectorAll('.file-details:not(.fix-details) [data-sid-index]'),function(input){input.addEventListener('input',function(){S.rows[Number(this.dataset.sidIndex)].sid=this.value.trim();update();});});
   }
   $('drop').addEventListener('click', function(){ $('zipIn').click(); });
   $('drop').addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); $('zipIn').click(); } });
@@ -614,38 +777,142 @@
   $('sampleZip').addEventListener('click', function(){ toast('Choose a real submission file for this validation run.'); $('zipIn').click(); });
 
   /* ---------- Bottom bar ---------- */
+  function formatMinutes(value){
+    if(value<60)return value+' min';
+    var hours=Math.floor(value/60),minutes=value%60;
+    return hours+' h'+(minutes?' '+minutes+' min':'');
+  }
+  function formatEstimateRange(low,high){
+    if(high<60)return '~'+low+(high>low?'–'+high:'')+' min';
+    return '~'+formatMinutes(low)+(high>low?'–'+formatMinutes(high):'');
+  }
+  function estimateAiPrep(r,submissions){
+    if(!r||!submissions||!submissions.count||submissions.countKnown===false)return null;
+    var criteria=Math.max(1,r.criteria.length),count=submissions.count;
+    // Rubric setup is reused once per batch. Document analysis and grading are
+    // still paid for per submission; the current processing request uses one worker.
+    var setupSeconds=12,perSubmissionSeconds=4+(criteria*1.5),ocrSeconds=(Number(submissions.scanned)||0)*10;
+    var seconds=setupSeconds+(count*perSubmissionSeconds)+ocrSeconds;
+    var low=Math.max(1,Math.floor(seconds*.8/60)),high=Math.max(low,Math.ceil(seconds*1.25/60));
+    return {text:seconds*1.25<60?'<1 min':formatEstimateRange(low,high),criteria:criteria,count:count};
+  }
+  function compactRubricTitle(title){
+    var value=String(title||'Untitled rubric').replace(/\s*[—–-]\s*(?:Canvas\s+)?marking rubric\s*$/i,'').replace(/\s+rubric\s*$/i,'').trim();
+    return value||String(title||'Untitled rubric');
+  }
   function update(){
-    var rOK = rubricOK(), sOK = !!S && S.count > 0 && (!S.rows||S.rows.every(function(row){return /^SID[-_ ]?[A-Za-z0-9-]+$/i.test(row.sid);}));
+    var rOK = rubricOK(), sOK = !!S && (S.kind==='canvas'||S.count > 0||(S.rows&&S.rows.length>0)) && (!S.rows||S.rows.every(function(row){return row.archive||!!canonicalSid(row.sid);}));
+    if(pendingBatch){var unresolved=(pendingBatch.upload.files||[]).filter(function(item){return item.status==='accepted'&&!item.sid_guess;});sOK=pendingBatch.upload.summary.accepted>0&&unresolved.every(function(item){return !!canonicalSid(item.manual_sid||'');});}
     $('dRub').className = 'sb-dot ' + (R ? (rOK ? 'ok' : 'bad') : '');
-    $('vRub').textContent = R ? (R.title || 'Untitled rubric') : 'Not chosen';
+    $('vRub').textContent = R ? compactRubricTitle(R.title) : 'Not chosen';
+    $('vRub').title = R ? (R.title || 'Untitled rubric') : '';
     $('vRub').classList.toggle('muted', !R);
     $('vCrit').innerHTML = R ? '<span class="mono">' + R.criteria.length + '</span> · ' + L.total(R) + ' marks' : '—';
     $('dSub').className = 'sb-dot ' + (S ? (sOK ? 'ok' : 'bad') : '');
-    $('vSub').innerHTML = S ? '<span class="mono">' + fmt(S.count) + '</span>' + (S.scanned ? ' · ' + S.scanned + ' need OCR' : '') : '—';
+    var archiveOnly=S&&S.countKnown===false&&S.rows&&S.rows.every(function(row){return row.archive;});
+    $('vSub').innerHTML = S ? (S.kind==='canvas'&&S.countKnown===false?'<span class="mono">Canvas</span> · count after import':S.countKnown===false?(archiveOnly?'<span class="mono">'+fmt(S.archiveCount)+' ZIP'+(S.archiveCount===1?'':'s')+'</span> · count after upload':'<span class="mono">'+fmt(S.count)+' files</span> · final count after ZIP unpacking'):'<span class="mono">' + fmt(S.count) + '</span>' + (S.scanned ? ' · ' + S.scanned + ' need OCR' : '')) : '—';
     $('vSub').classList.toggle('muted', !S);
-    var mins = R && S && S.count ? Math.max(1, Math.round(S.count * R.criteria.length * 0.0104)) : 0;
-    $('vTime').textContent = mins ? '~' + (mins >= 60 ? Math.floor(mins / 60) + ' h ' + (mins % 60) + ' min' : mins + ' min') : '—';
-    var why = !R ? 'Choose or paste a rubric' : !rOK ? 'Fix the rubric checks' : !S ? 'Add submissions' : !sOK ? 'Fix files: enter an SID for every submission' : '';
+    var estimate=estimateAiPrep(R,S),estimateBox=$('aiPrepEstimate');
+    $('vTime').textContent=estimate?estimate.text:'—';
+    estimateBox.title=estimate?'Rough estimate: rubric setup is reused once, then '+estimate.count+' submission'+(estimate.count===1?' is':'s are')+' analysed independently across '+estimate.criteria+' '+(estimate.criteria===1?'criterion':'criteria')+'. Assumes one processing worker; document length and provider speed can vary.':S&&S.countKnown===false?'The submission count and AI preparation estimate will appear after the ZIP is unpacked.':'Select a rubric and submissions to estimate AI preparation time.';
+    var why = !R ? 'Choose or paste a rubric' : !rOK ? 'Fix the rubric checks' : !S ? 'Add submissions' : !sOK ? 'Fix the highlighted files before continuing' : '';
     $('why').textContent = why; $('startBtn').disabled = !!why;
     $('n1').classList.toggle('ok', rOK); $('n2').classList.toggle('ok', sOK);
   }
+  function showUploadManifest(context){
+    pendingBatch=context;
+    var target=S&&S.kind==='canvas'?$('assnFiles'):$('zipFiles');
+    var upload=context.upload,summary=upload.summary,unresolved=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}),problems=upload.files.filter(function(item){return item.status==='rejected'||item.status==='unsupported';});summary.needs_sid=unresolved.length;
+    S.count=summary.accepted;S.countKnown=true;S.archiveCount=0;
+    target.innerHTML='<div class="upload-summary"><span><b>'+fmt(summary.accepted)+'</b> accepted</span><span><b>'+fmt(summary.accepted-summary.needs_sid)+'</b> matched</span>'+(summary.duplicates?'<span><b>'+fmt(summary.duplicates)+'</b> duplicates skipped</span>':'')+(summary.skipped?'<span><b>'+fmt(summary.skipped)+'</b> skipped</span>':'')+(summary.needs_sid?'<span><b>'+fmt(summary.needs_sid)+'</b> need attention</span>':'')+(summary.scope==='own'?'<span title="Canvas lists every submission only to accounts with grading rights">Student access: only this account’s own submission</span>':summary.scope==='class'?'<span>From Canvas: the whole class</span>':'')+'</div>'+
+      (unresolved.length?'<details class="file-details fix-details" open><summary></summary><div class="sid-format">Enter 5–12 digits or <code>SID-123456</code></div><div class="file-list-scroll">'+unresolved.map(function(item,index){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span>'+sidField({sid:''},'data-fix-index="'+index+'"')+'</div>';}).join('')+'</div></details>':'')+
+      problems.map(function(item){return '<div class="file warn"><span class="nm">'+esc(item.name)+'</span><span class="mt">'+esc(item.message||'Skipped')+'</span></div>';}).join('')+
+      (!unresolved.length&&summary.accepted?'<div class="file ok"><span class="nm">✓ All accepted submissions have an SID</span><span class="mt">Ready to process</span></div>':'')+
+      '<div class="row-btns"><button class="linkbtn" type="button" id="clearZip">Remove</button></div>';
+    $('clearZip').addEventListener('click',function(){discardPendingBatch();setSubs(null);});
+    wireSidQueue(target.querySelector('.fix-details'),'[data-fix-index]',function(input,value){unresolved[Number(input.dataset.fixIndex)].manual_sid=value;});
+    $('startBtn').textContent=unresolved.length?'Continue batch →':'Start processing →';
+    update();
+  }
+  var consentResolve=null,consentPreviousFocus=null;
+  function closeExternalConsent(confirmed){
+    var modal=$('externalConsent'); if(modal.hidden)return;
+    modal.hidden=true; document.removeEventListener('keydown',consentKeydown);
+    var resolve=consentResolve; consentResolve=null;
+    if(consentPreviousFocus&&consentPreviousFocus.focus&&!consentPreviousFocus.disabled)consentPreviousFocus.focus();
+    if(resolve)resolve(confirmed);
+  }
+  function consentKeydown(event){
+    if(event.key==='Escape'){event.preventDefault();closeExternalConsent(false);return;}
+    if(event.key!=='Tab')return;
+    var buttons=[$('consentContinue'),$('consentCancel')],first=buttons[0],last=buttons[buttons.length-1];
+    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+  }
+  function confirmExternalProcessing(provider){
+    var label=String(provider||'external AI'),display=label.charAt(0).toUpperCase()+label.slice(1);
+    consentPreviousFocus=document.activeElement;
+    $('consentTitle').textContent='Send submissions to '+display+'?';
+    $('consentCopy').innerHTML='Uploaded submission text will be sent to <b>'+esc(display)+'</b> for evidence retrieval and AI-assisted marking.';
+    $('consentContinue').textContent='Continue with '+display+' →';
+    $('externalConsent').hidden=false; document.addEventListener('keydown',consentKeydown);
+    setTimeout(function(){$('consentContinue').focus();},0);
+    return new Promise(function(resolve){consentResolve=resolve;});
+  }
+  $('consentContinue').addEventListener('click',function(){closeExternalConsent(true);});
+  $('consentCancel').addEventListener('click',function(){closeExternalConsent(false);});
+  $('externalConsent').addEventListener('click',function(event){if(event.target===this)closeExternalConsent(false);});
+  window.MarkerConfirmExternalProcessing=confirmExternalProcessing;
+  function startProcessing(context,button){
+    return MarkerAPI.getSettings().then(function(config){
+      var ai=config.ai||{}, provider=ai.provider||'university', external=['fake','university'].indexOf(provider)<0;
+      return (external?confirmExternalProcessing(provider):Promise.resolve(true)).then(function(acknowledged){
+        if(!acknowledged){var cancelled=new Error('Processing cancelled');cancelled.cancelled=true;throw cancelled;}
+        var estimate=estimateAiPrep(R,S);
+        button.textContent='Retrieving evidence…';$('why').textContent='AI is grading '+R.criteria.length+' '+(R.criteria.length===1?'criterion':'criteria')+(estimate?' · estimated '+estimate.text.replace(/^~/,''):'');
+        return MarkerAPI.startBatch(context.batch.id,{provider:provider,model:ai.model,external_processing_acknowledged:external,estimated_cost_acknowledged:true}).then(function(){location.href='02-batch-status.html?batch_id='+encodeURIComponent(context.batch.id);});
+      });
+    });
+  }
+  function handleStartError(error,button,fallbackLabel){
+    button.disabled=false;
+    if(error&&error.cancelled){
+      if(pendingBatch)showUploadManifest(pendingBatch);
+      else {button.textContent=fallbackLabel;update();}
+      setTimeout(function(){button.focus();},0);
+      return;
+    }
+    button.textContent=fallbackLabel;$('why').textContent=error.message;toast(error.message);
+  }
   $('startBtn').addEventListener('click', function(){
     if (this.disabled) return;
-    if(MarkerAPI.mode==='mock'){toast('Open this page at http://127.0.0.1:8000/01-upload.html to create a real batch.');return;}
+
     var button=this;button.disabled=true;button.textContent='Creating batch…';$('why').textContent='Saving rubric and uploading submission';
+    if(pendingBatch){
+      var fixes=pendingBatch.upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;});
+      button.textContent='Saving student IDs…';
+      Promise.all(fixes.map(function(item){return MarkerAPI.patchSubmission(pendingBatch.batch.id,item.submission_id,{student_id:item.manual_sid,version:item.version||1}).then(function(saved){item.sid_guess=item.manual_sid;item.version=saved.submission.version;});})).then(function(){return startProcessing(pendingBatch,button);}).catch(function(error){handleStartError(error,button,'Continue batch →');});
+      return;
+    }
     var rubricPayload={title:R.title,source:R.source||'Uploaded / AI parsed',parser:R.parser||null,save_to_library:$('saveLib').checked,criteria:R.criteria.map(function(c){return {name:c.name,weight:Number(c.weight),description:c.description||'',stated_percent:c.stated_percent,grading_mode:c.grading_mode,scoring_mode:c.scoring_mode,score_mapping:c.score_mapping,granularity:c.granularity,aspects:c.aspects||[],prov:c.prov||{},source_text:c.source_text||{},levels:c.levels.map(function(level,j){return {id:level.id||('level-'+(j+1)),label:level.label,points:Number(level.points),min_score:level.min_score==null?Number(level.points):Number(level.min_score),max_score:level.max_score==null?Number(level.points):Number(level.max_score),min_inclusive:level.min_inclusive!==false,max_inclusive:level.max_inclusive!==false,description:level.description,prov:level.prov||{},source_text:level.source_text||{}};})};})};
-    var rubricPromise=R.libId?MarkerAPI.getRubric(R.libId):MarkerAPI.createRubric(rubricPayload);
-    rubricPromise.then(function(saved){var rubric=saved.rubric;return MarkerAPI.createBatch({name:R.title+' — validation batch',unit:null,term_id:'term_2026s2',rubric_id:rubric.id,rubric_version:rubric.version});}).then(function(created){
-      var batch=created.batch;return MarkerAPI.uploadFiles(batch.id,S.rows.map(function(row){return row.file;})).then(function(upload){return Promise.all(upload.files.filter(function(item){return item.status==='accepted';}).map(function(item,index){var sid=S.rows[index]&&S.rows[index].sid;if(!sid||item.sid_guess===sid)return Promise.resolve();return MarkerAPI.patchSubmission(batch.id,item.submission_id,{student_id:sid,version:1});})).then(function(){return {batch:batch,upload:upload};});});
+    var rubricPromise;
+    if(R.libId&&dirty){
+      rubricPromise=$('saveLib').checked
+        ? MarkerAPI.getRubric(R.libId).then(function(current){rubricPayload.version=current.rubric.version;return MarkerAPI.updateRubric(R.libId,rubricPayload);})
+        : MarkerAPI.createRubric(Object.assign({},rubricPayload,{save_to_library:false}));
+    }else{
+      rubricPromise=R.libId?MarkerAPI.getRubric(R.libId):MarkerAPI.createRubric(rubricPayload);
+    }
+    rubricPromise.then(function(saved){var rubric=saved.rubric;return MarkerAPI.createBatch({name:R.title+' — validation batch',unit:null,rubric_id:rubric.id,rubric_version:rubric.version});}).then(function(created){
+      var batch=created.batch;
+      if(S.kind==='canvas'){button.textContent='Pulling files from Canvas…';$('why').textContent='Downloading the submissions Canvas lets this account see';var dropEmpty=function(error){return MarkerAPI.deleteBatch(batch.id,batch.version).catch(function(){}).then(function(){throw error;});};
+        return MarkerAPI.canvasImport(batch.id,{course_id:S.course_id,assignment_id:S.assignment_id}).then(function(upload){if(!upload.summary.accepted)return dropEmpty(new Error(upload.summary.canvas_submissions?'Canvas returned '+upload.summary.canvas_submissions+' submission'+(upload.summary.canvas_submissions===1?'':'s')+' but none had a file this app can mark':'This Canvas account cannot see any submissions for this assignment'));return {batch:batch,upload:upload};},dropEmpty);}
+      return MarkerAPI.uploadFiles(batch.id,S.rows.map(function(row){return row.file;})).then(function(upload){var directRows=S.rows.filter(function(row){return !row.archive;}),used={};return Promise.all(upload.files.filter(function(item){return item.status==='accepted'&&!item.source_archive;}).map(function(item){var matchIndex=-1;directRows.some(function(row,index){if(!used[index]&&row.file.name===item.name){matchIndex=index;return true;}return false;});if(matchIndex<0)return Promise.resolve();used[matchIndex]=true;var sid=S.rows[directRows[matchIndex].index].sid;if(!sid||item.sid_guess===sid)return Promise.resolve();return MarkerAPI.patchSubmission(batch.id,item.submission_id,{student_id:sid,version:item.version||1}).then(function(saved){item.sid_guess=sid;item.version=saved.submission.version;});})).then(function(){upload.summary.needs_sid=upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}).length;return {batch:batch,upload:upload};});});
     }).then(function(context){
-      return MarkerAPI.getSettings().then(function(config){
-        var ai=config.ai||{}, provider=ai.provider||'university', external=['fake','university'].indexOf(provider)<0;
-        var acknowledged=!external||window.confirm('This batch will send the uploaded submission text to '+provider+' for evidence retrieval and AI-assisted marking. Continue?');
-        if(!acknowledged)throw new Error('External AI processing was not acknowledged.');
-        button.textContent='Retrieving evidence…';$('why').textContent='AI is grading '+R.criteria.length+' criteria — this can take 1–3 minutes';
-        return MarkerAPI.startBatch(context.batch.id,{provider:provider,model:ai.model,concurrency:1,external_processing_acknowledged:external,estimated_cost_acknowledged:true}).then(function(){location.href='02-batch-status.html?batch_id='+encodeURIComponent(context.batch.id);});
-      });
-    }).catch(function(error){button.disabled=false;button.textContent='Start batch →';$('why').textContent=error.message;toast(error.message);});
+      var unresolved=context.upload.files.filter(function(item){return item.status==='accepted'&&!item.sid_guess;}).length;
+      if(unresolved||!context.upload.summary.accepted){context.upload.summary.needs_sid=unresolved;showUploadManifest(context);button.disabled=!!unresolved;return;}
+      pendingBatch=context;return startProcessing(context,button);
+    }).catch(function(error){handleStartError(error,button,'Start batch →');});
   });
 
   /* ---------- Arriving with a rubric (library "Use for new batch", import page save) ---------- */
@@ -671,7 +938,8 @@
 })();
 </script>
 
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
+<script src="/js/dialog.js"></script>
+<script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

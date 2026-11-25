@@ -1,0 +1,131 @@
+{
+  "title": "Short Answer (quiz)",
+  "source": "Pasted text · parsed by AI",
+  "pinned": true,
+  "age_days": 9,
+  "criteria": [
+    {
+      "name": "Q1 — Concept definitions",
+      "weight": 30,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 30.0,
+          "min_score": 25.5,
+          "max_score": 30.0,
+          "description": "Precise definitions with a correct example for each."
+        },
+        {
+          "label": "DI",
+          "points": 25.2,
+          "min_score": 22.5,
+          "max_score": 25.5,
+          "description": "Correct definitions; examples mostly apt."
+        },
+        {
+          "label": "CR",
+          "points": 22.2,
+          "min_score": 19.5,
+          "max_score": 22.5,
+          "description": "Mostly correct; one definition loose."
+        },
+        {
+          "label": "PS",
+          "points": 19.2,
+          "min_score": 15.0,
+          "max_score": 19.5,
+          "description": "Several definitions incomplete."
+        },
+        {
+          "label": "FL",
+          "points": 14.7,
+          "min_score": 0.0,
+          "max_score": 15.0,
+          "description": "Definitions missing or wrong."
+        }
+      ]
+    },
+    {
+      "name": "Q2 — Applying the model",
+      "weight": 40,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 40.0,
+          "min_score": 34.0,
+          "max_score": 40.0,
+          "description": "Model applied correctly to every part of the case."
+        },
+        {
+          "label": "DI",
+          "points": 33.6,
+          "min_score": 30.0,
+          "max_score": 34.0,
+          "description": "Applied correctly with a minor slip."
+        },
+        {
+          "label": "CR",
+          "points": 29.6,
+          "min_score": 26.0,
+          "max_score": 30.0,
+          "description": "Applied to most of the case."
+        },
+        {
+          "label": "PS",
+          "points": 25.6,
+          "min_score": 20.0,
+          "max_score": 26.0,
+          "description": "Partly applied; key steps missing."
+        },
+        {
+          "label": "FL",
+          "points": 19.6,
+          "min_score": 0.0,
+          "max_score": 20.0,
+          "description": "Model not applied."
+        }
+      ]
+    },
+    {
+      "name": "Q3 — Evaluating trade-offs",
+      "weight": 30,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 30.0,
+          "min_score": 25.5,
+          "max_score": 30.0,
+          "description": "Weighs trade-offs and reaches a justified position."
+        },
+        {
+          "label": "DI",
+          "points": 25.2,
+          "min_score": 22.5,
+          "max_score": 25.5,
+          "description": "Weighs trade-offs; position partly justified."
+        },
+        {
+          "label": "CR",
+          "points": 22.2,
+          "min_score": 19.5,
+          "max_score": 22.5,
+          "description": "Names trade-offs but mostly describes them."
+        },
+        {
+          "label": "PS",
+          "points": 19.2,
+          "min_score": 15.0,
+          "max_score": 19.5,
+          "description": "Lists options without weighing them."
+        },
+        {
+          "label": "FL",
+          "points": 14.7,
+          "min_score": 0.0,
+          "max_score": 15.0,
+          "description": "No trade-offs discussed."
+        }
+      ]
+    }
+  ]
+}

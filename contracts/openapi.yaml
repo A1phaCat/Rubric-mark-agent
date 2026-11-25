@@ -6,6 +6,8 @@ info:
 servers:
   - url: http://127.0.0.1:8000
 paths:
+  /api/v1/me:
+    get: {operationId: getMe, description: Local user and current term, responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
   /api/v1/me/summary:
     get: {operationId: getMySummary, responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
   /api/v1/me/queue:
@@ -111,10 +113,31 @@ paths:
   /api/v1/batches/{batch_id}/export.csv:
     parameters: [{$ref: '#/components/parameters/BatchId'}]
     get: {operationId: exportBatchCsv, responses: {'200': {description: CSV export, content: {text/csv: {schema: {type: string}}}}}}
+  /api/v1/batches/{batch_id}/pin:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    put:
+      operationId: pinBatch
+      description: Pin or unpin; pinned items are listed first (new items start pinned).
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [pinned], properties: {pinned: {type: boolean}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}
   /api/v1/batches/{batch_id}/finalise:
     parameters: [{$ref: '#/components/parameters/BatchId'}]
     post:
       operationId: finaliseBatch
+      requestBody: {$ref: '#/components/requestBodies/Version'}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/pause:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    post:
+      operationId: pauseBatch
+      description: Hold back a processing batch's queued work (resumable). Criteria already sent finish and are kept.
+      requestBody: {$ref: '#/components/requestBodies/Version'}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/resume:
+    parameters: [{$ref: '#/components/parameters/BatchId'}]
+    post:
+      operationId: resumeBatch
+      description: Put a paused batch's work back in the queue; completed criteria are not redone.
       requestBody: {$ref: '#/components/requestBodies/Version'}
       responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
   /api/v1/batches/{batch_id}/reopen:
@@ -129,6 +152,19 @@ paths:
   /api/v1/submissions/{submission_id}/report:
     parameters: [{$ref: '#/components/parameters/SubmissionId'}, {$ref: '#/components/parameters/Audience'}]
     get: {operationId: getSubmissionReport, responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
+  /api/v1/submissions/{submission_id}/feedback/draft:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}]
+    post:
+      operationId: draftOverallFeedback
+      description: Draft the overall feedback with the batch's AI model from the confirmed marks and comments; marks are not changed. Returns the internal report.
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/submissions/{submission_id}/feedback:
+    parameters: [{$ref: '#/components/parameters/SubmissionId'}]
+    put:
+      operationId: saveOverallFeedback
+      description: Save the tutor's overall feedback as a draft, or approve it so the student report shows it. An empty body clears it. Returns the internal report.
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {summary: {type: string}, strengths: {oneOf: [{type: string}, {type: array, items: {type: string}}]}, improvements: {oneOf: [{type: string}, {type: array, items: {type: string}}]}, next_steps: {oneOf: [{type: string}, {type: array, items: {type: string}}]}, approve: {type: boolean}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
   /api/v1/submissions/{submission_id}/report.pdf:
     parameters: [{$ref: '#/components/parameters/SubmissionId'}, {$ref: '#/components/parameters/Audience'}]
     get: {operationId: getSubmissionReportPdf, responses: {'200': {description: PDF report, content: {application/pdf: {schema: {type: string, format: binary}}}}}}
@@ -151,6 +187,13 @@ paths:
       operationId: parseRubricFile
       requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [file], properties: {file: {type: string, format: binary}, use_ai: {type: boolean}}}}}}
       responses: {'200': {$ref: '#/components/responses/JsonObject'}, '202': {$ref: '#/components/responses/JsonObject'}}
+  /api/v1/rubrics/{rubric_id}/pin:
+    parameters: [{name: rubric_id, in: path, required: true, schema: {type: string}}]
+    put:
+      operationId: pinRubric
+      description: Pin or unpin; pinned items are listed first (new items start pinned).
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [pinned], properties: {pinned: {type: boolean}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}
   /api/v1/rubrics/{rubric_id}:
     parameters: [{$ref: '#/components/parameters/RubricId'}]
     get: {operationId: getRubric, responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}}}
@@ -162,6 +205,8 @@ paths:
       operationId: deleteRubric
       parameters: [{name: version, in: query, required: true, schema: {type: integer}}]
       responses: {'200': {$ref: '#/components/responses/JsonObject'}, '409': {$ref: '#/components/responses/Error'}}
+  /api/v1/samples/reset:
+    post: {operationId: resetSamples, description: Recreate the sample batches in their initial state; the tutor's own data is kept., responses: {'200': {$ref: '#/components/responses/JsonObject'}}}
   /api/v1/settings/ai:
     get:
       operationId: getAiSettings
@@ -190,14 +235,43 @@ paths:
       operationId: getCanvasSettings
       responses:
         '200':
-          description: Disabled Canvas settings
+          description: Canvas connection (read-only); the token never leaves the server
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CanvasSettings'}
     put:
       operationId: updateCanvasSettings
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CanvasSettings'}}}}
-      responses: {'501': {$ref: '#/components/responses/Error'}}
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {base_url: {type: string}, token: {type: [string, 'null']}, clear_token: {type: boolean}}}}}}
+      responses:
+        '200': {description: Saved settings, content: {application/json: {schema: {$ref: '#/components/schemas/CanvasSettings'}}}}
+        '422': {$ref: '#/components/responses/Error'}
+  /api/v1/settings/canvas/test:
+    post:
+      operationId: testCanvasSettings
+      requestBody: {required: false, content: {application/json: {schema: {type: object, properties: {base_url: {type: [string, 'null']}, token: {type: [string, 'null']}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}}
+  /api/v1/canvas/courses:
+    get:
+      operationId: listCanvasCourses
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '401': {$ref: '#/components/responses/Error'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/canvas/courses/{course_id}/assignments:
+    get:
+      operationId: listCanvasAssignments
+      parameters: [{name: course_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/canvas/courses/{course_id}/assignments/{assignment_id}/rubric:
+    post:
+      operationId: importCanvasRubric
+      description: Parse the assignment's Canvas rubric exactly like an uploaded Canvas export
+      parameters: [{name: course_id, in: path, required: true, schema: {type: string}}, {name: assignment_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '422': {$ref: '#/components/responses/Error'}}
+  /api/v1/batches/{batch_id}/canvas-import:
+    post:
+      operationId: importCanvasSubmissions
+      description: Download every submission the connected account may see into the batch, as uploaded files
+      parameters: [{$ref: '#/components/parameters/BatchId'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [course_id, assignment_id], properties: {course_id: {type: string}, assignment_id: {type: string}}}}}}
+      responses: {'200': {$ref: '#/components/responses/JsonObject'}, '404': {$ref: '#/components/responses/Error'}, '422': {$ref: '#/components/responses/Error'}}
 components:
   parameters:
     BatchId: {name: batch_id, in: path, required: true, schema: {type: string, pattern: '^bat_'}}
@@ -213,7 +287,7 @@ components:
     JsonObject: {description: JSON response, content: {application/json: {schema: {type: object}}}}
     Error: {description: Stable error envelope, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
   schemas:
-    BatchStatus: {type: string, enum: [draft, processing, in_review, completed, finalised, failed_all]}
+    BatchStatus: {type: string, enum: [draft, processing, paused, in_review, completed, finalised, failed_all, cancelled]}
     SubmissionStatus: {type: string, enum: [uploaded, extracting, needs_ocr, ocr_running, ocr_failed, queued, marking, ai_done, in_review, confirmed, failed, excluded]}
     Confidence: {type: [string, 'null'], enum: [high, medium, low, none, null]}
     Level: {type: string, enum: [HD, DI, CR, PS, FL]}
@@ -293,6 +367,7 @@ components:
         display_status: {type: string}
         rubric: {anyOf: [{$ref: '#/components/schemas/RubricSummary'}, {type: 'null'}]}
         counts: {$ref: '#/components/schemas/Counts'}
+        agents: {type: [object, 'null'], description: 'Evidence agents running now, from the worker heartbeat; null when the worker has not reported recently or nothing is processing', properties: {evidence: {type: integer}}}
         eta_seconds: {type: [integer, 'null']}
         created_at: {type: string, format: date-time}
         started_at: {type: [string, 'null'], format: date-time}
@@ -321,7 +396,7 @@ components:
     SubmissionPage: {type: object, required: [items, page, page_size, total, filter_counts], properties: {items: {type: array, items: {$ref: '#/components/schemas/SubmissionRow'}}, page: {type: integer}, page_size: {type: integer}, total: {type: integer}, filter_counts: {$ref: '#/components/schemas/Counts'}, _mock: {type: boolean}}}
     RubricPage: {type: object, required: [items, page, page_size, total], properties: {items: {type: array, items: {$ref: '#/components/schemas/RubricSummary'}}, page: {type: integer}, page_size: {type: integer}, total: {type: integer}}}
     BatchCreate: {type: object, required: [name, term_id], properties: {name: {type: string}, unit: {type: [string, 'null']}, term_id: {type: string}, due_at: {type: [string, 'null'], format: date-time}, rubric_id: {type: [string, 'null']}, rubric_version: {type: [integer, 'null']}}}
-    BatchStart: {type: object, required: [provider, model, concurrency, external_processing_acknowledged, estimated_cost_acknowledged], properties: {provider: {type: string}, model: {type: string}, concurrency: {type: integer, minimum: 1}, external_processing_acknowledged: {type: boolean}, estimated_cost_acknowledged: {type: boolean}}}
+    BatchStart: {type: object, required: [provider, model, external_processing_acknowledged, estimated_cost_acknowledged], properties: {provider: {type: string}, model: {type: string}, external_processing_acknowledged: {type: boolean}, estimated_cost_acknowledged: {type: boolean}}}
     SubmissionPatch: {type: object, required: [version], properties: {student_id: {type: [string, 'null']}, excluded: {type: [boolean, 'null']}, excluded_reason: {type: [string, 'null']}, selected_file_id: {type: [string, 'null']}, version: {type: integer}}}
     RubricWrite: {type: object, required: [title, source, criteria], properties: {title: {type: string}, source: {type: string}, version: {type: integer}, criteria: {type: array, minItems: 1, items: {$ref: '#/components/schemas/CriterionWrite'}}}}
     ReviewBundle:
@@ -340,4 +415,4 @@ components:
         remaining: {type: object, required: [ready, processing, failed], properties: {ready: {type: integer}, processing: {type: integer}, failed: {type: integer}}}
     AISettings: {type: object, required: [provider, model, base_url, uses_university_gateway, has_api_key, available_models], properties: {provider: {type: string}, model: {type: string}, base_url: {type: [string, 'null']}, uses_university_gateway: {type: boolean}, has_api_key: {type: boolean}, available_models: {type: array, items: {type: string}}}}
     AISettingsWrite: {type: object, required: [provider, model, uses_university_gateway], properties: {provider: {type: string}, model: {type: string}, base_url: {type: [string, 'null']}, api_key: {type: [string, 'null']}, uses_university_gateway: {type: boolean}, clear_api_key: {type: boolean}}}
-    CanvasSettings: {type: object, required: [enabled, base_url, has_token], properties: {enabled: {const: false}, base_url: {type: [string, 'null']}, has_token: {type: boolean}}}
+    CanvasSettings: {type: object, required: [enabled, base_url, has_token], properties: {enabled: {type: boolean}, base_url: {type: [string, 'null']}, has_token: {type: boolean}, user: {type: [string, 'null']}}}

@@ -1,0 +1,247 @@
+{
+  "key": "elec5623-business-proposal",
+  "assignment_name": "ELEC5623 Group Business Proposal",
+  "unit_name": "ELEC5623 Applied Generative AI in Engineering",
+  "title": "ELEC5623 Group Business Proposal (Canvas rubric)",
+  "total": 10.0,
+  "scale_note": "Points per level as in the Canvas rubric.",
+  "in_csv": false,
+  "criteria": [
+    {
+      "id": "c1",
+      "name": "Problem, Background and Motivation",
+      "weight": 1.5,
+      "kind": "content",
+      "description": "",
+      "levels": [
+        {
+          "label": "1.5 points",
+          "points": 1.5,
+          "min_score": 1.5,
+          "max_score": 1.5,
+          "description": "The problem is specific, meaningful and well scoped; background is supported by credible evidence; the motivation and identified gap are compelling; the need for GenAI is clearly and convincingly justified."
+        },
+        {
+          "label": "1 points",
+          "points": 1.0,
+          "min_score": 1.0,
+          "max_score": 1.0,
+          "description": "The problem and motivation are clear and relevant; background is generally well supported; the role of GenAI is appropriately justified, with only minor gaps in evidence or argument."
+        },
+        {
+          "label": "0.5 points",
+          "points": 0.5,
+          "min_score": 0.5,
+          "max_score": 0.5,
+          "description": "The problem is vague, weakly motivated or poorly supported; background is superficial; the need for GenAI is unclear or appears incidental to the proposed product."
+        },
+        {
+          "label": "0 points",
+          "points": 0.0,
+          "min_score": 0.0,
+          "max_score": 0.0,
+          "description": "The criterion is not addressed, or the submitted material provides no meaningful evidence of the problem, background or motivation."
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "name": "Requirements Engineering and Project Definition",
+      "weight": 1.5,
+      "kind": "content",
+      "description": "",
+      "levels": [
+        {
+          "label": "1.5 points",
+          "points": 1.5,
+          "min_score": 1.5,
+          "max_score": 1.5,
+          "description": "Target users and stakeholders are clearly identified; project scope and boundaries are precise; use cases are appropriate; functional and non-functional requirements are coherent, measurable and testable."
+        },
+        {
+          "label": "1 points",
+          "points": 1.0,
+          "min_score": 1.0,
+          "max_score": 1.0,
+          "description": "Users, scope, use cases and requirements are mostly well defined; requirements are generally testable and aligned with the proposed system, with minor omissions or ambiguities."
+        },
+        {
+          "label": "0.5 points",
+          "points": 0.5,
+          "min_score": 0.5,
+          "max_score": 0.5,
+          "description": "Requirements are incomplete, inconsistent or largely descriptive rather than testable; users, stakeholders or project scope are poorly defined."
+        },
+        {
+          "label": "0 points",
+          "points": 0.0,
+          "min_score": 0.0,
+          "max_score": 0.0,
+          "description": "No meaningful requirements engineering, scope definition, stakeholder analysis or use cases are provided."
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "name": "Proposed Product, Methodology and Technical Design",
+      "weight": 2.0,
+      "kind": "content",
+      "description": "",
+      "levels": [
+        {
+          "label": "2 points",
+          "points": 2.0,
+          "min_score": 2.0,
+          "max_score": 2.0,
+          "description": "The proposed solution is technically credible and clearly defined; the role of GenAI is explicit and necessary; methodology, architecture and workflow are coherent and sufficiently detailed; components and integrations form a feasible semester-scale system."
+        },
+        {
+          "label": "1.5 points",
+          "points": 1.5,
+          "min_score": 1.5,
+          "max_score": 1.5,
+          "description": "The technical approach is sound and mostly well explained; GenAI plays a meaningful role; architecture and workflow are appropriate, although some implementation details or technical relationships require refinement."
+        },
+        {
+          "label": "1 points",
+          "points": 1.0,
+          "min_score": 1.0,
+          "max_score": 1.0,
+          "description": "A plausible technical solution is proposed, but the methodology, architecture or workflow lacks detail; the GenAI component is present but its exact role or integration is only partially explained."
+        },
+        {
+          "label": "0.5 points",
+          "points": 0.5,
+          "min_score": 0.5,
+          "max_score": 0.5,
+          "description": "The technical design is vague, inconsistent or unrealistic; major components or workflow are missing; GenAI is used superficially or without a clear technical justification."
+        },
+        {
+          "label": "0 points",
+          "points": 0.0,
+          "min_score": 0.0,
+          "max_score": 0.0,
+          "description": "No meaningful proposed methodology, architecture, workflow or technical solution is provided."
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "name": "Product/Business Analysis and Evaluation Plan",
+      "weight": 2.0,
+      "kind": "content",
+      "description": "",
+      "levels": [
+        {
+          "label": "2 points",
+          "points": 2.0,
+          "min_score": 2.0,
+          "max_score": 2.0,
+          "description": "The target users and value proposition are compelling; relevant alternatives or competitors are critically considered; evaluation includes clear success criteria, appropriate baselines, meaningful metrics and credible evidence collection."
+        },
+        {
+          "label": "1.5 points",
+          "points": 1.5,
+          "min_score": 1.5,
+          "max_score": 1.5,
+          "description": "Product value and relevant alternatives are clearly discussed; the proposed evaluation is generally appropriate and includes useful metrics and success criteria, with minor gaps."
+        },
+        {
+          "label": "1 points",
+          "points": 1.0,
+          "min_score": 1.0,
+          "max_score": 1.0,
+          "description": "Basic product value and evaluation ideas are provided, but competitor/alternative analysis is limited; metrics or baselines are incomplete or only partially connected to project objectives."
+        },
+        {
+          "label": "0.5 points",
+          "points": 0.5,
+          "min_score": 0.5,
+          "max_score": 0.5,
+          "description": "Product value is poorly justified; little meaningful analysis of alternatives is provided; evaluation relies mainly on subjective demonstrations or vague success measures."
+        },
+        {
+          "label": "0 points",
+          "points": 0.0,
+          "min_score": 0.0,
+          "max_score": 0.0,
+          "description": "No meaningful product/business analysis or evaluation plan is provided."
+        }
+      ]
+    },
+    {
+      "id": "c5",
+      "name": "Feasibility, Risk, Semester Plan and Team Roles",
+      "weight": 1.5,
+      "kind": "content",
+      "description": "",
+      "levels": [
+        {
+          "label": "1.5 points",
+          "points": 1.5,
+          "min_score": 1.5,
+          "max_score": 1.5,
+          "description": "Scope is realistic and appropriately constrained; major technical and project risks are clearly identified with credible mitigation strategies; milestones are achievable and team responsibilities are clearly allocated."
+        },
+        {
+          "label": "1 points",
+          "points": 1.0,
+          "min_score": 1.0,
+          "max_score": 1.0,
+          "description": "A basic semester plan and allocation of responsibilities are provided; feasibility is plausible but scope, risks or milestones require further refinement."
+        },
+        {
+          "label": "0.5 points",
+          "points": 0.5,
+          "min_score": 0.5,
+          "max_score": 0.5,
+          "description": "The project appears overly ambitious, poorly scoped or insufficiently planned; major risks are ignored; milestones or team responsibilities are unclear."
+        },
+        {
+          "label": "0 points",
+          "points": 0.0,
+          "min_score": 0.0,
+          "max_score": 0.0,
+          "description": "No meaningful evidence of feasibility analysis, risk management, semester planning or team responsibilities is provided."
+        }
+      ]
+    },
+    {
+      "id": "c6",
+      "name": "Communication, Professionalism and References",
+      "weight": 1.5,
+      "kind": "general",
+      "description": "",
+      "levels": [
+        {
+          "label": "1.5 points",
+          "points": 1.5,
+          "min_score": 1.5,
+          "max_score": 1.5,
+          "description": "The proposal is clear, concise, coherent and professionally presented; figures and tables are effective where appropriate; external claims are supported by relevant and credible sources with consistent referencing."
+        },
+        {
+          "label": "1 points",
+          "points": 1.0,
+          "min_score": 1.0,
+          "max_score": 1.0,
+          "description": "The proposal is understandable but contains organisational, writing or presentation issues; references are present but may be limited, inconsistently formatted or weakly connected to claims."
+        },
+        {
+          "label": "0.5 points",
+          "points": 0.5,
+          "min_score": 0.5,
+          "max_score": 0.5,
+          "description": "The proposal is difficult to follow or poorly presented; writing contains substantial clarity issues; references are weak, inappropriate or inconsistently used."
+        },
+        {
+          "label": "0 points",
+          "points": 0.0,
+          "min_score": 0.0,
+          "max_score": 0.0,
+          "description": "The submission lacks an acceptable professional presentation and/or provides no meaningful referencing."
+        }
+      ]
+    }
+  ]
+}

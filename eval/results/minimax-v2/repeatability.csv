@@ -1,0 +1,5 @@
+Condition,Criteria graded repeatedly,Same level every run,Mean spread of the mark,Re-runs more than 5% higher
+direct,14,64%,4%,25%
+retrieval,14,64%,5%,25%
+full,14,50%,4%,21%
+full_tools,14,79%,4%,11%

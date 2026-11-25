@@ -1,48 +1,214 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.config import settings as app_settings
 from app.db.models.audit import AuditLog
 from app.db.models.batch import Batch
+from app.db.models.core import Term
 from app.db.models.job import Job
 from app.db.models.llm import LLMCall
 from app.db.models.review import Review
 from app.db.models.rubric import Rubric, RubricCriterion
 from app.db.models.submission import AIResult, Evidence, File, Submission
+from app.domain.bands import band_ranges, level_for_score
 from app.domain.ids import new_id
 from app.domain.states import BatchStatus, SubmissionStatus
+from app.domain.timefmt import iso_utc
+from app.grading import prompt_version
+from app.jobs import heartbeat
 from app.jobs.queue import JobQueue
+
+PROCESSING_STATES = ("extracting", "ocr_running", "queued", "marking")
+MAX_PINNED = 3  # Home shows the pinned batches, so the pin list is capped
+NEEDS_MANUAL_STATES = ("needs_ocr", "ocr_failed")
 
 
 class BatchUseCases:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def create(self, payload: dict[str, Any], actor_id: str) -> dict[str, Any]:
+    def _current_term_id(self) -> str:
+        """The newest term in the database (same order GET /me reports)."""
+
+        term = self.session.query(Term).order_by(Term.id.desc()).first()
+        if term is None:
+            raise ValueError("No term is configured; create one before adding batches")
+        return term.id
+
+    def create(
+        self,
+        payload: dict[str, Any],
+        actor_id: str,
+        *,
+        batch_id: str | None = None,
+        is_sample: bool = False,
+    ) -> dict[str, Any]:
+        """Create a draft batch. ``batch_id``/``is_sample`` are used only by the sample seeder."""
+
         now = datetime.now(timezone.utc)
         batch = Batch(
-            id=new_id("bat"),
+            id=batch_id or new_id("bat"),
             name=payload["name"],
             unit=payload.get("unit"),
-            term_id=payload["term_id"],
+            term_id=payload.get("term_id") or self._current_term_id(),
             due_at=_dt(payload.get("due_at")),
             status=BatchStatus.DRAFT.value,
             rubric_library_id=payload.get("rubric_id"),
             rubric_version=payload.get("rubric_version"),
             total_count=0,
+            is_sample=is_sample,
             created_by=actor_id,
             created_at=now,
             version=1,
         )
         self.session.add(batch)
         self.session.flush()
-        return {"batch": self.serialize(batch)}
+        # A new batch goes straight to the top of Home; the oldest pin makes room for it.
+        unpinned = self._pin(batch)
+        return {"batch": self.serialize(batch), "unpinned": unpinned}
+
+    def list(
+        self,
+        *,
+        active: bool | None = None,
+        term: str | None = None,
+        status: str | None = None,
+        q: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> dict[str, Any]:
+        """Pinned batches first, then the rest; newest first within each group."""
+
+        statement = select(Batch).order_by(
+            Batch.pinned.desc(), Batch.pinned_at.desc(), Batch.created_at.desc()
+        )
+        if term:
+            statement = statement.where(Batch.term_id == term)
+        if status:
+            statement = statement.where(Batch.status == status)
+        if active:
+            statement = statement.where(
+                Batch.status.not_in([BatchStatus.FINALISED.value, BatchStatus.CANCELLED.value])
+            )
+        if q:
+            pattern = f"%{q.lower()}%"
+            statement = statement.where(
+                func.lower(Batch.name).like(pattern) | func.lower(Batch.unit).like(pattern)
+            )
+        batches = list(self.session.scalars(statement))
+        start = (page - 1) * page_size
+        return {
+            "items": [self.serialize(item) for item in batches[start : start + page_size]],
+            "page": page,
+            "page_size": page_size,
+            "total": len(batches),
+        }
+
+    def set_pinned(self, batch_id: str, pinned: bool) -> dict[str, Any]:
+        """Pin or unpin. Pinning a fourth batch unpins the one pinned longest ago."""
+
+        batch = self._batch(batch_id)
+        unpinned: list[dict[str, str]] = []
+        if pinned:
+            unpinned = self._pin(batch)
+        else:
+            batch.pinned = False
+            batch.pinned_at = None
+            self.session.flush()
+        return {"batch_id": batch.id, "pinned": batch.pinned, "unpinned": unpinned}
+
+    def _pin(self, batch: Batch) -> list[dict[str, str]]:
+        batch.pinned = True
+        batch.pinned_at = datetime.now(timezone.utc)
+        self.session.flush()
+        pinned = list(
+            self.session.scalars(
+                select(Batch)
+                .where(Batch.pinned.is_(True))
+                .order_by(Batch.pinned_at.desc(), Batch.created_at.desc())
+            )
+        )
+        released = []
+        for other in pinned[MAX_PINNED:]:
+            other.pinned = False
+            other.pinned_at = None
+            released.append({"batch_id": other.id, "name": other.name})
+        self.session.flush()
+        return released
+
+    def snapshot_rubric(self, batch: Batch) -> list[RubricCriterion]:
+        """Freeze the batch's rubric version into the batch and return its criteria."""
+
+        criteria = list(
+            self.session.scalars(
+                select(RubricCriterion)
+                .where(
+                    RubricCriterion.rubric_id == batch.rubric_library_id,
+                    RubricCriterion.rubric_version == batch.rubric_version,
+                )
+                .order_by(RubricCriterion.position)
+            )
+        )
+        rubric = self.session.get(Rubric, batch.rubric_library_id)
+        batch.rubric_snapshot_json = json.dumps(
+            {
+                "id": batch.rubric_library_id,
+                "version": batch.rubric_version,
+                "title": rubric.title if rubric else "Imported rubric",
+                "source": rubric.source if rubric else "Imported",
+                "criteria": [
+                    {
+                        "id": criterion.id,
+                        "name": criterion.name,
+                        "weight": criterion.weight,
+                        "description": criterion.description or "",
+                        "levels": json.loads(criterion.levels_json or "[]"),
+                        "grading_mode": criterion.grading_mode,
+                        "aspects": json.loads(criterion.aspects_json or "[]"),
+                    }
+                    for criterion in criteria
+                ],
+            },
+            ensure_ascii=False,
+        )
+        return criteria
+
+    def refresh_status(self, batch_id: str) -> None:
+        """Derive the batch lifecycle state from its submissions after processing changes."""
+
+        batch = self.session.get(Batch, batch_id)
+        if batch is None or batch.status in {
+            BatchStatus.CANCELLED.value,
+            BatchStatus.FINALISED.value,
+            BatchStatus.DRAFT.value,
+        }:
+            return
+        self.session.flush()
+        counts = self.counts(batch_id)
+        remaining = counts["total"] - counts["excluded"]
+        if counts["processing"] and batch.status == BatchStatus.PAUSED.value:
+            return  # stays paused while work is held back
+        if counts["processing"]:
+            status = BatchStatus.PROCESSING.value
+        elif remaining and counts["failed"] == remaining:
+            status = BatchStatus.FAILED_ALL.value
+        elif remaining and counts["confirmed"] == remaining:
+            status = BatchStatus.COMPLETED.value
+        else:
+            status = BatchStatus.IN_REVIEW.value
+        if status != batch.status:
+            batch.status = status
+            if status == BatchStatus.COMPLETED.value and batch.completed_at is None:
+                batch.completed_at = datetime.now(timezone.utc)
+            batch.version += 1
 
     def start(
         self,
@@ -52,16 +218,37 @@ class BatchUseCases:
         runtime_settings: Settings,
     ) -> dict[str, Any]:
         batch = self._batch(batch_id)
-        if batch.status != BatchStatus.DRAFT.value:
+        not_started = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(Submission)
+                .where(
+                    Submission.batch_id == batch.id,
+                    Submission.status == SubmissionStatus.UPLOADED.value,
+                )
+            )
+            or 0
+        )
+        # A draft starts normally; a started batch may continue only while some of its
+        # uploads were left out of a dry run. Finalised or cancelled batches never restart.
+        continuing = batch.status in {
+            BatchStatus.IN_REVIEW.value,
+            BatchStatus.PROCESSING.value,
+            BatchStatus.COMPLETED.value,
+        } and bool(not_started)
+        if batch.status != BatchStatus.DRAFT.value and not continuing:
             return {
                 "batch_id": batch.id,
                 "status": batch.status,
                 "job_id": None,
                 "sample_size": sample,
                 "queued": 0,
+                "concurrency": runtime_settings.worker_concurrency,
                 "counts": self.counts(batch.id),
             }
         provider = payload.get("provider") or runtime_settings.llm
+        if provider == "fake" and not runtime_settings.fake_llm_allowed:
+            raise ValueError("The offline FakeLLM is available only in the test environment")
         if provider not in {"fake", "university"} and not payload.get(
             "external_processing_acknowledged"
         ):
@@ -102,55 +289,16 @@ class BatchUseCases:
             )
         )
         batch.status = BatchStatus.PROCESSING.value
-        batch.started_at = datetime.now(timezone.utc)
+        batch.started_at = batch.started_at or datetime.now(timezone.utc)
         batch.model_provider = provider
         batch.model_name = payload.get("model") or runtime_settings.ai_model
-        batch.prompt_version = "criterion-grade-coverage-v3"
+        batch.prompt_version = prompt_version(runtime_settings.grading_context)
         batch.external_processing_acknowledged = bool(
             payload.get("external_processing_acknowledged", False)
         )
         batch.version += 1
-        progress_job = JobQueue(self.session).enqueue(
-            "demo_progress",
-            {
-                "batch_id": batch.id,
-                "status": "processing",
-                "counts": self.counts(batch.id),
-                "eta_seconds": 1,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-        criteria = list(
-            self.session.scalars(
-                select(RubricCriterion)
-                .where(
-                    RubricCriterion.rubric_id == batch.rubric_library_id,
-                    RubricCriterion.rubric_version == batch.rubric_version,
-                )
-                .order_by(RubricCriterion.position)
-            )
-        )
-        rubric = self.session.get(Rubric, batch.rubric_library_id)
-        batch.rubric_snapshot_json = json.dumps(
-            {
-                "id": batch.rubric_library_id,
-                "version": batch.rubric_version,
-                "title": rubric.title if rubric else "Imported rubric",
-                "source": rubric.source if rubric else "Imported",
-                "criteria": [
-                    {
-                        "id": criterion.id,
-                        "name": criterion.name,
-                        "weight": criterion.weight,
-                        "levels": json.loads(criterion.levels_json or "[]"),
-                        "grading_mode": criterion.grading_mode,
-                        "aspects": json.loads(criterion.aspects_json or "[]"),
-                    }
-                    for criterion in criteria
-                ],
-            },
-            ensure_ascii=False,
-        )
+        if not continuing:
+            self.snapshot_rubric(batch)
         grade_jobs = []
         for submission in submissions:
             submission.status = SubmissionStatus.QUEUED.value
@@ -171,10 +319,11 @@ class BatchUseCases:
         return {
             "batch_id": batch.id,
             "status": batch.status,
-            "job_id": grade_jobs[0].id if grade_jobs else progress_job.id,
+            "job_id": grade_jobs[0].id if grade_jobs else None,
             "job_ids": [item.id for item in grade_jobs],
             "sample_size": sample,
             "queued": len(submissions),
+            "concurrency": runtime_settings.worker_concurrency,
             "counts": self.counts(batch.id),
         }
 
@@ -224,6 +373,7 @@ class BatchUseCases:
         if batch.status not in {
             BatchStatus.DRAFT.value,
             BatchStatus.PROCESSING.value,
+            BatchStatus.PAUSED.value,
             BatchStatus.FAILED_ALL.value,
         }:
             raise RuntimeError("invalid_transition")
@@ -253,7 +403,7 @@ class BatchUseCases:
             submission.version += 1
         self.session.execute(
             update(Job)
-            .where(Job.batch_id == batch.id, Job.status == "queued")
+            .where(Job.batch_id == batch.id, Job.status.in_(["queued", "paused"]))
             .values(
                 status="cancelled",
                 last_error=reason or "Batch terminated by user",
@@ -273,13 +423,75 @@ class BatchUseCases:
             "version": batch.version,
         }
 
+    def pause(self, batch_id: str, actor_id: str, version: int) -> dict[str, Any]:
+        """Hold back this batch's queued work. Resumable, unlike cancel.
+
+        Submissions already with the AI finish the criterion calls in flight, keep every
+        criterion completed so far and wait with the rest; nothing new is sent.
+        """
+
+        batch = self._batch(batch_id)
+        if batch.version != version:
+            raise RuntimeError("version_conflict")
+        if batch.status != BatchStatus.PROCESSING.value:
+            raise RuntimeError("invalid_transition")
+        now = datetime.now(timezone.utc)
+        held = self.session.execute(
+            update(Job)
+            .where(Job.batch_id == batch.id, Job.status == "queued")
+            .values(status="paused", updated_at=now)
+        ).rowcount
+        running = int(
+            self.session.scalar(
+                select(func.count()).select_from(Job).where(
+                    Job.batch_id == batch.id, Job.status == "running"
+                )
+            )
+            or 0
+        )
+        batch.status = BatchStatus.PAUSED.value
+        batch.version += 1
+        self._audit(actor_id, "batch.pause", batch, {"held_jobs": held, "running_jobs": running})
+        return {
+            "batch_id": batch.id,
+            "status": batch.status,
+            "held": int(held or 0),
+            "finishing": running,
+            "version": batch.version,
+        }
+
+    def resume(self, batch_id: str, actor_id: str, version: int) -> dict[str, Any]:
+        """Put a paused batch's work back in the queue; completed criteria are not redone."""
+
+        batch = self._batch(batch_id)
+        if batch.version != version:
+            raise RuntimeError("version_conflict")
+        if batch.status != BatchStatus.PAUSED.value:
+            raise RuntimeError("invalid_transition")
+        now = datetime.now(timezone.utc)
+        released = self.session.execute(
+            update(Job)
+            .where(Job.batch_id == batch.id, Job.status == "paused")
+            .values(status="queued", run_after=now, updated_at=now)
+        ).rowcount
+        batch.status = BatchStatus.PROCESSING.value
+        batch.version += 1
+        self._audit(actor_id, "batch.resume", batch, {"released_jobs": released})
+        self.refresh_status(batch.id)  # nothing left to do → straight to review
+        return {
+            "batch_id": batch.id,
+            "status": batch.status,
+            "released": int(released or 0),
+            "version": batch.version,
+        }
+
     def delete(self, batch_id: str, actor_id: str, version: int) -> dict[str, Any]:
         batch = self._batch(batch_id)
         if batch.version != version:
             raise RuntimeError("version_conflict")
         if batch.status == BatchStatus.FINALISED.value:
             raise RuntimeError("finalised_batch_locked")
-        if batch.status == BatchStatus.PROCESSING.value:
+        if batch.status in {BatchStatus.PROCESSING.value, BatchStatus.PAUSED.value}:
             raise RuntimeError("batch_must_be_cancelled")
 
         submissions = list(
@@ -326,6 +538,8 @@ class BatchUseCases:
         }
 
     def counts(self, batch_id: str) -> dict[str, int]:
+        """Disjoint lifecycle counts plus subset flags (low_confidence, adjusted)."""
+
         rows = dict(
             self.session.execute(
                 select(Submission.status, func.count())
@@ -334,9 +548,9 @@ class BatchUseCases:
             ).all()
         )
         batch = self._batch(batch_id)
-        processing = sum(
-            rows.get(s, 0) for s in ("uploaded", "extracting", "ocr_running", "queued", "marking")
-        )
+        queued = rows.get("queued", 0)
+        active = sum(rows.get(state, 0) for state in ("extracting", "ocr_running", "marking"))
+        processing = queued + active
         ready = rows.get("ai_done", 0) + rows.get("in_review", 0)
         low_confidence = (
             self.session.scalar(
@@ -350,7 +564,7 @@ class BatchUseCases:
             )
             or 0
         )
-        needs_manual = rows.get("needs_ocr", 0)
+        needs_manual = sum(rows.get(state, 0) for state in NEEDS_MANUAL_STATES)
         return {
             "total": batch.total_count,
             "processed": ready + rows.get("confirmed", 0) + needs_manual,
@@ -358,15 +572,40 @@ class BatchUseCases:
             "low_confidence": low_confidence,
             "needs_manual": needs_manual,
             "processing": processing,
+            "active": active,
+            "queued": queued,
+            "not_started": rows.get("uploaded", 0),
             "confirmed": rows.get("confirmed", 0),
-            "adjusted": 0,
+            "adjusted": len(self.adjusted_submission_ids(batch_id)),
             "failed": rows.get("failed", 0),
             "excluded": rows.get("excluded", 0),
             "cancelled": rows.get("cancelled", 0),
         }
 
+    def adjusted_submission_ids(self, batch_id: str) -> set[str]:
+        """Confirmed submissions where the tutor's final mark differs from the AI on any criterion."""
+
+        statement = (
+            select(Submission.id)
+            .join(Review, Review.submission_id == Submission.id)
+            .join(
+                AIResult,
+                (AIResult.submission_id == Review.submission_id)
+                & (AIResult.criterion_id == Review.criterion_id),
+            )
+            .where(
+                Submission.batch_id == batch_id,
+                Submission.status == SubmissionStatus.CONFIRMED.value,
+                func.abs(Review.score - AIResult.score) > 0.001,
+            )
+            .distinct()
+        )
+        return set(self.session.scalars(statement))
+
     def serialize(self, batch: Batch) -> dict[str, Any]:
         rubric_summary = None
+        maximum = 0.0
+        criteria_count = 0
         if batch.rubric_library_id:
             rubric = self.session.get(Rubric, batch.rubric_library_id)
             if rubric:
@@ -381,12 +620,20 @@ class BatchUseCases:
                     )
                     or 0
                 )
-                total_weight = (
+                maximum = float(
                     self.session.scalar(
                         select(func.sum(RubricCriterion.weight)).where(
                             RubricCriterion.rubric_id == batch.rubric_library_id,
                             RubricCriterion.rubric_version == batch.rubric_version,
                         )
+                    )
+                    or 0
+                )
+                used_by_count = (
+                    self.session.scalar(
+                        select(func.count())
+                        .select_from(Batch)
+                        .where(Batch.rubric_library_id == rubric.id)
                     )
                     or 0
                 )
@@ -396,28 +643,222 @@ class BatchUseCases:
                     "title": rubric.title,
                     "source": rubric.source,
                     "criteria_count": criteria_count,
-                    "total_weight": float(total_weight),
-                    "used_by_count": 1,
-                    "updated_at": rubric.updated_at.isoformat(),
+                    "total_weight": maximum,
+                    "used_by_count": used_by_count,
+                    "updated_at": iso_utc(rubric.updated_at),
                 }
+        term = self.session.get(Term, batch.term_id)
+        counts = self.counts(batch.id)
+        queue = self.queue_wait(batch, counts)
+        agents = self.live_agents(batch.id) if counts["processing"] else None
         return {
             "id": batch.id,
             "name": batch.name,
             "unit": batch.unit,
-            "term": {"id": batch.term_id, "label": "Semester 2, 2026"},
+            "term": {"id": batch.term_id, "label": term.label if term else batch.term_id},
             "due_at": batch.due_at.isoformat() if batch.due_at else None,
             "status": batch.status,
-            "display_status": "processing"
-            if self.counts(batch.id)["processing"] > 0
-            else batch.status,
+            "display_status": (
+                batch.status
+                if batch.status == BatchStatus.PAUSED.value
+                else "processing"
+                if counts["processing"] > 0
+                else batch.status
+            ),
+            "is_sample": bool(batch.is_sample),
+            "pinned": bool(batch.pinned),
+            "pinned_at": _iso(batch.pinned_at),
             "rubric": rubric_summary,
-            "counts": self.counts(batch.id),
-            "eta_seconds": None,
-            "created_at": batch.created_at.isoformat(),
+            "counts": counts,
+            "queue": queue,
+            "agents": agents,
+            "insights": self._insights(batch.id, maximum),
+            "model": {"provider": batch.model_provider, "name": batch.model_name}
+            if batch.model_provider
+            else None,
+            "eta_seconds": self.estimate_eta(batch, counts, queue, criteria_count),
+            "created_at": iso_utc(batch.created_at),
             "started_at": _iso(batch.started_at),
             "completed_at": _iso(batch.completed_at),
             "finalised_at": _iso(batch.finalised_at),
             "version": batch.version,
+        }
+
+    def live_agents(self, batch_id: str) -> dict[str, int] | None:
+        """Evidence agents running now for this batch's submissions, from the worker's heartbeat."""
+
+        running = heartbeat.evidence_agents(app_settings)
+        if running is None:
+            return None
+        ids = set(
+            self.session.scalars(
+                select(Submission.id).where(Submission.batch_id == batch_id, Submission.id.in_(list(running)))
+            )
+        ) if running else set()
+        return {"evidence": sum(running[item] for item in ids)}
+
+    def estimate_eta(
+        self,
+        batch: Batch,
+        counts: dict[str, int],
+        queue: dict[str, Any] | None = None,
+        criteria_count: int = 0,
+    ) -> int | None:
+        """Estimate remaining AI preparation time from observed submission latency."""
+
+        remaining = int(counts.get("processing", 0))
+        if batch.status != BatchStatus.PROCESSING.value or remaining < 1:
+            return None
+
+        completed_states = [
+            SubmissionStatus.AI_DONE.value,
+            SubmissionStatus.IN_REVIEW.value,
+            SubmissionStatus.CONFIRMED.value,
+        ]
+        submission_latencies = (
+            select(func.sum(AIResult.latency_ms).label("latency_ms"))
+            .join(Submission, Submission.id == AIResult.submission_id)
+            .where(
+                Submission.batch_id == batch.id,
+                Submission.status.in_(completed_states),
+                AIResult.latency_ms > 0,
+            )
+            .group_by(AIResult.submission_id)
+            .subquery()
+        )
+        observed_ms = self.session.scalar(select(func.avg(submission_latencies.c.latency_ms)))
+        if observed_ms is None:
+            if criteria_count < 1 and batch.rubric_library_id:
+                criteria_count = int(
+                    self.session.scalar(
+                        select(func.count())
+                        .select_from(RubricCriterion)
+                        .where(
+                            RubricCriterion.rubric_id == batch.rubric_library_id,
+                            RubricCriterion.rubric_version == batch.rubric_version,
+                        )
+                    )
+                    or 0
+                )
+            observed_ms = max(criteria_count, 1) * 15_000
+
+        jobs_ahead = int((queue or {}).get("jobs_ahead", 0))
+        global_active = int(
+            self.session.scalar(
+                select(func.count()).select_from(Job).where(Job.status == "running")
+            )
+            or 0
+        )
+        worker_slots = max(int(counts.get("active", 0)), global_active, 1)
+        # Add modest extraction/persistence overhead to the provider latency.
+        seconds = ((remaining + jobs_ahead) * float(observed_ms) * 1.15) / (
+            worker_slots * 1000
+        )
+        return max(1, math.ceil(seconds))
+
+    def queue_wait(self, batch: Batch, counts: dict[str, int]) -> dict[str, Any] | None:
+        """Explain why a queued batch has not started yet.
+
+        Jobs are leased from one global FIFO queue. A running job occupies the
+        worker even when its batch has just been cancelled; older queued jobs
+        also remain ahead of this batch until they are handled or cancelled.
+        """
+
+        if (
+            batch.status != BatchStatus.PROCESSING.value
+            or counts.get("active", 0) > 0
+            or counts.get("queued", 0) < 1
+        ):
+            return None
+
+        first_job = self.session.scalar(
+            select(Job)
+            .where(Job.batch_id == batch.id, Job.status == "queued")
+            .order_by(Job.created_at, Job.id)
+            .limit(1)
+        )
+        if first_job is None:
+            return None
+
+        ahead_condition = and_(
+            Job.batch_id != batch.id,
+            or_(
+                Job.status == "running",
+                and_(Job.status == "queued", Job.created_at < first_job.created_at),
+            ),
+        )
+        jobs_ahead = int(
+            self.session.scalar(select(func.count()).select_from(Job).where(ahead_condition))
+            or 0
+        )
+        if jobs_ahead < 1:
+            return {"jobs_ahead": 0, "blocked_by": None}
+
+        blocker_job = self.session.scalar(
+            select(Job)
+            .where(ahead_condition)
+            .order_by(case((Job.status == "running", 0), else_=1), Job.created_at, Job.id)
+            .limit(1)
+        )
+        blocker = self.session.get(Batch, blocker_job.batch_id) if blocker_job else None
+        if blocker is None:
+            return {"jobs_ahead": jobs_ahead, "blocked_by": None}
+
+        blocker_jobs_ahead = int(
+            self.session.scalar(
+                select(func.count())
+                .select_from(Job)
+                .where(ahead_condition, Job.batch_id == blocker.id)
+            )
+            or 0
+        )
+        return {
+            "jobs_ahead": jobs_ahead,
+            "blocked_by": {
+                "id": blocker.id,
+                "name": blocker.name,
+                "status": blocker.status,
+                "jobs_ahead": blocker_jobs_ahead,
+                "created_at": iso_utc(blocker.created_at),
+            },
+        }
+
+    def _insights(self, batch_id: str, maximum: float) -> dict[str, Any]:
+        """Confidence mix of AI-processed work and the grade mix of confirmed work."""
+
+        processed_states = ["ai_done", "in_review", "confirmed"]
+        confidence = dict(
+            self.session.execute(
+                select(Submission.min_confidence, func.count())
+                .where(
+                    Submission.batch_id == batch_id,
+                    Submission.status.in_(processed_states),
+                )
+                .group_by(Submission.min_confidence)
+            ).all()
+        )
+        confirmed = list(
+            self.session.execute(
+                select(Submission.final_total, Submission.ai_total).where(
+                    Submission.batch_id == batch_id,
+                    Submission.status == SubmissionStatus.CONFIRMED.value,
+                    Submission.final_total.is_not(None),
+                )
+            ).all()
+        )
+        finals = [float(row[0]) for row in confirmed]
+        ais = [float(row[1]) for row in confirmed if row[1] is not None]
+        grades = {level.value: 0 for level, _lower, _upper in band_ranges()}
+        for value in finals:
+            grades[level_for_score(value, maximum).value] += 1
+        return {
+            "maximum": maximum,
+            "confidence": {
+                key: int(confidence.get(key, 0)) for key in ("high", "medium", "low", "none")
+            },
+            "grades": grades,
+            "average_final": round(sum(finals) / len(finals), 1) if finals else None,
+            "average_ai": round(sum(ais) / len(ais), 1) if ais else None,
         }
 
     def _batch(self, batch_id: str) -> Batch:
@@ -448,4 +889,4 @@ def _dt(value: str | None) -> datetime | None:
 
 
 def _iso(value: datetime | None) -> str | None:
-    return value.isoformat() if value else None
+    return iso_utc(value)

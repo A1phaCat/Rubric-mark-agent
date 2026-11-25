@@ -1,0 +1,172 @@
+{
+  "title": "Group Presentation",
+  "source": "From Canvas · local snapshot",
+  "pinned": false,
+  "age_days": 41,
+  "criteria": [
+    {
+      "name": "Content & accuracy",
+      "weight": 35,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 35.0,
+          "min_score": 29.75,
+          "max_score": 35.0,
+          "description": "Accurate, well-chosen content."
+        },
+        {
+          "label": "DI",
+          "points": 29.4,
+          "min_score": 26.25,
+          "max_score": 29.75,
+          "description": "Accurate with minor gaps."
+        },
+        {
+          "label": "CR",
+          "points": 25.9,
+          "min_score": 22.75,
+          "max_score": 26.25,
+          "description": "Mostly accurate."
+        },
+        {
+          "label": "PS",
+          "points": 22.4,
+          "min_score": 17.5,
+          "max_score": 22.75,
+          "description": "Several inaccuracies."
+        },
+        {
+          "label": "FL",
+          "points": 17.15,
+          "min_score": 0.0,
+          "max_score": 17.5,
+          "description": "Largely inaccurate."
+        }
+      ]
+    },
+    {
+      "name": "Structure",
+      "weight": 20,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 20.0,
+          "min_score": 17.0,
+          "max_score": 20.0,
+          "description": "Clear arc with smooth hand-overs."
+        },
+        {
+          "label": "DI",
+          "points": 16.8,
+          "min_score": 15.0,
+          "max_score": 17.0,
+          "description": "Clear structure."
+        },
+        {
+          "label": "CR",
+          "points": 14.8,
+          "min_score": 13.0,
+          "max_score": 15.0,
+          "description": "Structure mostly followable."
+        },
+        {
+          "label": "PS",
+          "points": 12.8,
+          "min_score": 10.0,
+          "max_score": 13.0,
+          "description": "Hard to follow."
+        },
+        {
+          "label": "FL",
+          "points": 9.8,
+          "min_score": 0.0,
+          "max_score": 10.0,
+          "description": "No structure."
+        }
+      ]
+    },
+    {
+      "name": "Delivery",
+      "weight": 25,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 25.0,
+          "min_score": 21.25,
+          "max_score": 25.0,
+          "description": "Confident, engaging, well paced."
+        },
+        {
+          "label": "DI",
+          "points": 21.0,
+          "min_score": 18.75,
+          "max_score": 21.25,
+          "description": "Clear and mostly engaging."
+        },
+        {
+          "label": "CR",
+          "points": 18.5,
+          "min_score": 16.25,
+          "max_score": 18.75,
+          "description": "Clear but flat."
+        },
+        {
+          "label": "PS",
+          "points": 16.0,
+          "min_score": 12.5,
+          "max_score": 16.25,
+          "description": "Hard to hear or follow."
+        },
+        {
+          "label": "FL",
+          "points": 12.25,
+          "min_score": 0.0,
+          "max_score": 12.5,
+          "description": "Not delivered."
+        }
+      ]
+    },
+    {
+      "name": "Answering questions",
+      "weight": 20,
+      "levels": [
+        {
+          "label": "HD",
+          "points": 20.0,
+          "min_score": 17.0,
+          "max_score": 20.0,
+          "description": "Thoughtful, accurate answers."
+        },
+        {
+          "label": "DI",
+          "points": 16.8,
+          "min_score": 15.0,
+          "max_score": 17.0,
+          "description": "Good answers."
+        },
+        {
+          "label": "CR",
+          "points": 14.8,
+          "min_score": 13.0,
+          "max_score": 15.0,
+          "description": "Adequate answers."
+        },
+        {
+          "label": "PS",
+          "points": 12.8,
+          "min_score": 10.0,
+          "max_score": 13.0,
+          "description": "Weak answers."
+        },
+        {
+          "label": "FL",
+          "points": 9.8,
+          "min_score": 0.0,
+          "max_score": 10.0,
+          "description": "No answers."
+        }
+      ]
+    }
+  ]
+}

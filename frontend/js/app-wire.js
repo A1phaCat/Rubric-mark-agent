@@ -1,290 +1,634 @@
 (function () {
-  function esc(value) { return String(value == null ? '' : value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
-  function pageName() { return (location.pathname.split('/').pop() || '00-home.html').toLowerCase(); }
-  function reportError(error) { document.documentElement.dataset.apiState='error'; console.error('Marker data load failed',error); }
-  function rubricShape(item) {
-    var rubric=item.rubric||item, used=item.used_by||[];
-    return {id:rubric.id,version:rubric.version,title:rubric.title,source:rubric.source,updated:Date.parse(rubric.updated_at),usedBy:used.length?used.map(function(batch){return batch.batch_name;}):(rubric.used_by_count?['In use by '+rubric.used_by_count+' batch'+(rubric.used_by_count===1?'':'es')]:[]),criteria:(rubric.criteria||[]).map(function(c){var levels=(c.levels||[]).map(function(level){return {id:level.id,label:level.label,points:level.points,min_score:level.min_score,max_score:level.max_score,description:level.description};});return {id:c.id,name:c.name,weight:c.weight,grading_mode:c.grading_mode,aspects:c.aspects||[],levels:levels,bands:levels.map(function(level){return level.description;})};})};
+  /* Connects every page to the API. All data shown comes from the local database through
+     MarkerAPI; page-specific renderers live in render-home.js, render-results.js and
+     render-report.js and receive the helpers below. */
+
+  /* ---------------------------------------------------------------- helpers */
+  function esc(value) { return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+  function num(value) { if (value == null || value === '') return '—'; var n = Number(value); return Math.abs(n - Math.round(n)) < 0.005 ? String(Math.round(n)) : String(Math.round(n * 100) / 100); }
+  /* Each criterion must be confirmed before "Confirm & next": by accepting the AI suggestion, or,
+     when the tutor changed the score, with the Confirm button that then appears. */
+  function scoreChanged(card) {
+    var input = card.querySelector('.score-input');
+    return !!input && input.value !== '' && (input.dataset.ai === '' || Number(input.value) !== Number(input.dataset.ai));
   }
-  function wireHome() {
-    return Promise.all([MarkerAPI.homeSummary(),MarkerAPI.homeQueue(5),MarkerAPI.listRubrics()]).then(function(values){
-      window.__MARKER_PAGE_DATA={summary:values[0],queue:values[1],rubrics:values[2]};
-      var box=document.getElementById('recentRubrics'); if (!box) return;
-      box.innerHTML=values[2].items.slice(0,3).map(function(r){return '<a class="r" href="06-rubrics.html#open='+encodeURIComponent(r.id)+'"><span>'+esc(r.title)+'<small>Version '+r.version+'</small></span><span>'+r.criteria_count+' criteria</span></a>';}).join('')+'<a class="r-add" href="01a-rubric-import.html">+ Import a rubric</a>';
+  function refreshConfirm(card) {
+    var button = card.querySelector('.confirm-btn'), input = card.querySelector('.score-input');
+    if (button) button.hidden = card.dataset.confirmed === '1' || !scoreChanged(card) || !!(input && input.disabled);
+  }
+  function navDot(card, done) {
+    var dot = document.getElementById('nav' + (Array.prototype.indexOf.call(document.querySelectorAll('.crit-card'), card) + 1));
+    if (dot) dot.classList.toggle('done', done);
+  }
+  function wireCriterionConfirm() {
+    document.addEventListener('input', function (event) {
+      var input = event.target.closest && event.target.closest('.score-input'); if (!input) return;
+      var card = input.closest('.crit-card'); card.dataset.confirmed = ''; navDot(card, false); refreshConfirm(card);
+    });
+    document.addEventListener('click', function (event) {
+      var accept = event.target.closest('.accept-btn');
+      if (accept) { var accepted = accept.closest('.crit-card'); accepted.dataset.confirmed = '1'; refreshConfirm(accepted); return; }
+      var button = event.target.closest('.confirm-btn'); if (!button) return;
+      var card = button.closest('.crit-card'), input = card.querySelector('.score-input'), status = card.querySelector('.status-text');
+      var value = Number(input.value), max = Number(input.dataset.max);
+      if (input.value === '' || isNaN(value) || value < 0 || value > max) { status.classList.remove('confirmed'); status.textContent = 'Enter a score between 0 and ' + num(max); return; }
+      card.dataset.confirmed = '1'; input.classList.add('confirmed');
+      status.textContent = input.dataset.ai === '' ? 'Confirmed' : 'Confirmed · adjusted from AI'; status.classList.add('confirmed');
+      navDot(card, true); refreshConfirm(card);
+      if (typeof updateSummary === 'function') updateSummary(card);
+    });
+  }
+
+  /* The score box's arrow step: the largest of 1, 0.5, 0.25, 0.1, 0.05, 0.01 that every level's points
+     and the criterion maximum are multiples of (1.5 / 1 / 0.5 / 0 → 0.5). With step="any" browsers
+     step by 1, so 1 could never reach 1.5. Typed values are not restricted. */
+  function scoreStep(def) {
+    var values = (def.levels || []).map(function (level) { return Number(level.points); }).concat([Number(def.weight)]).filter(function (v) { return isFinite(v); });
+    return [1, 0.5, 0.25, 0.1, 0.05, 0.01].filter(function (step) {
+      return values.every(function (v) { return Math.abs(v / step - Math.round(v / step)) < 1e-6; });
+    })[0] || 0.01;
+  }
+  function date(value) { var d = value ? new Date(value) : null; return d && !isNaN(d.getTime()) ? d : null; }
+  function shortDate(value) { var d = date(value); return d ? d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }) : '—'; }
+  function longDate(value) { var d = date(value); return d ? d.toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' }) : '—'; }
+  function etaText(seconds) {
+    var mins = Math.max(1, Math.ceil(Number(seconds || 0) / 60));
+    if (mins < 60) return '~' + mins + ' min remaining';
+    var hours = Math.floor(mins / 60), rest = mins % 60;
+    return '~' + hours + ' hr' + (hours === 1 ? '' : 's') + (rest ? ' ' + rest + ' min' : '') + ' remaining';
+  }
+  function ago(value) {
+    var d = date(value); if (!d) return '—';
+    var m = Math.round((Date.now() - d.getTime()) / 6e4);
+    if (m < 1) return 'just now'; if (m < 60) return m + ' min ago';
+    var h = Math.round(m / 60); if (h < 24) return h + ' h ago';
+    var days = Math.round(h / 24); if (days < 31) return days + (days === 1 ? ' day ago' : ' days ago');
+    var mo = Math.round(days / 30); return mo + (mo === 1 ? ' month ago' : ' months ago');
+  }
+  var STATUS_LABELS = {
+    uploaded: 'Not started', queued: 'Queued', extracting: 'Extracting text', marking: 'With the AI', ai_done: 'Ready for review', in_review: 'In review',
+    needs_ocr: 'Needs manual marking', ocr_failed: 'Needs manual marking', confirmed: 'Confirmed', failed: 'Failed', excluded: 'Excluded', cancelled: 'Cancelled',
+    draft: 'Draft', processing: 'Processing', paused: 'Paused', completed: 'Complete', finalised: 'Finalised', failed_all: 'Failed'
+  };
+  function statusLabel(status) { return STATUS_LABELS[status] || String(status || '').replace(/_/g, ' '); }
+  function queueBlockerText(batch) {
+    var queue = batch && batch.queue, blocker = queue && queue.blocked_by;
+    if (!blocker) return '';
+    var started = date(blocker.created_at);
+    var at = started ? started.toLocaleTimeString('en-AU', { hour:'numeric', minute:'2-digit', timeZone:'Australia/Sydney' }) : '';
+    var lead = blocker.status === 'cancelled' ? 'Finishing cancelled batch' : 'Waiting behind';
+    return lead + ' “' + blocker.name + '”' + (at ? ' (started ' + at + ')' : '');
+  }
+  function queueActivityHtml(batch, counts) {
+    var active = Number(counts.active || 0), queued = Number(counts.queued || 0);
+    if (batch.status === 'paused') {
+      return '<div class="live-work queue-wait paused-work" role="status"><span class="queue-clock" aria-hidden="true">❚❚</span><strong>' +
+        (active > 0 ? 'Pausing — ' + active + ' finishing the criteria already sent' : 'Paused') + '</strong><span>· ' + queued + ' on hold · resume to continue</span></div>';
+    }
+    if (active > 0) {
+      var agents = batch.agents && batch.agents.evidence != null ? Number(batch.agents.evidence) : null;
+      var working = agents == null ? '' : '<span class="agent-count" title="Evidence agents: one per criterion being checked against the submission">· ' + agents + ' evidence agent' + (agents === 1 ? '' : 's') + ' working</span>';
+      return '<div class="live-work" role="status"><span class="live-bars" aria-hidden="true"><i></i><i></i><i></i></span><strong>' + active + ' submission' + (active === 1 ? '' : 's') + ' in progress</strong>' + working + '<span>· ' + queued + ' queued</span></div>';
+    }
+    var queue = batch.queue || {}, blocker = queue.blocked_by, jobs = Number(queue.jobs_ahead || 0);
+    if (blocker) {
+      var label = queueBlockerText(batch), suffix = jobs + ' job' + (jobs === 1 ? '' : 's') + ' ahead';
+      return '<div class="live-work queue-wait" role="status"><span class="queue-clock" aria-hidden="true">◷</span><strong><a href="02-batch-status.html?batch_id=' + encodeURIComponent(blocker.id) + '" title="Open the batch currently ahead in the queue">' + esc(label) + '</a></strong><span>· ' + suffix + '</span></div>';
+    }
+    return '<div class="live-work queue-wait" role="status"><span class="queue-clock" aria-hidden="true">◷</span><strong>Waiting for a worker</strong><span>· ' + queued + ' queued</span></div>';
+  }
+  /* Shared wording for batch actions; used by the batch list and the batch page. */
+  var FLOW = {
+    pause: { title: 'Pause this batch?', icon: 'pause', confirmLabel: 'Pause batch', cancelLabel: 'Keep running', busy: 'Pausing…',
+      message: 'Work not yet sent to the AI is held back. Submissions already with the AI finish the criteria in flight, and every finished criterion is kept.',
+      note: 'Nothing is lost — resume any time and it carries on from where it stopped.' },
+    resume: { title: 'Resume this batch?', icon: 'play', confirmLabel: 'Resume batch', cancelLabel: 'Stay paused', busy: 'Resuming…',
+      message: 'The held submissions go back into the queue. Criteria already marked are not sent again.' },
+    cancel: { title: 'Terminate this batch?', icon: 'stop', tone: 'danger', confirmLabel: 'Terminate', cancelLabel: 'Keep batch', busy: 'Terminating…',
+      message: 'Queued work stops for good and the remaining submissions are cancelled. Marks already produced are kept.',
+      note: 'To stop only for now, use Pause instead — it can be resumed.' },
+    delete: { title: 'Delete this batch?', icon: 'trash', tone: 'danger', confirmLabel: 'Delete permanently', cancelLabel: 'Keep batch', busy: 'Deleting…',
+      message: 'The batch, its marks and its uploaded files are removed permanently. This cannot be undone.' }
+  };
+  var ERRORS = {
+    version_conflict: 'This batch changed in another tab. Reload the page and try again.',
+    invalid_transition: 'This batch is no longer in a state that allows that. Reload to see its current status.',
+    batch_terminated: 'This batch was terminated, so its submissions cannot be retried.',
+    database_busy: 'The local database is briefly busy. Try again in a moment.'
+  };
+  function actionError(title, error) {
+    var code = error && (error.code || error.message);
+    var message = ERRORS[code] || (error && error.message) || String(error);
+    if (error && error.status === 404 && !error.code) {
+      // The page is newer than the running server: the action exists in the code on disk
+      // but not in the API process that was started before the update.
+      message = 'The local server does not know this action yet — it is still running an older version. Restart it (make dev, or restart the API and the worker) and try again.';
+    }
+    return { title: title, message: message, icon: 'warn', tone: 'danger', okLabel: 'Close' };
+  }
+  function pinnedNotice(unpinned) {
+    return { title: 'Pinned to Home', icon: 'info', message: 'Up to 3 batches can be pinned to Home, so the oldest pin was removed: ' + unpinned.map(function (x) { return x.name; }).join(', ') + '.' };
+  }
+  /* Ask, then run a batch action. Resolves true when it succeeded. */
+  function batchFlow(kind, batch, button) {
+    var copy = FLOW[kind];
+    return MarkerDialog.confirm(Object.assign({ kicker: batch.name }, copy)).then(function (yes) {
+      if (!yes) return false;
+      var label = button ? button.textContent : '';
+      if (button) { button.disabled = true; button.textContent = copy.busy; }
+      var call = kind === 'pause' ? MarkerAPI.pauseBatch(batch.id, batch.version)
+        : kind === 'resume' ? MarkerAPI.resumeBatch(batch.id, batch.version)
+        : kind === 'cancel' ? MarkerAPI.cancelBatch(batch.id, batch.version, 'Terminated by tutor')
+        : MarkerAPI.deleteBatch(batch.id, batch.version);
+      return call.then(function () { return true; }).catch(function (error) {
+        if (button) { button.disabled = false; button.textContent = label; }
+        return MarkerDialog.alert(actionError('Could not ' + (kind === 'cancel' ? 'terminate' : kind) + ' the batch', error)).then(function () { return false; });
+      });
+    });
+  }
+  function pageName() { return (location.pathname.split('/').pop() || '00-home.html').toLowerCase(); }
+  function reportError(error) {
+    document.documentElement.dataset.apiState = 'error';
+    console.error('Marker data load failed', error);
+    var main = document.querySelector('main');
+    if (main && !document.querySelector('[data-load-error]')) {
+      var box = document.createElement('div');
+      box.dataset.loadError = 'true'; box.setAttribute('role', 'alert');
+      box.style.cssText = 'margin:16px 0;padding:12px 16px;border-radius:8px;background:#FBE9E5;color:#8A2A12;font:500 13px Inter,sans-serif';
+      box.textContent = (error && error.status === 404 ? 'Not found: ' : 'Could not load data from the local server: ') + (error && error.message ? error.message : error);
+      main.insertBefore(box, main.firstChild);
+    }
+  }
+  /* "Showing 101–200 of 1,000" with previous/next; rendered only when there is more than one page. */
+  function pager(total, page, size) {
+    var pages = Math.max(1, Math.ceil(total / size));
+    if (pages <= 1) return total ? '<p class="pager-note" style="font-size:12px;color:var(--ink-soft);margin:10px 2px">Showing all ' + total + '</p>' : '';
+    var from = (page - 1) * size + 1, to = Math.min(total, page * size);
+    return '<div class="pager" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 2px;font-size:12.5px;color:var(--ink-soft)">' +
+      '<span>Showing ' + from + '–' + to + ' of ' + total.toLocaleString('en-AU') + '</span><span style="display:flex;gap:6px">' +
+      '<button type="button" class="chip" data-page="' + (page - 1) + '"' + (page <= 1 ? ' disabled' : '') + '>← Previous</button>' +
+      '<span style="align-self:center">Page ' + page + ' / ' + pages + '</span>' +
+      '<button type="button" class="chip" data-page="' + (page + 1) + '"' + (page >= pages ? ' disabled' : '') + '>Next →</button></span></div>';
+  }
+  function setCrumb(text) { var node = document.getElementById('bcCur'); if (node) node.textContent = text; }
+  function stepTrack(status) {
+    var node = document.getElementById('stepTrack'); if (!node) return;
+    var steps = ['1. Set up batch', '2. Processing', '3. Review', '4. Finalised'];
+    var current = { draft: 0, processing: 1, paused: 1, in_review: 2, completed: 2, finalised: 3 }[status];
+    if (current == null) current = 2;
+    node.innerHTML = steps.map(function (label, index) { return index < current ? '<span class="ok">✓</span> ' + label : index === current ? '<span class="current">' + label + '</span>' : label; }).join(' — ');
+  }
+  function batchHref(batch) {
+    return (batch.status === 'completed' || batch.status === 'finalised' ? '04-batch-complete.html' : '02-batch-status.html') + '?batch_id=' + encodeURIComponent(batch.id);
+  }
+  /* Header "Batch n / N" and the footer previous/next follow the same order as the batch list. */
+  function batchNav(batch) {
+    return MarkerAPI.listBatches().then(function (data) {
+      var list = data.items.filter(function (item) { return item.status !== 'cancelled'; });
+      var index = list.findIndex(function (item) { return item.id === batch.id; });
+      var n = document.getElementById('bpN'), total = document.getElementById('bpTotal'), segs = document.getElementById('bpSegs');
+      if (n) n.textContent = index >= 0 ? index + 1 : '–';
+      if (total) total.textContent = list.length;
+      if (segs) segs.innerHTML = list.slice(0, 12).map(function (_, i) { return '<i class="' + (i <= index ? 'on' : '') + '"></i>'; }).join('');
+      var dot = document.getElementById('bpDot'), status = document.getElementById('bpStatus'), counts = batch.counts || {};
+      if (dot) dot.className = 'bp-dot ' + (batch.status === 'completed' || batch.status === 'finalised' ? 'done' : batch.status === 'in_review' ? 'review' : '');
+      if (status) status.innerHTML = counts.failed ? '<b>' + counts.failed + '</b> failed — retry needed'
+        : batch.status === 'paused' ? 'Paused · <b>' + (counts.processing || 0) + '</b> on hold'
+        : counts.processing ? '<b>' + counts.processing + '</b> still with AI'
+        : batch.status === 'finalised' ? 'Finalised · marks locked'
+        : batch.status === 'completed' ? 'Complete · editable'
+        : '<b>' + (counts.ready || 0) + '</b> ready for review';
+      function setBtn(id, item) {
+        var a = document.getElementById(id); if (!a) return;
+        if (!item) { a.setAttribute('aria-disabled', 'true'); a.removeAttribute('href'); a.removeAttribute('title'); a.querySelector('.n').textContent = 'None'; return; }
+        a.removeAttribute('aria-disabled'); a.href = batchHref(item); a.title = item.name; a.querySelector('.n').textContent = item.name;
+      }
+      setBtn('bbPrev', index > 0 ? list[index - 1] : null);
+      setBtn('bbNext', index >= 0 && index < list.length - 1 ? list[index + 1] : null);
+    });
+  }
+  /* A criterion's own scale (any labels, 2–6 levels). Canvas-style bands show their range;
+     levels without descriptors show label and points only. */
+  function levelsHtml(def, aiLevel) {
+    var levels = def.levels || [];
+    var plain = !levels.some(function (level) { return String(level.description || '').trim(); });
+    var about = def.description ? '<p class="crit-about">' + esc(def.description) + '</p>' : '';
+    return about + '<details' + (plain ? ' open' : '') + '><summary>Rubric levels · ' + levels.length + (plain ? ' · labels and points only' : '') + '</summary><div class="level-list' + (plain ? ' plain' : '') + '">' + levels.map(function (level) {
+      var top = level.points == null ? level.max_score : level.points, low = level.min_score;
+      var pts = low != null && top != null && Number(low) < Number(top) ? num(low) + '–' + num(top) : num(top);
+      var text = String(level.description || '').trim();
+      return '<div' + (aiLevel && aiLevel === level.label ? ' class="is-ai" title="AI suggestion falls in this level"' : '') + '><strong>' + esc(level.label) + ' (' + esc(pts) + ')</strong>' + (text ? ': ' + esc(text) : '') + '</div>';
+    }).join('') + '</div></details>';
+  }
+  function wireUser() {
+    return MarkerAPI.me().then(applyUser).catch(function (error) { console.warn('Could not load the current user', error); });
+  }
+  /* Paint the stored account name into every header; also used after a rename. */
+  function applyUser(me) {
+    {
+      var name = me.user.name, initials = name.split(/[\s.]+/).filter(Boolean).map(function (p) { return p[0]; }).join('').slice(0, 2).toUpperCase();
+      document.querySelectorAll('.ab-uname').forEach(function (node) { node.textContent = name; });
+      document.querySelectorAll('.ab-avatar').forEach(function (node) { node.textContent = initials; });
+      document.querySelectorAll('.ab-user').forEach(function (node) { node.title = 'Local single-user mode'; });
+      window.dispatchEvent(new CustomEvent('marker:user', { detail: { name: name, initials: initials } }));
+    }
+    return me;
+  }
+  var ui = { pager: pager, esc: esc, num: num, shortDate: shortDate, longDate: longDate, ago: ago, statusLabel: statusLabel, setCrumb: setCrumb, stepTrack: stepTrack, batchNav: batchNav, batchHref: batchHref, reportError: reportError, applyUser: applyUser, batchFlow: batchFlow, actionError: actionError, pinnedNotice: pinnedNotice };
+  window.MarkerUI = ui;
+
+  /* ------------------------------------------------------------- rubrics */
+  function rubricShape(item) {
+    var rubric = item.rubric || item, used = item.used_by || [];
+    return {
+      id: rubric.id, version: rubric.version, title: rubric.title, source: rubric.source, updated: Date.parse(rubric.updated_at),
+      pinned: !!rubric.pinned, isSample: !!rubric.is_sample,
+      usedBy: used.length ? used.map(function (batch) { return batch.batch_name; }) : (rubric.used_by_count ? ['In use by ' + rubric.used_by_count + ' batch' + (rubric.used_by_count === 1 ? '' : 'es')] : []),
+      criteria: (rubric.criteria || []).map(function (c) { var levels = (c.levels || []).map(function (level) { return { id: level.id, label: level.label, points: level.points, min_score: level.min_score, max_score: level.max_score, min_inclusive: level.min_inclusive, max_inclusive: level.max_inclusive, description: level.description, prov: level.prov || {}, source_text: level.source_text || {} }; }); return { id: c.id, name: c.name, weight: c.weight, description: c.description || '', stated_percent: c.stated_percent, scoring_mode: c.scoring_mode, score_mapping: c.score_mapping, granularity: c.granularity, grading_mode: c.grading_mode, aspects: c.aspects || [], prov: c.prov || {}, source_text: c.source_text || {}, levels: levels, bands: levels.map(function (level) { return level.description; }) }; })
+    };
+  }
+  function loadRubricLibrary() {
+    return MarkerAPI.listRubrics().then(function (data) {
+      return Promise.all(data.items.map(function (item) { return MarkerAPI.getRubric(item.id); })).then(function (items) {
+        var converted = items.map(rubricShape);
+        if (window.RubricLib) RubricLib.saveAll(converted);
+        return { list: data, items: items, converted: converted };
+      });
     });
   }
   function wireRubrics() {
-    return MarkerAPI.listRubrics().then(function(data){
-      var details=MarkerAPI.mode==='mock'?Promise.resolve(data.items):Promise.all(data.items.map(function(item){return MarkerAPI.getRubric(item.id).catch(function(){return item;});}));
-      return details.then(function(items){
-        window.__MARKER_PAGE_DATA={items:items,page:data.page,page_size:data.page_size,total:data.total};
-        var converted=items.map(rubricShape), byId={}; converted.forEach(function(r){byId[r.id]=r;});
-        RubricLib.all=function(){return converted.slice();}; RubricLib.get=function(id){return byId[id]||null;}; RubricLib.recent=function(n){return converted.slice(0,n);};
-        var q=document.getElementById('q'); if(q) q.dispatchEvent(new Event('input'));
-        var openMatch=location.hash.match(/open=([\w-]+)/);if(openMatch&&window.RubricListUI)window.RubricListUI.openById(openMatch[1]);
-        var note=document.querySelector('.foot-note'); if(note) note.textContent='Saved locally in SQLite and loaded through the API.';
-      });
+    window.MarkerReloadRubrics = function () { return loadRubricLibrary().then(function (loaded) { window.__MARKER_PAGE_DATA = { items: loaded.items, total: loaded.list.total }; return loaded; }); };
+    return window.MarkerReloadRubrics().then(function () {
+      if (window.RubricListUI) window.RubricListUI.refresh();
+      var openMatch = location.hash.match(/open=([\w-]+)/); if (openMatch && window.RubricListUI) window.RubricListUI.openById(openMatch[1]);
+      var note = document.querySelector('.foot-note'); if (note) note.textContent = 'Saved in the local database. Pinned rubrics are listed first.';
     });
   }
   function wireSetup() {
-    return MarkerAPI.listRubrics().then(function(data){
-      var details=MarkerAPI.mode==='mock'?Promise.resolve(data.items):Promise.all(data.items.map(function(item){return MarkerAPI.getRubric(item.id).catch(function(){return item;});}));
-      return details.then(function(items){
-        var converted=items.map(rubricShape);
-        RubricLib.saveAll(converted);
-        window.__MARKER_PAGE_DATA={rubrics:data,settings:null};
-        return MarkerAPI.getSettings().then(function(settings){
-          window.__MARKER_PAGE_DATA.settings=settings;
-          window.dispatchEvent(new CustomEvent('marker:rubrics-loaded'));
-          return window.__MARKER_PAGE_DATA;
-        });
+    return loadRubricLibrary().then(function (loaded) {
+      window.__MARKER_PAGE_DATA = { rubrics: loaded.list, settings: null };
+      return MarkerAPI.getSettings().then(function (settings) {
+        window.__MARKER_PAGE_DATA.settings = settings;
+        window.dispatchEvent(new CustomEvent('marker:rubrics-loaded'));
+        return window.__MARKER_PAGE_DATA;
       });
     });
   }
+
+  /* -------------------------------------------------------- batch status */
+  var FILTERS = [['all', 'All', 'total'], ['ready', 'Ready for review', 'ready'], ['low_confidence', 'Low confidence', 'low_confidence'], ['needs_manual', 'Needs manual marking', 'needs_manual'], ['processing', 'Processing', 'processing'], ['confirmed', 'Confirmed', 'confirmed'], ['failed', 'Failed', 'failed']];
   function wireBatchStatus() {
-    var batchId=new URLSearchParams(location.search).get('batch_id');
-    if(!batchId)return MarkerAPI.listSubmissions('bat_asgn2');
-    return Promise.all([MarkerAPI.getBatch(batchId),MarkerAPI.listSubmissions(batchId)]).then(function(values){
-      var batch=values[0].batch, submissions=values[1], counts=batch.counts||{}, rubric=batch.rubric||{};
-      window.__MARKER_PAGE_DATA={batch:batch,submissions:submissions};
-      var first=submissions.items.find(function(item){return item.status==='ai_done'||item.status==='in_review';});
-      var total=Number(rubric.total_weight||0), processed=Number(counts.processed||0), all=Number(counts.total||0), pct=all?Math.round(processed/all*100):0;
-      var rows=submissions.items.map(function(item){
-        var ready=item.status==='ai_done'||item.status==='in_review', failed=item.status==='failed';
-        var label=ready?'Ready for review':failed?'Failed':(item.progress||item.status.replace(/_/g,' '));
-        var stateClass=ready?'ready':failed?'failed':'processing';
-        var flags=item.confidence==='low'?'<span class="flag">⚑ low confidence</span>':'—';
-        if(failed){var message=item.error&&item.error.message?item.error.message:'AI grading failed';flags='<span class="flag">⚠ Processing failed</span><span class="error-msg" title="'+esc(message)+'">'+esc(message)+'</span><button type="button" class="retry-btn" data-retry="'+esc(item.id)+'" data-version="'+esc(item.version)+'">Retry remaining criteria</button>';}
-        return '<tr'+(ready?' onclick="location.href=\'03b-review-split.html?submission_id='+encodeURIComponent(item.id)+'\'"':'')+'><td class="sid">'+esc(item.sid||item.filename)+'</td><td><span class="status-pill '+stateClass+'"><span class="dot"></span>'+esc(label)+'</span></td><td class="score '+(item.ai_total==null?'pending':'')+'">'+(item.ai_total==null?'—':esc(item.ai_total)+' / '+esc(total))+'</td><td>'+flags+'</td><td>J. Alvarez</td></tr>';
-      }).join('');
-      document.getElementById('batchMain').innerHTML='<div class="top"><div><h1>'+esc(batch.name)+'</h1><p class="sub">'+all+' submission'+(all===1?'':'s')+' · '+esc(rubric.criteria_count||0)+' criteria · '+esc(total)+' marks</p></div><div class="top-actions">'+(first?'<a class="start-btn" href="03b-review-split.html?submission_id='+encodeURIComponent(first.id)+'">Start reviewing →</a>':'')+'</div></div><div class="progress-card"><div class="progress-top"><span class="label">Batch progress</span><span class="val">'+processed+' / '+all+' processed</span></div><div class="bar"><div class="bar-fill" style="width:'+pct+'%"></div></div><div class="progress-stats"><span><b>'+Number(counts.ready||0)+'</b> ready</span><span><b>'+Number(counts.processing||0)+'</b> processing</span><span><b>'+Number(counts.confirmed||0)+'</b> confirmed</span><span><b>'+Number(counts.failed||0)+'</b> failed</span></div></div><div class="filters"><span class="chip active">All ('+all+')</span><span class="chip">Ready for review ('+Number(counts.ready||0)+')</span><span class="chip">Low confidence ('+Number(counts.low_confidence||0)+')</span><span class="chip">Processing ('+Number(counts.processing||0)+')</span></div><table><thead><tr><th>Submission</th><th>Status</th><th>AI suggested total</th><th>Flags</th><th>Tutor</th></tr></thead><tbody>'+rows+'</tbody></table>';
-      Array.prototype.forEach.call(document.querySelectorAll('[data-retry]'),function(button){button.addEventListener('click',function(event){event.preventDefault();event.stopPropagation();button.disabled=true;button.textContent='Retrying…';MarkerAPI.retrySubmission(button.dataset.retry,Number(button.dataset.version)).then(function(){location.reload();}).catch(function(error){button.disabled=false;button.textContent='Retry remaining criteria';reportError(error);alert(error.message);});});});
-      var crumb=document.getElementById('bcCur');if(crumb)crumb.textContent=batch.name;
-      var status=document.getElementById('bpStatus');if(status)status.innerHTML=Number(counts.failed||0)>0?'<b>'+Number(counts.failed||0)+'</b> failed — retry needed':batch.display_status==='processing'?'<b>'+Number(counts.processing||0)+'</b> still with AI':'<b>'+Number(counts.ready||0)+'</b> ready for review';
-      var step=document.getElementById('stepTrack');if(step)step.innerHTML='1. Set up batch — 2. Processing — <span class="current">3. Review</span>';
-      ['bbPrev','bbNext'].forEach(function(id){var node=document.getElementById(id);if(node){node.setAttribute('aria-disabled','true');node.removeAttribute('href');node.querySelector('.n').textContent='None';}});
-      document.title=batch.name+' — AI-assisted marker';
-      if(Number(counts.processing||0)>0)setTimeout(function(){wireBatchStatus().catch(reportError);},3000);
-      return window.__MARKER_PAGE_DATA;
-    });
+    var params = new URLSearchParams(location.search), batchId = params.get('batch_id'), filter = params.get('filter') || 'all', page = Math.max(1, Number(params.get('page') || 1)), PAGE_SIZE = 30;
+    if (!batchId) { location.replace('07-batches.html'); return Promise.resolve(null); }
+    var timer = null;
+    function load() {
+      return Promise.all([MarkerAPI.getBatch(batchId), MarkerAPI.listSubmissions(batchId, filter, page, PAGE_SIZE)]).then(function (values) {
+        var batch = values[0].batch, submissions = values[1], counts = batch.counts || {}, rubric = batch.rubric || {};
+        window.__MARKER_PAGE_DATA = { batch: batch, submissions: submissions };
+        var maximum = Number(rubric.total_weight || 0), processed = Number(counts.processed || 0), confirmed = Number(counts.confirmed || 0), all = Number(counts.total || 0), pct = all ? Math.round(processed / all * 100) : 0, confirmedPct = all ? Math.round(confirmed / all * 100) : 0;
+        var first = submissions.items.find(function (item) { return item.status === 'ai_done' || item.status === 'in_review'; }) || submissions.items.find(function (item) { return item.status === 'needs_ocr'; });
+        var rows = submissions.items.map(function (item) {
+          var ready = item.status === 'ai_done' || item.status === 'in_review', failed = item.status === 'failed', cancelled = item.status === 'cancelled', manual = item.status === 'needs_ocr' || item.status === 'ocr_failed', confirmed = item.status === 'confirmed', activeWork = ['extracting','ocr_running','marking'].indexOf(item.status) >= 0, queuedWork = item.status === 'queued';
+          var label = failed ? 'Failed' : (cancelled || ready || manual || confirmed) ? statusLabel(item.status) : batch.status === 'paused' && queuedWork ? 'On hold' + (/^Paused · /.test(item.progress || '') ? ' · ' + item.progress.replace(/^Paused · /, '') : '') : (item.progress || statusLabel(item.status));
+          var stateClass = item.status === 'in_review' ? 'in-review' : ready ? 'ready' : (failed || cancelled) ? 'failed' : confirmed ? 'reviewed' : manual ? 'failed' : 'processing';
+          var flags = [];
+          if (item.confidence === 'low' && ready) flags.push('<span class="flag">⚑ low confidence</span>');
+          if (manual) flags.push(item.flags.indexOf('too_long') >= 0
+            ? '<span class="flag" title="' + esc(item.progress || '') + '">⚑ too long for AI · mark by hand</span>'
+            : '<span class="flag">⚑ no text layer · mark by hand</span>');
+          if (item.flags.indexOf('adjusted') >= 0) flags.push('<span class="flag" style="color:var(--ink-soft)">adjusted from AI</span>');
+          if (failed) { var message = item.error && item.error.message ? item.error.message : 'AI grading failed'; flags.push('<span class="flag">⚠ Processing failed</span><span class="error-msg" title="' + esc(message) + '">' + esc(message) + '</span><button type="button" class="retry-btn" data-retry="' + esc(item.id) + '" data-version="' + esc(item.version) + '">Retry remaining criteria</button>'); }
+          var href = confirmed ? '05-mark-report.html?submission_id=' + encodeURIComponent(item.id) : (ready || manual) ? '03b-review-split.html?submission_id=' + encodeURIComponent(item.id) : '';
+          var score = confirmed ? num(item.final_total) + ' / ' + num(maximum) + (item.ai_total != null && Math.abs(item.final_total - item.ai_total) > 0.001 ? ' <small style="color:var(--ink-soft)">AI ' + num(item.ai_total) + '</small>' : '') : item.ai_total == null ? '—' : num(item.ai_total) + ' / ' + num(maximum);
+          return '<tr class="' + (activeWork?'active-work':queuedWork?'queued-work':'') + '"' + (href ? ' data-href="' + href + '" style="cursor:pointer"' : '') + '><td class="sid">' + esc(item.sid || item.filename) + '</td><td><span class="status-pill ' + stateClass + '"><span class="dot"></span>' + esc(label) + '</span></td><td class="score ' + (item.ai_total == null && !confirmed ? 'pending' : '') + '">' + score + '</td><td>' + (flags.join(' ') || '—') + '</td><td>' + esc(item.marker ? item.marker.name : '—') + '</td></tr>';
+        }).join('');
+        var done = batch.status === 'completed' || batch.status === 'finalised';
+        var action = done ? '<a class="start-btn" href="04-batch-complete.html?batch_id=' + encodeURIComponent(batch.id) + '">View results →</a>'
+          : first ? '<a class="start-btn" href="03b-review-split.html?submission_id=' + encodeURIComponent(first.id) + '">' + (counts.confirmed ? 'Continue reviewing →' : 'Start reviewing →') + '</a>' : '';
+        var flow = batch.status === 'processing' ? '<button type="button" class="chip" id="pauseBatch" title="Hold back the work not yet sent to the AI. Nothing is lost; resume any time.">❚❚ Pause</button>'
+          : batch.status === 'paused' ? '<button type="button" class="chip resume-chip" id="resumeBatch" title="Continue from where it stopped">▶ Resume</button>' : '';
+        var pin = '<button type="button" class="chip" id="pinBatch" title="Up to 3 pinned batches are shown on Home; pinning a fourth unpins the oldest">' + (batch.pinned ? '📌 Pinned' : 'Pin to top') + '</button>';
+        var due = batch.due_at ? (new Date(batch.due_at) < new Date() ? 'closed ' : 'due ') + shortDate(batch.due_at) : null;
+        var chips = FILTERS.filter(function (f) { return f[0] === 'all' || counts[f[2]] || f[0] === filter; }).map(function (f) { return '<button type="button" class="chip' + (f[0] === filter ? ' active' : '') + '" data-filter="' + f[0] + '">' + f[1] + ' (' + Number(counts[f[2]] || 0) + ')</button>'; }).join('');
+        document.getElementById('batchMain').innerHTML =
+          '<div class="top"><div><h1>' + esc(batch.name) + (batch.is_sample ? ' <span class="status-pill reviewed" style="vertical-align:4px">Sample</span>' : '') + '</h1><p class="sub">' + all + ' submission' + (all === 1 ? '' : 's') + ' · ' + esc(rubric.criteria_count || 0) + ' criteria · ' + num(maximum) + ' marks' + (due ? ' · ' + due : '') + ' · ' + statusLabel(batch.status) + '</p></div><div class="top-actions">' + flow + ' ' + pin + ' ' + action + '</div></div>' +
+          '<div class="progress-card' + (Number(counts.active||0)>0?' is-live':'') + '"><div class="progress-top"><span class="label">Batch progress</span><span class="val">' + processed + ' / ' + all + ' processed</span></div><div class="bar progress-layers" role="progressbar" aria-label="' + confirmed + ' confirmed; ' + processed + ' processed; ' + all + ' total" aria-valuemin="0" aria-valuemax="' + all + '" aria-valuenow="' + confirmed + '"><div class="bar-ready" style="width:' + pct + '%"></div><div class="bar-confirmed" style="width:' + confirmedPct + '%"></div></div>' +
+          '<div class="progress-stats"><span><b>' + Number(counts.ready || 0) + '</b> ready</span><span><b>' + Number(counts.confirmed || 0) + '</b> confirmed</span><span><b>' + Number(counts.needs_manual || 0) + '</b> manual</span><span><b>' + Number(counts.processing || 0) + '</b> ' + (batch.status === 'paused' ? 'on hold' : 'processing') + '</span>' + (counts.not_started ? '<span><b>' + counts.not_started + '</b> not started</span>' : '') + '<span><b>' + Number(counts.failed || 0) + '</b> failed</span>' + (batch.eta_seconds != null && Number(counts.processing || 0) > 0 ? '<span class="eta" title="Estimate updates from this batch’s observed AI processing speed">' + etaText(batch.eta_seconds) + '</span>' : '') + '</div>' + (Number(counts.processing||0)>0||batch.status==='paused'?queueActivityHtml(batch, counts):'') + '</div>' +
+          '<div class="filters">' + chips + '</div>' +
+          '<table><thead><tr><th>Submission</th><th>Status</th><th>Mark</th><th>Flags</th><th>Tutor</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5" style="color:var(--ink-soft)">No submissions in this view.</td></tr>') + '</tbody></table>' + pager(submissions.total, page, PAGE_SIZE);
+        document.querySelectorAll('#batchMain tr[data-href]').forEach(function (tr) { tr.addEventListener('click', function () { location.href = tr.dataset.href; }); });
+        function go(nextFilter, nextPage) {
+          filter = nextFilter; page = nextPage;
+          var p = new URLSearchParams(location.search);
+          if (filter === 'all') p.delete('filter'); else p.set('filter', filter);
+          if (page > 1) p.set('page', page); else p.delete('page');
+          history.replaceState(null, '', '?' + p.toString()); clearTimeout(timer); load().catch(reportError);
+        }
+        document.querySelectorAll('#batchMain [data-filter]').forEach(function (button) { button.addEventListener('click', function () { go(button.dataset.filter, 1); }); });
+        document.querySelectorAll('#batchMain [data-page]').forEach(function (button) { button.addEventListener('click', function () { go(filter, Number(button.dataset.page)); window.scrollTo(0, 0); }); });
+        document.getElementById('pinBatch').addEventListener('click', function () { MarkerAPI.pinBatch(batch.id, !batch.pinned).then(function (r) { if (r.unpinned && r.unpinned.length) return MarkerDialog.alert(pinnedNotice(r.unpinned)); }).then(load).catch(reportError); });
+        var pauseButton = document.getElementById('pauseBatch'), resumeButton = document.getElementById('resumeBatch');
+        if (pauseButton) pauseButton.addEventListener('click', function () { batchFlow('pause', batch, pauseButton).then(function (done) { if (done) load(); }); });
+        if (resumeButton) resumeButton.addEventListener('click', function () { batchFlow('resume', batch, resumeButton).then(function (done) { if (done) load(); }); });
+        document.querySelectorAll('[data-retry]').forEach(function (button) { button.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); button.disabled = true; button.textContent = 'Retrying…'; MarkerAPI.retrySubmission(button.dataset.retry, Number(button.dataset.version)).then(function () { load(); }).catch(function (error) { button.disabled = false; button.textContent = 'Retry remaining criteria'; MarkerDialog.alert(actionError('Could not retry this submission', error)); }); }); });
+        setCrumb(batch.name); stepTrack(batch.status);
+        document.title = batch.name + ' — AI-assisted marker';
+        clearTimeout(timer);
+        if ((Number(counts.processing || 0) > 0 && batch.status !== 'paused') || Number(counts.active || 0) > 0) timer = setTimeout(function () { load().catch(reportError); }, 3000);
+        return batchNav(batch).then(function () { return window.__MARKER_PAGE_DATA; });
+      });
+    }
+    return load();
   }
+
+  /* ----------------------------------------------------------- batch list */
   function wireBatchList() {
-    return MarkerAPI.listBatches().then(function(data){
-      window.__MARKER_PAGE_DATA=data;
-      var items=(data.items||[]).map(function(batch){
-        var counts=batch.counts||{}, total=Number(counts.total||0), processed=Number(counts.processed||0);
-        var rawStatus=batch.display_status||batch.status||'draft';
-        var state=rawStatus==='in_review'?'review':(rawStatus==='completed'||rawStatus==='finalised'?'complete':rawStatus);
-        var pct=state==='complete'?100:(total?Math.round(processed/total*100):0);
-        var progress=state==='draft'?'set-up not finished':state==='complete'?(Number(counts.confirmed||0)+' / '+total+' confirmed'):(processed+' / '+total+' processed');
-        var termLabel=(batch.term&&batch.term.label)||'Semester 2, 2026', termMatch=termLabel.match(/Semester\s+(\d+),\s*(\d{4})/i);
-        var term=termMatch?(termMatch[2]+' S'+termMatch[1]):termLabel;
-        var rubric=batch.rubric||{}, due=batch.due_at?new Date(batch.due_at):null;
-        var date=due&&!isNaN(due.getTime())?'due '+due.toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'created locally';
+    return MarkerAPI.listBatches().then(function (data) {
+      window.__MARKER_PAGE_DATA = data;
+      var items = (data.items || []).map(function (batch) {
+        var counts = batch.counts || {}, total = Number(counts.total || 0), processed = Number(counts.processed || 0);
+        var rawStatus = batch.display_status || batch.status || 'draft';
+        var state = rawStatus === 'in_review' ? 'review' : (rawStatus === 'completed' || rawStatus === 'finalised' ? 'complete' : rawStatus === 'failed_all' ? 'processing' : rawStatus);
+        var held = Number(counts.queued || 0), finishing = Number(counts.active || 0);
+        var pct = state === 'complete' ? 100 : (total ? Math.round(processed / total * 100) : 0);
+        var waitText = queueBlockerText(batch), jobsAhead = Number((batch.queue || {}).jobs_ahead || 0);
+        var progress = state === 'draft' ? 'set-up not finished' : state === 'complete' ? (Number(counts.confirmed || 0) + ' / ' + total + ' confirmed' + (batch.status === 'finalised' ? ' · locked' : '')) : state === 'paused' ? (processed + ' / ' + total + ' processed · paused · ' + held + ' on hold' + (finishing ? ' · ' + finishing + ' finishing' : '')) : state === 'processing' ? (waitText ? waitText + ' · ' + jobsAhead + ' job' + (jobsAhead === 1 ? '' : 's') + ' ahead' : processed + ' / ' + total + ' processed · ' + Number(counts.active || 0) + ' active · ' + Number(counts.queued || 0) + ' queued') : (processed + ' / ' + total + ' processed · ' + Number(counts.confirmed || 0) + ' confirmed');
+        var termLabel = (batch.term && batch.term.label) || '', termMatch = termLabel.match(/Semester\s+(\d+),\s*(\d{4})/i);
+        var term = termMatch ? (termMatch[2] + ' S' + termMatch[1]) : (termLabel || 'No term');
+        var rubric = batch.rubric || {}, due = batch.due_at ? new Date(batch.due_at) : null;
+        var when = due && !isNaN(due.getTime()) ? (due < new Date() ? 'closed ' : 'due ') + shortDate(batch.due_at) : 'created ' + shortDate(batch.created_at);
         return {
-          id:batch.id,name:batch.name,term:term,st:state,
-          n:total+' submission'+(total===1?'':'s'),crit:Number(rubric.criteria_count||0),
-          rubric:[rubric.title||'No rubric',rubric.id||''],date:date,
-          prog:[pct,progress,state==='complete'?'var(--ink-soft)':state==='review'?'var(--info)':'var(--primary)'],
-          href:state==='complete'?'04-batch-complete.html?batch_id='+encodeURIComponent(batch.id):'02-batch-status.html?batch_id='+encodeURIComponent(batch.id),
-          home:state==='processing'||state==='review',version:Number(batch.version||0),
-          canCancel:batch.status==='processing',
-          canDelete:batch.status!=='processing'&&batch.status!=='finalised'
+          id: batch.id, name: batch.name, term: term, st: state, sample: !!batch.is_sample, pinned: !!batch.pinned,
+          n: total + ' submission' + (total === 1 ? '' : 's'), crit: Number(rubric.criteria_count || 0),
+          rubric: [rubric.title || 'No rubric', rubric.id || ''], date: when,
+          prog: [pct, progress, state === 'complete' ? 'var(--ink-soft)' : state === 'review' ? 'var(--info)' : 'var(--primary)'],
+          href: batchHref(batch), home: batch.pinned, version: Number(batch.version || 0), active:Number(counts.active || 0), queued:Number(counts.queued || 0),
+          canPause: batch.status === 'processing', canResume: batch.status === 'paused',
+          canCancel: batch.status === 'processing' || batch.status === 'paused', canDelete: ['processing', 'paused', 'finalised'].indexOf(batch.status) < 0
         };
       });
-      if(MarkerAPI.mode!=='mock'&&window.BatchListUI)window.BatchListUI.setItems(items);
+      if (window.BatchListUI) window.BatchListUI.setItems(items);
       return data;
     });
   }
-  function showEnd(result) {
-    var card=document.getElementById('endCard'), body=document.getElementById('endBody'); if(!card||!body)return;
-    if(result.batch_status==='completed') body.innerHTML='<div class="ec-icon ok">✓</div><div class="ec-kicker">Batch complete</div><h2 id="ecTitle">Everything is confirmed</h2><p class="ec-sub">The completion check ran in the same transaction as confirmation.</p><div class="ec-actions"><a class="btn btn-primary" href="04-batch-complete.html?batch_id='+encodeURIComponent(result.batch_id||'')+'">View results →</a></div>';
-    else if(result.remaining.failed>0) body.innerHTML='<div class="ec-kicker">Failed items need attention</div><h2 id="ecTitle">Review is paused</h2><p class="ec-sub">Retry or exclude the failed submissions from the batch page.</p>';
-    else body.innerHTML='<div class="ec-icon wait"><span class="ec-spin"></span></div><div class="ec-kicker">Nothing ready right now</div><h2 id="ecTitle">All ready submissions reviewed</h2><p class="ec-sub">'+result.remaining.processing+' still with the AI.</p>';
-    card.hidden=false;
-  }
+
+  /* --------------------------------------------------------------- review */
   function wireReview() {
-    var params=new URLSearchParams(location.search), submissionId=params.get('submission_id')||'sub_asgn2_000001';
-    return MarkerAPI.getReview(submissionId).then(function(data){
-      window.__MARKER_PAGE_DATA=data;
-      var submission=data.submission||{}, batch=data.batch||{}, counts=batch.counts||{};
-      var sid=submission.sid||submission.id, batchUrl='02-batch-status.html?batch_id='+encodeURIComponent(batch.id||'');
-      var isDemoSample=!!data.demo_banner, allEvidence=data.evidence||[], hasEvidence=!!allEvidence.length, criteria=(data.rubric&&data.rubric.criteria)||[];
-      var criterionNumber={};criteria.forEach(function(item,index){criterionNumber[item.definition.id]=index+1;});
-      function blockHTML(block){
-        var text=String(block.text||''), matches=allEvidence.filter(function(item){return Number(item.page||1)===Number(block.page||1)&&String(item.paragraph||'')===String(block.label||'')&&item.quote&&text.indexOf(item.quote)>=0;});
-        if(!matches.length)return esc(text);
-        var grouped={};matches.forEach(function(item){var start=text.indexOf(item.quote), key=start+':'+(start+item.quote.length);if(!grouped[key])grouped[key]={start:start,end:start+item.quote.length,ids:[],numbers:[]};grouped[key].ids.push(item.id);var n=criterionNumber[item.criterion_id];if(n&&grouped[key].numbers.indexOf(n)<0)grouped[key].numbers.push(n);});
-        var ranges=Object.keys(grouped).map(function(key){return grouped[key];}).sort(function(a,b){return a.start-b.start||(b.end-b.start)-(a.end-a.start);}), cursor=0, html='';
-        ranges.forEach(function(range){if(range.start<cursor)return;html+=esc(text.slice(cursor,range.start));html+='<mark class="ev" data-ev="'+esc(range.ids[0])+'" data-evs="'+esc(range.ids.join(' '))+'"><span class="tag">'+range.numbers.map(function(n){return 'C'+n;}).join('/')+'</span>'+esc(text.slice(range.start,range.end))+'</mark>';cursor=range.end;});
-        return html+esc(text.slice(cursor));
+    var params = new URLSearchParams(location.search), submissionId = params.get('submission_id');
+    if (!submissionId) { location.replace('00-home.html'); return Promise.resolve(null); }
+    return MarkerAPI.getReview(submissionId).then(function (data) {
+      window.__MARKER_PAGE_DATA = data;
+      var submission = data.submission || {}, batch = data.batch || {}, counts = batch.counts || {};
+      var sid = submission.sid || submission.id, batchUrl = '02-batch-status.html?batch_id=' + encodeURIComponent(batch.id || '');
+      var manual = !!submission.needs_manual, locked = !data.can_edit;
+      var allEvidence = data.evidence || [], hasEvidence = !!allEvidence.length, criteria = (data.rubric && data.rubric.criteria) || [];
+      var criterionNumber = {}; criteria.forEach(function (item, index) { criterionNumber[item.definition.id] = index + 1; });
+      function blockHTML(block) {
+        var text = String(block.text || ''), matches = allEvidence.filter(function (item) { return Number(item.page || 1) === Number(block.page || 1) && String(item.paragraph || '') === String(block.label || '') && item.quote && text.indexOf(item.quote) >= 0; });
+        if (!matches.length) return esc(text);
+        var grouped = {}; matches.forEach(function (item) { var start = text.indexOf(item.quote), key = start + ':' + (start + item.quote.length); if (!grouped[key]) grouped[key] = { start: start, end: start + item.quote.length, ids: [], numbers: [] }; grouped[key].ids.push(item.id); var n = criterionNumber[item.criterion_id]; if (n && grouped[key].numbers.indexOf(n) < 0) grouped[key].numbers.push(n); });
+        var ranges = Object.keys(grouped).map(function (key) { return grouped[key]; }).sort(function (a, b) { return a.start - b.start || (b.end - b.start) - (a.end - a.start); }), cursor = 0, html = '';
+        ranges.forEach(function (range) { if (range.start < cursor) return; html += esc(text.slice(cursor, range.start)); html += '<mark class="ev" data-ev="' + esc(range.ids[0]) + '" data-evs="' + esc(range.ids.join(' ')) + '"><span class="tag">' + range.numbers.map(function (n) { return 'C' + n; }).join('/') + '</span>' + esc(text.slice(range.start, range.end)) + '</mark>'; cursor = range.end; });
+        return html + esc(text.slice(cursor));
       }
-      var existingCards=document.querySelectorAll('.crit-card'), markInner=document.querySelector('.mark-inner');
-      var strip=document.querySelector('.crit-strip');
-      while(existingCards.length<criteria.length){
-        let cloneIndex=existingCards.length, clone=existingCards[existingCards.length-1].cloneNode(true);
-        clone.id='c'+(cloneIndex+1);clone.style.display='';clone.classList.remove('closed','linked','hl-active');clone.dataset.evs='';
+      var existingCards = document.querySelectorAll('.crit-card'), markInner = document.querySelector('.mark-inner');
+      var strip = document.querySelector('.crit-strip');
+      while (existingCards.length < criteria.length) {
+        let cloneIndex = existingCards.length, clone = existingCards[existingCards.length - 1].cloneNode(true);
+        clone.id = 'c' + (cloneIndex + 1); clone.style.display = ''; clone.classList.remove('closed', 'linked', 'hl-active'); clone.dataset.evs = '';
         markInner.appendChild(clone);
-        let navClone=strip.lastElementChild.cloneNode(true);navClone.href='#'+clone.id;navClone.dataset.c=clone.id;navClone.style.display='';strip.appendChild(navClone);
-        let cloneInput=clone.querySelector('.score-input'), cloneStatus=clone.querySelector('.status-text');
-        let cloneField=clone.querySelector('.comment-field'), cloneComment=cloneField&&cloneField.querySelector('textarea');
-        function refreshClone(){var changed=Number(cloneInput.value)!==Number(cloneInput.dataset.ai);cloneField.classList.toggle('needs',changed&&!cloneComment.value.trim());cloneStatus.textContent=changed?'Adjusted from AI suggestion':'Matches AI suggestion — not yet confirmed';recompute();updateSummary(clone);}
-        cloneInput.addEventListener('input',refreshClone);cloneComment.addEventListener('input',function(){updateSummary(clone);});
-        clone.querySelector('.accept-btn').addEventListener('click',function(){cloneInput.value=cloneInput.dataset.ai;cloneInput.classList.add('confirmed');cloneStatus.textContent='Confirmed';cloneStatus.classList.add('confirmed');var dot=document.getElementById('nav'+(cloneIndex+1));if(dot)dot.classList.add('done');recompute();updateSummary(clone);});
-        clone.querySelector('.fold-btn').addEventListener('click',function(){toggleCard(clone);});
-        clone.querySelector('.crit-title').addEventListener('click',function(){toggleCard(clone);});
-        let cloneCtl=clone.querySelector('.crit-ctl');
-        if(cloneCtl){cloneCtl.querySelector('.hl-btn').addEventListener('click',function(){setCritHL(critHL===clone.id?null:clone.id);});cloneCtl.querySelector('.hl-prev').addEventListener('click',function(){stepCrit(-1);});cloneCtl.querySelector('.hl-next').addEventListener('click',function(){stepCrit(1);});}
-        existingCards=document.querySelectorAll('.crit-card');
+        let navClone = strip.lastElementChild.cloneNode(true); navClone.href = '#' + clone.id; navClone.dataset.c = clone.id; navClone.style.display = ''; strip.appendChild(navClone);
+        let cloneInput = clone.querySelector('.score-input'), cloneStatus = clone.querySelector('.status-text');
+        let cloneField = clone.querySelector('.comment-field'), cloneComment = cloneField && cloneField.querySelector('textarea');
+        function refreshClone() { var changed = Number(cloneInput.value) !== Number(cloneInput.dataset.ai); cloneField.classList.toggle('needs', changed && !cloneComment.value.trim()); cloneStatus.textContent = changed ? 'Adjusted from AI suggestion' : 'Matches AI suggestion — not yet confirmed'; recompute(); updateSummary(clone); }
+        cloneInput.addEventListener('input', refreshClone); cloneComment.addEventListener('input', function () { updateSummary(clone); });
+        clone.querySelector('.accept-btn').addEventListener('click', function () { cloneInput.value = cloneInput.dataset.ai; cloneInput.classList.add('confirmed'); cloneStatus.textContent = 'Confirmed'; cloneStatus.classList.add('confirmed'); var dot = document.getElementById('nav' + (cloneIndex + 1)); if (dot) dot.classList.add('done'); recompute(); updateSummary(clone); });
+        clone.querySelector('.fold-btn').addEventListener('click', function () { toggleCard(clone); });
+        clone.querySelector('.crit-title').addEventListener('click', function () { toggleCard(clone); });
+        let cloneCtl = clone.querySelector('.crit-ctl');
+        if (cloneCtl) { cloneCtl.querySelector('.hl-btn').addEventListener('click', function () { setCritHL(critHL === clone.id ? null : clone.id); }); cloneCtl.querySelector('.hl-prev').addEventListener('click', function () { stepCrit(-1); }); cloneCtl.querySelector('.hl-next').addEventListener('click', function () { stepCrit(1); }); }
+        existingCards = document.querySelectorAll('.crit-card');
       }
-      var cards=document.querySelectorAll('.crit-card'), nav=document.querySelectorAll('.crit-strip a');
-      var total=0,aiTotal=0,submissionVersion=Number(submission.version||0);
+      var cards = document.querySelectorAll('.crit-card'), nav = document.querySelectorAll('.crit-strip a');
+      var total = 0, aiTotal = 0, submissionVersion = Number(submission.version || 0);
 
-      var crumbBatch=document.querySelector('.ab-crumbs ol li:nth-child(2) a');
-      if(crumbBatch){crumbBatch.textContent=batch.name||'Batch';crumbBatch.href=batchUrl;}
-      var crumbCurrent=document.getElementById('bcCur');if(crumbCurrent)crumbCurrent.textContent=sid;
-      var crumbUp=document.querySelector('.ab-crumbs .bc-up');
-      if(crumbUp){crumbUp.href=batchUrl;var crumbUpText=crumbUp.querySelector('.t');if(crumbUpText)crumbUpText.textContent=batch.name||'Batch';}
+      var crumbBatch = document.querySelector('.ab-crumbs ol li:nth-child(2) a');
+      if (crumbBatch) { crumbBatch.textContent = batch.name || 'Batch'; crumbBatch.href = batchUrl; }
+      setCrumb(sid);
+      var crumbUp = document.querySelector('.ab-crumbs .bc-up');
+      if (crumbUp) { crumbUp.href = batchUrl; var crumbUpText = crumbUp.querySelector('.t'); if (crumbUpText) crumbUpText.textContent = batch.name || 'Batch'; }
 
-      var confirmed=Number(counts.confirmed||0), ready=Number(counts.ready||0), processing=Number(counts.processing||0), batchTotal=Number(counts.total||0);
-      var reviewable=confirmed+ready, safeTotal=batchTotal||1;
-      var pgDone=document.getElementById('pgDone');if(pgDone)pgDone.textContent=confirmed;
-      var pgReady=document.getElementById('pgReady');if(pgReady)pgReady.textContent=reviewable;
-      var pgFill=document.getElementById('pgFill');if(pgFill)pgFill.style.width=(confirmed/safeTotal*100)+'%';
-      var pgReadyFill=document.getElementById('pgReadyFill');if(pgReadyFill)pgReadyFill.style.width=(reviewable/safeTotal*100)+'%';
-      var pgSub=document.getElementById('pgSub');
-      if(pgSub){pgSub.classList.toggle('done',processing===0);pgSub.innerHTML=processing>0?'<span class="dot"></span><span id="pgProc">'+processing+'</span> still with AI · '+batchTotal+' in batch':ready>0?'<span class="dot"></span>'+ready+' ready for review · '+batchTotal+' in batch':'<span class="dot"></span>All '+batchTotal+' reviewed';}
-
-      var documentData=data.document||{}, fileName=document.querySelector('.doc-bar .file b');if(fileName)fileName.textContent=submission.filename||sid;
-      var pageCount=Number(documentData.page_count||0), fileMeta=document.querySelector('.doc-bar .file span');if(fileMeta)fileMeta.textContent=isDemoSample?'Demo sample · no submission evidence':(pageCount+' page'+(pageCount===1?'':'s')+' · '+Number(documentData.word_count||0).toLocaleString('en-AU')+' words · '+allEvidence.length+' evidence span'+(allEvidence.length===1?'':'s'));
-      var documentRoot=document.getElementById('doc'), evidenceHTML='';
-      if(!isDemoSample&&(documentData.paragraphs||[]).length){
-        var pageMap={};(documentData.paragraphs||[]).forEach(function(block){var page=Number(block.page||1);if(!pageMap[page])pageMap[page]=[];pageMap[page].push(block);});
-        evidenceHTML=Object.keys(pageMap).map(Number).sort(function(a,b){return a-b;}).map(function(pageNumber){
-          var blocks=pageMap[pageNumber], heading=pageNumber===1?'<h1>'+esc(documentData.title||submission.filename||sid)+'</h1><p class="byline">'+esc(sid)+' · '+esc(batch.name||'Batch')+' · '+Number(documentData.word_count||0).toLocaleString('en-AU')+' words</p>':'';
-          return '<article class="sheet" data-page="'+pageNumber+'"><span class="pno">p.'+pageNumber+'</span>'+heading+blocks.map(function(block){return block.kind==='heading'?'<h2>'+esc(block.text)+'</h2>':'<p data-p="'+esc(block.label||'')+'">'+blockHTML(block)+'</p>';}).join('')+'</article>';
-        }).join('');
-        documentRoot.innerHTML=evidenceHTML;
-      }
-      var sampleTitle=document.querySelector('.sheet h1');if(sampleTitle&&isDemoSample)sampleTitle.textContent='Demo sample essay';
-      var sampleByline=document.querySelector('.sheet .byline');if(sampleByline&&isDemoSample)sampleByline.textContent='Shared placeholder for '+sid+' · not the uploaded submission';
-      if(isDemoSample){
-        Array.prototype.forEach.call(document.querySelectorAll('#doc mark.ev'),function(mark){var parent=mark.parentNode;while(mark.firstChild)parent.insertBefore(mark.firstChild,mark);parent.removeChild(mark);});
-      }
-      var evidenceToggle=document.querySelector('.doc-tools .switch'), evidenceInput=document.getElementById('showAll');
-      var mimeType=String(documentData.mime_type||'').toLowerCase(), isPdf=!isDemoSample&&!!documentData.content_url&&(mimeType.indexOf('pdf')>=0||/\.pdf$/i.test(submission.filename||''));
-      var evidenceById={};allEvidence.forEach(function(item){evidenceById[item.id]=item;});
-      var originalPage=1, originalPdfController=null;
-      function renderOriginal(page){
-        if(!isPdf)return;
-        originalPage=Math.max(1,Number(page||originalPage||1));
-        documentRoot.classList.add('original-mode');documentRoot.classList.toggle('show-all',!!(evidenceInput&&evidenceInput.checked));
-        if(originalPdfController){originalPdfController.goToPage(originalPage);return;}
-        if(window.OriginalPdfViewer)originalPdfController=window.OriginalPdfViewer.mount(documentRoot,{url:documentData.content_url,evidence:allEvidence.map(function(item){var copy=Object.assign({},item);copy.criterion_label='C'+(criterionNumber[item.criterion_id]||'?');return copy;})});
-      }
-      function renderEvidence(){
-        documentRoot.classList.remove('original-mode');documentRoot.innerHTML=evidenceHTML;
-        documentRoot.classList.toggle('show-all',!!(evidenceInput&&evidenceInput.checked));
-      }
-      if(evidenceToggle)evidenceToggle.style.display=(hasEvidence&&(!isPdf||!!evidenceHTML))?'':'none';
-      if(isPdf){
-        if(evidenceInput)evidenceInput.checked=true;
-        if(evidenceToggle){var labelText=Array.prototype.filter.call(evidenceToggle.childNodes,function(node){return node.nodeType===3;}).pop();if(labelText)labelText.nodeValue=' Show all evidence';}
-        renderOriginal(1);
-        var markPaneForOriginal=document.getElementById('markPane');
-        if(markPaneForOriginal){
-          markPaneForOriginal.addEventListener('click',function(event){
-            var source=event.target.closest('[data-ev]'), evidence=source&&evidenceById[source.dataset.ev];
-            if(source&&evidence){originalPage=evidence.page||1;if(originalPdfController)originalPdfController.goToEvidence(evidence.id);}
-          },true);
+      var lastReviewable = -1, reviewProgressTimer = null;
+      function renderReviewProgress(nextCounts, animate) {
+        var confirmed = Number(nextCounts.confirmed || 0), ready = Number(nextCounts.ready || 0), processing = Number(nextCounts.processing || 0), notStarted = Number(nextCounts.not_started || 0), batchTotal = Number(nextCounts.total || 0), manualCount = Number(nextCounts.needs_manual || 0);
+        var reviewable = confirmed + ready + manualCount, safeTotal = batchTotal || 1, pgDone = document.getElementById('pgDone'), pgReady = document.getElementById('pgReady'), pgFill = document.getElementById('pgFill'), pgReadyFill = document.getElementById('pgReadyFill'), pgSub = document.getElementById('pgSub');
+        if (pgDone) pgDone.textContent = confirmed;
+        if (pgReady) {
+          pgReady.textContent = reviewable;
+          if (animate && lastReviewable >= 0 && reviewable > lastReviewable) { pgReady.classList.add('bump'); setTimeout(function () { pgReady.classList.remove('bump'); }, 800); }
         }
+        if (pgFill) pgFill.style.width = (confirmed / safeTotal * 100) + '%';
+        if (pgReadyFill) pgReadyFill.style.width = (reviewable / safeTotal * 100) + '%';
+        if (pgSub) { pgSub.classList.toggle('done', processing + notStarted === 0); pgSub.innerHTML = processing + notStarted > 0 ? '<span class="dot"></span><span id="pgProc">' + (processing + notStarted) + '</span> still with AI · ' + batchTotal + ' in batch' : (ready + manualCount) > 0 ? '<span class="dot"></span>' + (ready + manualCount) + ' left to review · ' + batchTotal + ' in batch' : '<span class="dot"></span>All ' + batchTotal + ' reviewed'; }
+        lastReviewable = reviewable;
+        return processing + notStarted;
       }
-      if(!isDemoSample&&!document.querySelector('[data-regrade]')){
-        var regradeControl=document.createElement('span'), regradeButton=document.createElement('button'), regradeMeter=document.createElement('span'), regradeFill=document.createElement('span');
-        regradeControl.className='regrade-control';regradeButton.type='button';regradeButton.className='icon-btn';regradeButton.dataset.regrade='true';regradeButton.textContent=hasEvidence?'Re-run AI evidence':'Retrieve evidence';regradeMeter.className='regrade-meter';regradeMeter.appendChild(regradeFill);regradeControl.appendChild(regradeButton);regradeControl.appendChild(regradeMeter);document.querySelector('.doc-tools').insertBefore(regradeControl,document.getElementById('collapse'));
-        function regradeError(message){var old=document.querySelector('.regrade-error');if(old)old.remove();var box=document.createElement('div');box.className='regrade-error';box.setAttribute('role','alert');box.innerHTML='<b>AI evidence retrieval stopped.</b><br>'+esc(message)+'<button type="button" aria-label="Close">×</button>';box.querySelector('button').addEventListener('click',function(){box.remove();});document.body.appendChild(box);}
-        function stopRegrade(message){regradeControl.classList.remove('running');regradeButton.disabled=false;regradeButton.textContent=hasEvidence?'Re-run AI evidence':'Retrieve evidence';regradeFill.style.width='0';if(message)regradeError(message);}
-        function pollRegrade(){MarkerAPI.listSubmissions(batch.id).then(function(result){var item=(result.items||[]).find(function(row){return row.id===submissionId;});if(!item)throw new Error('Submission progress is unavailable.');var progress=String(item.progress||''),match=progress.match(/(\d+)\s*\/\s*(\d+)\s+criteria/),done=match?Number(match[1]):0,count=match?Number(match[2]):criteria.length,pct=count?Math.max(5,Math.round(done/count*100)):5;regradeFill.style.width=pct+'%';regradeButton.textContent=match?'Retrieving '+done+'/'+count:'Queued…';if(item.status==='ai_done'||item.status==='in_review'){regradeFill.style.width='100%';regradeButton.textContent='Evidence ready';setTimeout(function(){location.reload();},350);return;}if(item.status==='failed'){var detail=item.error&&item.error.message?item.error.message:'The AI provider did not return a usable result after three attempts.';stopRegrade(detail);return;}setTimeout(pollRegrade,1500);}).catch(function(error){console.error('Regrade progress failed',error);stopRegrade(error.message);});}
-        function startRegrade(){regradeControl.classList.add('running');regradeButton.disabled=true;regradeFill.style.width='5%';pollRegrade();}
-        regradeButton.addEventListener('click',function(){regradeControl.classList.add('running');regradeButton.disabled=true;regradeButton.textContent='Queueing…';regradeFill.style.width='3%';MarkerAPI.regrade(submissionId).then(startRegrade).catch(function(error){console.error('Regrade request failed',error);stopRegrade(error.message);});});
-        if(submission.status==='queued'||submission.status==='marking')startRegrade();
+      function pollReviewProgress() {
+        MarkerAPI.getBatch(batch.id).then(function (latest) {
+          var active = renderReviewProgress((latest.batch && latest.batch.counts) || {}, true);
+          if (active > 0) reviewProgressTimer = setTimeout(pollReviewProgress, 3000);
+        }).catch(function (error) {
+          console.error('Review progress refresh failed', error);
+          reviewProgressTimer = setTimeout(pollReviewProgress, 5000);
+        });
       }
-      var hint=document.querySelector('.actionbar .hint');if(hint)hint.textContent=hasEvidence?'Hover evidence to highlight · click to jump · Show all controls every retrieved passage':(isDemoSample?'FakeLLM validation · no evidence extracted for this submission':'Uploaded document parsed · no verified criterion evidence was returned');
+      var activeProcessing = renderReviewProgress(counts, false);
+      if (activeProcessing > 0) reviewProgressTimer = setTimeout(pollReviewProgress, 3000);
+      window.addEventListener('beforeunload', function () { clearTimeout(reviewProgressTimer); }, { once:true });
 
-      Array.prototype.forEach.call(cards,function(card,index){
-        var item=criteria[index];
-        if(!item){card.style.display='none';if(nav[index])nav[index].style.display='none';return;}
-        var def=item.definition||{}, levels=def.levels||[], confidence=item.confidence||'medium';
-        total+=Number(def.weight||0);aiTotal+=Number(item.ai_score||0);
-        card.dataset.criterionId=def.id||'';card.dataset.reviewVersion=String(item.version||0);card.dataset.evs=(item.evidence_ids||[]).join(',');
-        var title=card.querySelector('.crit-title');if(title)title.textContent='C'+(index+1)+' · '+def.name;
-        var desc=card.querySelector('.crit-desc');if(desc)desc.innerHTML='<details><summary>Rubric levels · '+levels.length+'</summary><div class="level-list">'+levels.map(function(level){var points=level.points==null?level.max_score:level.points;return '<div><strong>'+esc(level.label)+' ('+esc(points)+')</strong>: '+esc(level.description)+'</div>';}).join('')+'</div></details>';
-        var badge=card.querySelector('.crit-weight-badge');if(badge)badge.textContent=def.weight+' pts';
-        var confidenceTag=card.querySelector('.conf-tag');if(confidenceTag){confidenceTag.className='conf-tag '+confidence;confidenceTag.innerHTML='<span class="dot"></span>'+confidence.charAt(0).toUpperCase()+confidence.slice(1)+' confidence';}
-        var ai=card.querySelector('.ai-box .badge');if(ai)ai.textContent='AI · '+item.ai_score+'/'+def.weight;
-        var reason=card.querySelector('.ai-box .reason');if(reason)reason.textContent=item.rationale||'Deterministic local FakeLLM suggestion.';
-        var score=card.querySelector('.score-input');if(score){score.value=item.score;score.dataset.ai=item.ai_score;score.dataset.max=def.weight;score.max=def.weight;}
-        var max=card.querySelector('.score-max');if(max)max.textContent='/ '+def.weight;
-        var comment=card.querySelector('.comment-field textarea');if(comment)comment.value=item.comment||'';
-        var status=card.querySelector('.status-text');if(status)status.textContent='Not yet confirmed';
-        var criterionEvidence=allEvidence.filter(function(evidence){return evidence.criterion_id===def.id;}), evidenceNode=card.querySelector('.evidence'), alsoNode=card.querySelector('.also'), control=card.querySelector('.crit-ctl');
-        if(criterionEvidence.length){
-          card.dataset.evs=criterionEvidence.map(function(evidence){EV_CARD[evidence.id]=card.id;return evidence.id;}).join(',');
-          if(evidenceNode){var first=criterionEvidence[0];evidenceNode.style.display='';evidenceNode.dataset.ev=first.id;evidenceNode.innerHTML='<span class="tab">p.'+esc(first.page)+' '+esc(first.paragraph||'')+'</span><span class="jump">Show in submission ↗</span><blockquote>“'+esc(first.quote)+'”</blockquote>';}
-          if(alsoNode){if(criterionEvidence.length>1){alsoNode.style.display='';alsoNode.innerHTML='Also used: '+criterionEvidence.slice(1).map(function(evidence){return '<span class="chip" data-ev="'+esc(evidence.id)+'"><b>p.'+esc(evidence.page)+' '+esc(evidence.paragraph||'')+'</b><i>“'+esc(evidence.quote.length>120?evidence.quote.slice(0,117)+'…':evidence.quote)+'”</i></span>';}).join('');}else alsoNode.style.display='none';}
-          if(control){control.style.display='';var label=control.querySelector('.hl-lbl');if(label)label.textContent='Highlight all · '+criterionEvidence.length;}
-        }else{
-          Array.prototype.forEach.call(card.querySelectorAll('.evidence,.also,.crit-ctl'),function(node){node.style.display='none';});
-          var sum=card.querySelector('.crit-sum');if(sum)sum.innerHTML='Your score <b>'+esc(item.score)+' / '+esc(def.weight)+'</b> · Not yet confirmed · No submission evidence';
+      var documentData = data.document || {}, fileName = document.querySelector('.doc-bar .file b'); if (fileName) fileName.textContent = submission.filename || sid;
+      var mimeType = String(documentData.mime_type || '').toLowerCase(), isPdf = !!documentData.content_url && (mimeType.indexOf('pdf') >= 0 || /\.pdf$/i.test(submission.filename || ''));
+      var extension = ((submission.filename || '').match(/\.([^.]+)$/) || [,'file'])[1].toUpperCase();
+      var previewMode = isPdf ? 'Original PDF' : extension + ' text preview';
+      var pageCount = Number(documentData.page_count || 0), fileMeta = document.querySelector('.doc-bar .file span');
+      if (fileMeta) fileMeta.textContent = (manual ? pageCount + ' page' + (pageCount === 1 ? '' : 's') + ' · no text layer · mark manually' : (pageCount + ' page' + (pageCount === 1 ? '' : 's') + ' · ' + Number(documentData.word_count || 0).toLocaleString('en-AU') + ' words · ' + allEvidence.length + ' evidence span' + (allEvidence.length === 1 ? '' : 's'))) + ' · ' + previewMode;
+      var documentRoot = document.getElementById('doc'), evidenceHTML = '';
+      if ((documentData.paragraphs || []).length) {
+        var pageMap = {}; (documentData.paragraphs || []).forEach(function (block) { var page = Number(block.page || 1); if (!pageMap[page]) pageMap[page] = []; pageMap[page].push(block); });
+        evidenceHTML = Object.keys(pageMap).map(Number).sort(function (a, b) { return a - b; }).map(function (pageNumber) {
+          var blocks = pageMap[pageNumber], heading = pageNumber === 1 ? '<h1>' + esc(documentData.title || submission.filename || sid) + '</h1><p class="byline">' + esc(sid) + ' · ' + esc(batch.name || 'Batch') + ' · ' + Number(documentData.word_count || 0).toLocaleString('en-AU') + ' words</p>' : '';
+          return '<article class="sheet" data-page="' + pageNumber + '"><span class="pno">p.' + pageNumber + '</span>' + heading + blocks.map(function (block) { return block.kind === 'heading' ? '<h2>' + esc(block.text) + '</h2>' : '<p data-p="' + esc(block.label || '') + '">' + blockHTML(block) + '</p>'; }).join('') + '</article>';
+        }).join('');
+      } else {
+        evidenceHTML = '<article class="sheet" data-page="1"><h1>' + esc(submission.filename || sid) + '</h1><p class="byline">No readable text was found in this file (for example, a scanned page). Open the original below and mark each criterion by hand.</p></article>';
+      }
+      documentRoot.innerHTML = evidenceHTML;
+      var evidenceToggle = document.querySelector('.doc-tools .switch'), evidenceInput = document.getElementById('showAll');
+      var evidenceById = {}; allEvidence.forEach(function (item) { evidenceById[item.id] = item; });
+      var originalPage = 1, originalPdfController = null;
+      function renderOriginal(page) {
+        if (!isPdf) return;
+        originalPage = Math.max(1, Number(page || originalPage || 1));
+        documentRoot.classList.add('original-mode'); documentRoot.classList.toggle('show-all', !!(evidenceInput && evidenceInput.checked));
+        if (originalPdfController) { originalPdfController.goToPage(originalPage); return; }
+        if (window.OriginalPdfViewer) originalPdfController = window.OriginalPdfViewer.mount(documentRoot, { url: documentData.content_url, evidence: allEvidence.map(function (item) { var copy = Object.assign({}, item); copy.criterion_label = 'C' + (criterionNumber[item.criterion_id] || '?'); return copy; }) });
+      }
+      if (evidenceToggle) evidenceToggle.style.display = hasEvidence ? '' : 'none';
+      if (isPdf) {
+        if (evidenceInput) evidenceInput.checked = true;
+        renderOriginal(1);
+        var markPaneForOriginal = document.getElementById('markPane');
+        if (markPaneForOriginal) markPaneForOriginal.addEventListener('click', function (event) { var source = event.target.closest('[data-ev]'), evidence = source && evidenceById[source.dataset.ev]; if (source && evidence) { originalPage = evidence.page || 1; if (originalPdfController) originalPdfController.goToEvidence(evidence.id); } }, true);
+      }
+      if (!manual && !locked && !document.querySelector('[data-regrade]')) {
+        var regradeControl = document.createElement('span'), regradeButton = document.createElement('button'), regradeMeter = document.createElement('span'), regradeFill = document.createElement('span');
+        regradeControl.className = 'regrade-control'; regradeButton.type = 'button'; regradeButton.className = 'icon-btn'; regradeButton.dataset.regrade = 'true'; regradeButton.textContent = hasEvidence ? 'Re-run AI evidence' : 'Retrieve evidence'; regradeMeter.className = 'regrade-meter'; regradeMeter.appendChild(regradeFill); regradeControl.appendChild(regradeButton); regradeControl.appendChild(regradeMeter); document.querySelector('.doc-tools').insertBefore(regradeControl, document.getElementById('collapse'));
+        var regradeError = function (message) { var old = document.querySelector('.regrade-error'); if (old) old.remove(); var box = document.createElement('div'); box.className = 'regrade-error'; box.setAttribute('role', 'alert'); box.innerHTML = '<b>AI evidence retrieval stopped.</b><br>' + esc(message) + '<button type="button" aria-label="Close">×</button>'; box.querySelector('button').addEventListener('click', function () { box.remove(); }); document.body.appendChild(box); };
+        var stopRegrade = function (message) { regradeControl.classList.remove('running'); regradeButton.disabled = false; regradeButton.textContent = hasEvidence ? 'Re-run AI evidence' : 'Retrieve evidence'; regradeFill.style.width = '0'; if (message) regradeError(message); };
+        var pollRegrade = function () { MarkerAPI.getReview(submissionId).then(function (result) { var item = Object.assign({}, result.submission, { error: result.submission.error ? { message: result.submission.error } : null }); var progress = String(item.progress || ''), match = progress.match(/(\d+)\s*\/\s*(\d+)\s+criteria/), done = match ? Number(match[1]) : 0, count = match ? Number(match[2]) : criteria.length, pct = count ? Math.max(5, Math.round(done / count * 100)) : 5; regradeFill.style.width = pct + '%'; regradeButton.textContent = match ? 'Retrieving ' + done + '/' + count : 'Queued…'; if (item.status === 'ai_done' || item.status === 'in_review') { regradeFill.style.width = '100%'; regradeButton.textContent = 'Evidence ready'; setTimeout(function () { location.reload(); }, 350); return; } if (item.status === 'failed') { stopRegrade(item.error && item.error.message ? item.error.message : 'The AI provider did not return a usable result after three attempts.'); return; } setTimeout(pollRegrade, 1500); }).catch(function (error) { console.error('Regrade progress failed', error); stopRegrade(error.message); }); };
+        var startRegrade = function () { regradeControl.classList.add('running'); regradeButton.disabled = true; regradeFill.style.width = '5%'; pollRegrade(); };
+        regradeButton.addEventListener('click', function () { regradeControl.classList.add('running'); regradeButton.disabled = true; regradeButton.textContent = 'Queueing…'; regradeFill.style.width = '3%'; MarkerAPI.regrade(submissionId).then(startRegrade).catch(function (error) { console.error('Regrade request failed', error); stopRegrade(error.message); }); });
+        if (submission.status === 'queued' || submission.status === 'marking') startRegrade();
+      }
+      var hint = document.querySelector('.actionbar .hint'); if (hint) hint.textContent = locked ? 'Batch finalised · marks are read-only' : manual ? 'No AI suggestion · enter a score and comment for every criterion' : hasEvidence ? 'Hover evidence to highlight · click to jump · the evidence toggle shows every cited passage' : 'No verified criterion evidence was returned for this submission';
+
+      Array.prototype.forEach.call(cards, function (card, index) {
+        var item = criteria[index];
+        if (!item) { card.style.display = 'none'; if (nav[index]) nav[index].style.display = 'none'; return; }
+        var def = item.definition || {}, levels = def.levels || [], confidence = item.confidence || 'none', noAI = item.ai_score == null;
+        total += Number(def.weight || 0); aiTotal += Number(item.ai_score || 0);
+        card.dataset.criterionId = def.id || ''; card.dataset.reviewVersion = String(item.version || 0); card.dataset.evs = (item.evidence_ids || []).join(',');
+        card.classList.toggle('flagged', confidence === 'low');
+        var title = card.querySelector('.crit-title'); if (title) title.textContent = 'C' + (index + 1) + ' · ' + def.name;
+        var desc = card.querySelector('.crit-desc'); if (desc) desc.innerHTML = levelsHtml(def, item.ai_level);
+        var badge = card.querySelector('.crit-weight-badge'); if (badge) badge.textContent = num(def.weight) + ' pts';
+        var confidenceTag = card.querySelector('.conf-tag'); if (confidenceTag) { confidenceTag.className = 'conf-tag ' + (noAI ? 'none' : confidence); confidenceTag.innerHTML = '<span class="dot"></span>' + (noAI ? 'No AI suggestion' : confidence.charAt(0).toUpperCase() + confidence.slice(1) + ' confidence'); }
+        var ai = card.querySelector('.ai-box .badge'); if (ai) ai.textContent = noAI ? 'Manual marking' : 'AI · ' + num(item.ai_score) + '/' + num(def.weight) + (item.ai_level ? ' · ' + item.ai_level : '');
+        var reason = card.querySelector('.ai-box .reason'); if (reason) reason.textContent = item.rationale || '';
+        var aiBox = card.querySelector('.ai-box'), trace = window.EvidenceTrace ? EvidenceTrace.render(item.evidence_check, item.coverage) : null; Array.prototype.forEach.call(card.querySelectorAll('.trace'), function (node) { node.remove(); }); if (trace && aiBox) aiBox.insertAdjacentElement('afterend', trace);
+        var score = card.querySelector('.score-input'); if (score) { score.value = item.score == null ? '' : item.score; score.dataset.ai = noAI ? '' : item.ai_score; score.dataset.max = def.weight; score.max = def.weight; score.min = 0; score.step = String(scoreStep(def)); score.disabled = locked; if (noAI) score.placeholder = '—'; }
+        var accept = card.querySelector('.accept-btn'); if (accept) accept.style.display = noAI || locked ? 'none' : '';
+        var max = card.querySelector('.score-max'); if (max) max.textContent = '/ ' + num(def.weight);
+        var comment = card.querySelector('.comment-field textarea'); if (comment) { comment.value = item.comment || ''; comment.disabled = locked; }
+        var status = card.querySelector('.status-text'); if (status) status.textContent = item.status === 'confirmed' ? 'Confirmed' : noAI ? 'Needs your score' : item.status === 'edited' ? 'Adjusted — not yet confirmed' : 'Not yet confirmed';
+        card.dataset.confirmed = item.status === 'confirmed' ? '1' : ''; refreshConfirm(card);
+        var criterionEvidence = allEvidence.filter(function (evidence) { return evidence.criterion_id === def.id; }), evidenceNode = card.querySelector('.evidence'), alsoNode = card.querySelector('.also'), control = card.querySelector('.crit-ctl');
+        if (criterionEvidence.length) {
+          card.dataset.evs = criterionEvidence.map(function (evidence) { EV_CARD[evidence.id] = card.id; return evidence.id; }).join(',');
+          if (evidenceNode) { var first = criterionEvidence[0]; evidenceNode.style.display = ''; evidenceNode.dataset.ev = first.id; evidenceNode.innerHTML = '<span class="tab">p.' + esc(first.page) + ' ' + esc(first.paragraph || '') + '</span><span class="jump">Show in submission ↗</span><blockquote>“' + esc(first.quote) + '”</blockquote>'; }
+          if (alsoNode) { if (criterionEvidence.length > 1) { alsoNode.style.display = ''; alsoNode.innerHTML = 'Also used: ' + criterionEvidence.slice(1).map(function (evidence) { return '<span class="chip" data-ev="' + esc(evidence.id) + '"><b>p.' + esc(evidence.page) + ' ' + esc(evidence.paragraph || '') + '</b><i>“' + esc(evidence.quote.length > 120 ? evidence.quote.slice(0, 117) + '…' : evidence.quote) + '”</i></span>'; }).join(''); } else alsoNode.style.display = 'none'; }
+          if (control) { control.style.display = ''; var label = control.querySelector('.hl-lbl'); if (label) label.textContent = 'Highlight all · ' + criterionEvidence.length; }
+        } else {
+          Array.prototype.forEach.call(card.querySelectorAll('.evidence,.also,.crit-ctl'), function (node) { node.style.display = 'none'; });
         }
         updateSummary(card);
-        if(nav[index]){nav[index].style.display='';nav[index].dataset.c=card.id;nav[index].title='C'+(index+1)+' · '+def.name;nav[index].innerHTML='<span class="st" id="nav'+(index+1)+'"></span>C'+(index+1)+' <span class="w">'+def.weight+' pts</span>';}
+        if (nav[index]) { nav[index].style.display = ''; nav[index].dataset.c = card.id; nav[index].title = 'C' + (index + 1) + ' · ' + def.name; nav[index].innerHTML = '<span class="st' + (card.dataset.confirmed === '1' ? ' done' : '') + '" id="nav' + (index + 1) + '"></span>C' + (index + 1) + ' <span class="w">' + num(def.weight) + ' pts</span>'; }
       });
-      var heading=document.querySelector('.doc-header h1');if(heading)heading.textContent='Review — '+sid;
-      var summary=document.querySelector('.doc-header p');if(summary)summary.textContent=criteria.length+' criteria · rubric maximum '+total+' marks'+(isDemoSample?' · demo content only':' · '+pageCount+'-page submission parsed');
-      var footer=document.getElementById('footerTotal');if(footer)footer.textContent=aiTotal;
-      var final=footer&&footer.parentElement;if(final){var textNode=Array.prototype.find.call(final.childNodes,function(node){return node.nodeType===3&&/\//.test(node.textContent);});if(textNode)textNode.textContent=' / '+total+' ';}
-      var suggested=document.getElementById('aiSug');if(suggested)suggested.textContent='AI suggested '+aiTotal;
-      var previous=document.getElementById('btnPrev');if(previous)previous.disabled=true;
-      var skip=document.getElementById('btnSkip');if(skip){skip.textContent='Back to batch';skip.title='Return to this batch';skip.addEventListener('click',function(event){event.preventDefault();location.href=batchUrl;});}
-      document.title=sid+' — '+(batch.name||'Review')+' — AI-assisted marker';
-      if(data.demo_banner){var oldBanner=document.querySelector('[data-demo-review-banner]');if(oldBanner)oldBanner.remove();var banner=document.createElement('div');banner.dataset.demoReviewBanner='true';banner.textContent=data.demo_banner;banner.setAttribute('role','status');banner.style.cssText='position:fixed;z-index:90;top:58px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:0 0 8px 8px;background:#7a2e16;color:white;font:600 12px Inter,sans-serif';document.body.appendChild(banner);}
-      document.addEventListener('click',function(event){
-        var button=event.target.closest('#btnNext'); if(!button)return;
-        event.preventDefault(); event.stopImmediatePropagation(); button.disabled=true; button.textContent='Saving…';
-        var chain=Promise.resolve();
-        criteria.forEach(function(item,index){
-          var card=cards[index];if(!card)return;
-          var score=card.querySelector('.score-input'), comment=card.querySelector('.comment-field textarea');
-          var nextScore=Number(score.value), nextComment=comment?comment.value:'';
-          if(nextScore===Number(item.score||0)&&nextComment===(item.comment||''))return;
-          chain=chain.then(function(){return MarkerAPI.saveCriterion(submissionId,item.definition.id,{score:nextScore,comment:nextComment,version:item.version}).then(function(saved){submissionVersion=Number(saved.submission_version);item.score=saved.score;item.comment=saved.comment;item.version=saved.version;});});
+      var heading = document.querySelector('.doc-header h1'); if (heading) heading.textContent = 'Review — ' + sid;
+      var summary = document.querySelector('.doc-header p'); if (summary) summary.textContent = criteria.length + ' criteria · rubric maximum ' + num(total) + ' marks' + (manual ? ' · manual marking' : ' · ' + pageCount + '-page submission parsed') + (batch.is_sample ? ' · sample batch' : '');
+      var footer = document.getElementById('footerTotal'); if (footer) footer.textContent = manual ? '—' : num(aiTotal);
+      var final = footer && footer.parentElement; if (final) { var textNode = Array.prototype.find.call(final.childNodes, function (node) { return node.nodeType === 3 && /\//.test(node.textContent); }); if (textNode) textNode.textContent = ' / ' + num(total) + ' '; }
+      var suggested = document.getElementById('aiSug'); if (suggested) suggested.textContent = manual ? 'No AI suggestion' : 'AI suggested ' + num(aiTotal);
+      if (typeof recompute === 'function') recompute();
+      var previous = document.getElementById('btnPrev'); if (previous) { previous.disabled = history.length < 2; previous.addEventListener('click', function () { history.back(); }); }
+      var skip = document.getElementById('btnSkip');
+      if (skip) skip.addEventListener('click', function (event) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        MarkerAPI.nextInQueue(batch.id, submissionId).then(function (next) { if (next.next_id) location.href = '03b-review-split.html?submission_id=' + encodeURIComponent(next.next_id); else location.href = batchUrl; }).catch(reportError);
+      }, true);
+      if (!locked) wireCriterionConfirm();
+      var next = document.getElementById('btnNext');
+      if (next && locked) { next.disabled = true; next.textContent = 'Finalised · read only'; }
+      else if (next && submission.status === 'confirmed') next.textContent = 'Save changes & next →';
+      document.title = sid + ' — ' + (batch.name || 'Review') + ' — AI-assisted marker';
+      document.addEventListener('click', function (event) {
+        var button = event.target.closest('#btnNext'); if (!button || locked) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        var missing = criteria.filter(function (item, index) { var input = cards[index] && cards[index].querySelector('.score-input'); return !input || input.value === '' || isNaN(Number(input.value)) || Number(input.value) < 0 || Number(input.value) > Number(item.definition.weight); });
+        if (missing.length) { MarkerDialog.alert({ title: 'Some scores are missing', message: 'Enter a score between 0 and the maximum for: ' + missing.map(function (item) { return item.definition.name; }).join(', '), icon: 'warn' }); return; }
+        var unconfirmed = criteria.map(function (item, index) { return cards[index] && cards[index].dataset.confirmed !== '1' ? 'C' + (index + 1) + ' · ' + item.definition.name : null; }).filter(Boolean);
+        if (unconfirmed.length) { MarkerDialog.alert({ title: 'Confirm every criterion first', message: 'Not confirmed yet: ' + unconfirmed.join('; ') + '. Accept the AI suggestion or confirm your own score for each one — or use Skip to come back to this submission later.', icon: 'warn' }); return; }
+        button.disabled = true; button.textContent = 'Saving…';
+        var chain = Promise.resolve();
+        criteria.forEach(function (item, index) {
+          var card = cards[index]; if (!card) return;
+          var score = card.querySelector('.score-input'), comment = card.querySelector('.comment-field textarea');
+          var nextScore = Number(score.value), nextComment = comment ? comment.value : '';
+          if (item.score != null && nextScore === Number(item.score) && nextComment === (item.comment || '')) return;
+          chain = chain.then(function () { return MarkerAPI.saveCriterion(submissionId, item.definition.id, { score: nextScore, comment: nextComment, version: item.version }).then(function (saved) { submissionVersion = Number(saved.submission_version); item.score = saved.score; item.comment = saved.comment; item.version = saved.version; }); });
         });
-        chain.then(function(){button.textContent='Confirming…';return MarkerAPI.confirm(submissionId,submissionVersion);}).then(function(result){result.batch_id=batch.id;showEnd(result);button.textContent='Confirmed';}).catch(function(error){button.disabled=false;button.textContent='Confirm & next →';reportError(error);});
-      },true);
+        chain.then(function () { button.textContent = 'Confirming…'; return MarkerAPI.confirm(submissionId, submissionVersion); }).then(function (result) {
+          if (result.next_id) { location.href = '03b-review-split.html?submission_id=' + encodeURIComponent(result.next_id); return; }
+          result.batch_id = batch.id; showEnd(result); button.textContent = 'Confirmed';
+        }).catch(function (error) { button.disabled = false; button.textContent = 'Confirm & next →'; reportError(error); MarkerDialog.alert(actionError('Could not confirm this submission', error)); });
+      }, true);
     });
   }
-  function loadPageData(name) {
-    if(name==='07-batches.html') return wireBatchList();
-    if(name==='02-batch-status.html') return wireBatchStatus();
-    if(name==='04-batch-complete.html') return MarkerAPI.getResults(new URLSearchParams(location.search).get('batch_id')||'bat_quiz3');
-    if(name==='05-mark-report.html') return MarkerAPI.getReport(new URLSearchParams(location.search).get('submission_id')||'sub_quiz3_000002','internal');
-    if(name==='01-upload.html') return wireSetup();
-    if(name==='01a-rubric-import.html') return Promise.all([MarkerAPI.listRubrics(),MarkerAPI.getSettings()]);
-    return Promise.resolve(null);
+  var endPollTimer = null;
+  function showEnd(result) {
+    var card = document.getElementById('endCard'), body = document.getElementById('endBody'); if (!card || !body) return;
+    var batchId = result.batch_id || '', submissionId = result.submission_id || '';
+    var resultsUrl = '04-batch-complete.html?batch_id=' + encodeURIComponent(batchId), statusUrl = '02-batch-status.html?batch_id=' + encodeURIComponent(batchId);
+    clearTimeout(endPollTimer);
+    body.setAttribute('aria-live', 'polite');
+    function statsHtml(remaining) {
+      if (remaining.confirmed == null || remaining.total == null) return '';
+      return '<div class="ec-stats"><span><b>' + Number(remaining.confirmed || 0) + '</b>reviewed</span><span><b>' + Number(remaining.processing || 0) + '</b>still with AI</span><span><b>' + Number(remaining.total || 0) + '</b>in batch</span></div>';
+    }
+    function linksHtml() { return '<div class="ec-links"><a href="00-home.html">Back to Home</a><button type="button" data-stay>Stay on this submission</button></div>'; }
+    function renderComplete() {
+      body.innerHTML = '<div class="ec-icon ok">✓</div><div class="ec-kicker">Batch complete</div><h2 id="ecTitle">Everything is confirmed</h2><p class="ec-sub">Results stay editable until you finalise the batch.</p><div class="ec-actions"><a class="btn btn-primary" href="' + resultsUrl + '">View results →</a><a class="btn btn-ghost" href="05-mark-report.html?submission_id=' + encodeURIComponent(submissionId) + '">Mark report</a></div><div class="ec-links"><a href="00-home.html">Back to Home</a></div>';
+    }
+    function renderFailed() {
+      body.innerHTML = '<div class="ec-kicker">Failed items need attention</div><h2 id="ecTitle">Review is paused</h2><p class="ec-sub">Retry or exclude the failed submissions from the batch page.</p><div class="ec-actions"><a class="btn btn-primary" href="' + statusUrl + '">Back to batch</a></div>';
+    }
+    function renderWaiting(remaining) {
+      body.innerHTML = '<div class="ec-icon wait"><span class="ec-spin"></span></div><div class="ec-kicker">Nothing ready right now</div><h2 id="ecTitle">All ready submissions reviewed</h2><p class="ec-sub">' + Number(remaining.processing || 0) + ' still with the AI. The next one appears here as soon as it is ready — no refresh needed.</p>' + statsHtml(remaining) + '<div class="ec-actions"><button class="btn btn-primary" type="button" disabled>Waiting for the AI…</button><a class="btn btn-ghost" href="' + statusUrl + '">Back to batch</a></div>' + linksHtml();
+    }
+    function renderReady(next, remaining) {
+      var sid = next.next_sid || 'next submission';
+      body.innerHTML = '<div class="ec-icon wait"><span class="ec-spin"></span></div><div class="ec-kicker">1 new submission ready</div><h2 id="ecTitle">Next submission is ready</h2><p class="ec-sub">The AI has finished preparing another submission for review.</p>' + statsHtml(remaining) + '<div class="ec-actions"><a class="btn btn-primary pulse" href="03b-review-split.html?submission_id=' + encodeURIComponent(next.next_id) + '">Open ' + esc(sid) + ' →</a><a class="btn btn-ghost" href="' + statusUrl + '">Back to batch</a></div>' + linksHtml();
+    }
+    function pollEnd() {
+      Promise.all([MarkerAPI.nextInQueue(batchId, submissionId), MarkerAPI.getBatch(batchId)]).then(function (values) {
+        var next = values[0], latestBatch = values[1].batch || {}, remaining = next.remaining || {};
+        if (latestBatch.status === 'completed' || latestBatch.status === 'finalised') { renderComplete(); return; }
+        if (next.next_id) { renderReady(next, remaining); return; }
+        if (Number(remaining.failed || 0) > 0) { renderFailed(); return; }
+        renderWaiting(remaining);
+        if (Number(remaining.processing || 0) > 0) endPollTimer = setTimeout(pollEnd, 3000);
+      }).catch(function (error) {
+        console.error('End-of-queue refresh failed', error);
+        endPollTimer = setTimeout(pollEnd, 5000);
+      });
+    }
+    if (!body.dataset.stayBound) {
+      body.dataset.stayBound = 'true';
+      body.addEventListener('click', function (event) {
+        if (!event.target.closest('[data-stay]')) return;
+        clearTimeout(endPollTimer); card.hidden = true;
+      });
+    }
+    if (result.batch_status === 'completed') renderComplete();
+    else if (Number((result.remaining || {}).failed || 0) > 0) renderFailed();
+    else { renderWaiting(result.remaining || {}); endPollTimer = setTimeout(pollEnd, 250); }
+    card.hidden = false;
   }
-  function disableCanvas() {
-    Array.prototype.forEach.call(document.querySelectorAll('h1,h2,h3,label,button,option'),function(node){
-      if(/canvas/i.test(node.textContent||'')){
-        var section=node.closest('section,.pane,.panel,.source,.am-row')||node.parentElement;
-        if(section) Array.prototype.forEach.call(section.querySelectorAll('button,input,select,textarea'),function(control){control.disabled=true;control.title='Not available in local MVP';});
-      }
-    });
-  }
-  document.addEventListener('DOMContentLoaded',function(){
-    document.documentElement.dataset.apiMode=MarkerAPI.mode; disableCanvas();
-    var name=pageName(), task=name==='00-home.html'||name===''?wireHome():name==='06-rubrics.html'?wireRubrics():name==='03b-review-split.html'?wireReview():loadPageData(name).then(function(data){window.__MARKER_PAGE_DATA=data;});
-    Promise.resolve(task).then(function(){document.documentElement.dataset.apiState='ready';}).catch(reportError);
+
+  /* --------------------------------------------------------------- router */
+  document.addEventListener('DOMContentLoaded', function () {
+    var name = pageName(), pages = window.MarkerPages || {};
+    wireUser();
+    var task =
+      name === '00-home.html' || name === '' ? pages.home(ui)
+      : name === '06-rubrics.html' ? wireRubrics()
+      : name === '03b-review-split.html' ? wireReview()
+      : name === '07-batches.html' ? wireBatchList()
+      : name === '02-batch-status.html' ? wireBatchStatus()
+      : name === '04-batch-complete.html' ? pages.results(ui)
+      : name === '05-mark-report.html' ? pages.report(ui)
+      : name === '01-upload.html' ? wireSetup()
+      : null;
+    Promise.resolve(task).then(function () { document.documentElement.dataset.apiState = 'ready'; }).catch(reportError);
   });
 })();
-

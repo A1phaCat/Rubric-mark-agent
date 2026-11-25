@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,22 +10,41 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from app.api import batches, files, me, rubrics, submissions
+from app.api import batches, canvas, files, me, rubrics, samples, submissions
 from app.api import settings as settings_api
 from app.config import settings
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
+
+logger = logging.getLogger("marker")
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     settings.runtime_paths()
     Base.metadata.create_all(engine)
-    from app.api.settings import load_ai_settings
+    from app.services.settings_service import load_ai_settings
 
     with SessionLocal() as session:
         load_ai_settings(session, settings)
+    if settings.reset_samples_on_start and settings.env != "test":
+        try:
+            _reset_samples("startup")
+        except Exception:
+            pass  # logged; the API still starts
     yield
+
+
+def _reset_samples(reason: str) -> dict:
+    from app.sample.seed import seed
+
+    try:
+        counts = seed()
+        print(f"Sample data reset ({reason}): {counts}", flush=True)
+        return counts
+    except Exception:  # never block the API on demo data
+        logger.exception("sample data reset failed (%s)", reason)
+        raise
 
 
 def create_app() -> FastAPI:
@@ -41,16 +61,16 @@ def create_app() -> FastAPI:
         files.router,
         submissions.router,
         rubrics.router,
+        samples.router,
         settings_api.router,
+        canvas.router,
     ):
         app.include_router(router, prefix=api)
 
     root = Path(__file__).resolve().parents[2]
     frontend = (root / "frontend").resolve()
-    fixtures = (root / "fixtures" / "demo").resolve()
     app.mount("/prototype", StaticFiles(directory=root / "prototype", html=True), name="prototype")
     app.mount("/js", StaticFiles(directory=frontend / "js"), name="js")
-    app.mount("/fixtures/demo", StaticFiles(directory=fixtures), name="fixtures")
 
     @app.exception_handler(HTTPException)
     async def http_error(_request: Request, exc: HTTPException) -> JSONResponse:
@@ -84,7 +104,11 @@ def create_app() -> FastAPI:
         heartbeat = (
             json.loads(heartbeat_path.read_text(encoding="utf-8"))
             if heartbeat_path.exists()
-            else {"worker_id": settings.worker_id, "last_seen": None}
+            else {
+                "worker_id": settings.worker_id,
+                "concurrency": settings.worker_concurrency,
+                "last_seen": None,
+            }
         )
         return {
             "status": "ok",

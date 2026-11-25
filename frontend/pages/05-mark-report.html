@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SID-50102 mark report — AI-assisted marker</title>
+<title>Mark report — AI-assisted marker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -57,14 +57,21 @@
   .band{ font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500; padding:3px 9px; border-radius:5px; }
   .band.HD{ background:var(--lv1); color:#fff; } .band.DI{ background:var(--lv2); color:#fff; } .band.CR{ background:var(--lv3); color:#fff; }
   .band.PS{ background:var(--lv4); color:var(--ink); } .band.FL{ background:var(--lv5); color:var(--ink); }
+  /* A criterion's own level, coloured by its position on that criterion's scale (t1 = best). */
+  .band.t1{ background:var(--lv1); color:#fff; } .band.t2{ background:var(--lv2); color:#fff; } .band.t3{ background:var(--lv3); color:#fff; }
+  .band.t4{ background:var(--lv4); color:var(--ink); } .band.t5{ background:var(--lv5); color:var(--ink); }
 
   .breakdown{ border-top:1px solid var(--border); background:var(--tint); padding:16px 28px 18px; }
-  .bd-row{ display:grid; grid-template-columns:minmax(0,1fr) 120px 70px; gap:14px; align-items:center; padding:6px 0; font-size:13px; }
+  .bd-row{ display:grid; grid-template-columns:minmax(0,1fr) 120px 96px; gap:14px; align-items:center; padding:6px 0; font-size:13px; }
   .bd-row .track{ height:8px; border-radius:4px; background:var(--track); overflow:hidden; }
   .bd-row .track span{ display:block; height:100%; border-radius:4px; background:var(--ink); }
-  .bd-row .pts{ font-family:'IBM Plex Mono',monospace; text-align:right; }
+  .bd-row .pts{ font-family:'IBM Plex Mono',monospace; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
 
   /* AI summary */
+  .audience{ display:inline-flex; border:1px solid var(--border-strong); border-radius:7px; overflow:hidden; margin-top:10px; }
+  .audience button{ font:500 12px Inter,sans-serif; padding:5px 10px; border:0; background:var(--surface); color:var(--ink-soft); cursor:pointer; }
+  .audience button.on{ background:var(--ink); color:#fff; }
+  .sample-note{ font-size:12px; color:var(--primary); margin-top:6px; }
   .ai-sum{ background:var(--ai-bg); border-radius:12px; padding:22px 26px; margin-bottom:28px; }
   .ai-sum .hd{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
   .ai-sum .badge{ font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; color:#fff; background:var(--ai); padding:3px 9px; border-radius:5px; }
@@ -74,6 +81,23 @@
   .ai-sum ul{ margin:0; padding-left:18px; color:var(--ai-ink); font-size:14px; }
   .ai-sum li{ margin-bottom:4px; }
   .ai-sum li b{ font-weight:600; }
+  .ai-sum .fb-group{ margin-top:14px; }
+  .ai-sum .fb-group h3{ margin:0 0 6px; font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ai); }
+  .ai-sum .fb-state{ font-size:12px; color:var(--ai); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .ai-sum .fb-state .draft{ font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 8px; border-radius:5px; border:1px solid var(--ai); }
+  .ai-sum .fb-stale{ margin:0 0 12px; padding:8px 12px; border-radius:8px; background:#fff; border:1px solid #e3cdbd; font-size:12.5px; color:var(--ai-ink); }
+  .ai-sum .fb-edit{ display:grid; gap:12px; }
+  .ai-sum .fb-edit label{ display:grid; gap:4px; font-size:12.5px; font-weight:600; color:var(--ai-ink); }
+  .ai-sum .fb-edit label small{ font-weight:400; color:var(--ink-soft); }
+  .ai-sum .fb-edit textarea{ width:100%; min-height:64px; padding:9px 11px; border:1px solid #e3cdbd; border-radius:8px; background:#fff; font:inherit; font-weight:400; font-size:14px; line-height:1.45; color:var(--ink); resize:vertical; }
+  .ai-sum .fb-act{ display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; align-items:center; margin-top:4px; }
+  .ai-sum .fb-act .msg{ margin-right:auto; font-size:12px; color:var(--ink-soft); }
+  .ai-sum .fb-btn{ height:34px; padding:0 14px; border-radius:7px; border:1px solid var(--ai); background:#fff; color:var(--ai); font:500 13px Inter,system-ui,sans-serif; cursor:pointer; }
+  .ai-sum .fb-btn.pri{ background:var(--ai); color:#fff; }
+  .ai-sum .fb-btn[disabled]{ opacity:.6; cursor:wait; }
+  .ai-sum .fb-wait{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--ai-ink); }
+  .ai-sum .spin{ width:14px; height:14px; border:2px solid #e3cdbd; border-top-color:var(--ai); border-radius:50%; animation:fbspin .8s linear infinite; }
+  @keyframes fbspin{ to{ transform:rotate(360deg); } }
 
   /* Criteria */
   .section-title{ font-family:'Source Serif 4',serif; font-weight:600; font-size:19px; margin:0 0 12px; }
@@ -105,7 +129,7 @@
     .rh, .crit, .ai-sum{ padding:20px; }
     .breakdown{ padding:14px 20px; }
     .score{ text-align:left; }
-    .bd-row{ grid-template-columns:minmax(0,1fr) 70px; }
+    .bd-row{ grid-template-columns:minmax(0,1fr) 96px; }
     .bd-row .track{ grid-column:1 / -1; grid-row:2; }
   }
   @media print{
@@ -114,6 +138,7 @@
     main{ padding:0; max-width:none; }
     .report, .crit{ border-color:#ccc; }
     .ai-sum{ border:1px solid #e3cdbd; }
+    .ai-sum .fb-act, .ai-sum .fb-stale, .ai-sum .fb-state .draft{ display:none; }
   }
 
   /* ===== Shared top bar (logo · AI-assisted marker · Prototype · user) ===== */
@@ -189,102 +214,23 @@
       <span class="ab-name">AI-assisted marker</span>
       <span class="ab-proto" title="Internal coursework demo — not an official University of Sydney service">Prototype</span>
     </a>
-    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><a href="04-batch-complete.html">Quiz 3 Short Answers</a></li><li><span aria-current="page" id="bcCur">SID-50102 report</span></li></ol><a class="bc-up" href="04-batch-complete.html"><span aria-hidden="true">‹</span><span class="t">Quiz 3 Short Answers</span></a></nav>
+    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><a id="bcBatch" href="07-batches.html">Batch</a></li><li><span aria-current="page" id="bcCur">Report</span></li></ol><a class="bc-up" id="bcUp" href="07-batches.html"><span aria-hidden="true">‹</span><span class="t">Results</span></a></nav>
   </div>
   <div class="ab-right">
     <div class="ab-actions hide-sm">
       <button class="hbtn" type="button" onclick="window.print()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg><span>Print / PDF</span></button>
     </div>
-    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+    <div class="ab-user" title="Local single-user mode"><span class="ab-uname">&nbsp;</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true"></span></div>
   </div>
 </header>
 
-<main>
-  <section class="report">
-    <div class="rh">
-      <div>
-        <div class="eyebrow">Mark report</div>
-        <h1>Quiz 3 — Short Answers</h1>
-        <dl>
-          <dt>Student</dt><dd>SID-50102</dd>
-          <dt>Marked by</dt><dd>J. Alvarez</dd>
-          <dt>Finalised</dt><dd>12 Oct 2026, 4:18 pm</dd>
-          <dt>Status</dt><dd><span class="rel">✓ Released to student via Canvas</span></dd>
-        </dl>
-      </div>
-      <div class="score">
-        <div class="big">68<small> / 100</small></div>
-        <span class="band CR">CR · Credit</span>
-        <div class="ai-note">AI suggested <s>72</s> · adjusted −4 by tutor</div>
-      </div>
-    </div>
-    <div class="breakdown" aria-label="Marks by criterion">
-      <div class="bd-row"><span>Q1 — Concept definitions</span><span class="track"><span style="width:80%"></span></span><span class="pts">24 / 30</span></div>
-      <div class="bd-row"><span>Q2 — Applying the model</span><span class="track"><span style="width:72.5%"></span></span><span class="pts">29 / 40</span></div>
-      <div class="bd-row"><span>Q3 — Evaluating trade-offs</span><span class="track"><span style="width:50%"></span></span><span class="pts">15 / 30</span></div>
-    </div>
-  </section>
-
-  <section class="ai-sum" aria-label="AI summary">
-    <div class="hd">
-      <h2><span class="badge">AI</span>Summary of this submission</h2>
-      <span class="rev">Reviewed by J. Alvarez before release</span>
-    </div>
-    <p>A solid set of answers with accurate, well-chosen definitions and a confident application of the governance model in Q2. The main gap is in Q3, which describes both organisational models clearly but stops short of judging between them.</p>
-    <ul>
-      <li><b>Strongest:</b> Q1 — precise definitions supported by a relevant open-source example.</li>
-      <li><b>To improve:</b> Q3 — move from describing each model to weighing them and reaching a conclusion about when each is preferable.</li>
-      <li><b>Next step:</b> in evaluative questions, end with a clear judgement and the reason for it.</li>
-    </ul>
-  </section>
-
-  <h2 class="section-title">Feedback by criterion</h2>
-
-  <article class="crit">
-    <div class="crit-top">
-      <div><h3>Q1 — Concept definitions</h3><p class="desc">Defines coordination cost and transaction cost accurately, with an example.</p></div>
-      <div class="pts"><b>24<small> / 30</small></b><span class="band DI">DI</span></div>
-    </div>
-    <div class="comment">
-      <span class="avatar">JA</span>
-      <div><div class="who"><b>J. Alvarez</b> · tutor comment</div>
-        <p>Accurate definitions of both terms, and the open-source example is a good fit. To reach HD, explain <em>why</em> coordination cost grows with group size rather than only stating that it does.</p></div>
-    </div>
-    <div class="src">Evidence used <span>Q1 ¶1</span><span>Q1 ¶2</span></div>
-  </article>
-
-  <article class="crit">
-    <div class="crit-top">
-      <div><h3>Q2 — Applying the model</h3><p class="desc">Applies Ostrom's design principles to a real organisation.</p></div>
-      <div class="pts"><b>29<small> / 40</small></b><span class="band CR">CR</span></div>
-    </div>
-    <div class="comment">
-      <span class="avatar">JA</span>
-      <div><div class="who"><b>J. Alvarez</b> · tutor comment</div>
-        <p>Good use of three of Ostrom's principles — the monitoring example is especially apt. The answer would be stronger if it considered what happens when long-standing contributors leave the project.</p></div>
-    </div>
-    <div class="src">Evidence used <span>Q2 ¶1</span><span>Q2 ¶3</span></div>
-  </article>
-
-  <article class="crit">
-    <div class="crit-top">
-      <div><h3>Q3 — Evaluating trade-offs</h3><p class="desc">Weighs hierarchy against decentralisation and reaches a justified judgement.</p></div>
-      <div class="pts"><b>15<small> / 30</small></b><span class="band PS">PS</span></div>
-    </div>
-    <span class="adj"><span class="delta">−4</span>AI suggested 19 · adjusted by tutor</span>
-    <div class="comment">
-      <span class="avatar">JA</span>
-      <div><div class="who"><b>J. Alvarez</b> · tutor comment</div>
-        <p>You describe hierarchy and decentralisation clearly, but the question asks you to evaluate them. I've lowered the suggested mark because the answer doesn't reach a conclusion about when each model is preferable, or why.</p></div>
-    </div>
-    <div class="src">Evidence used <span>Q3 ¶1</span><span>Q3 ¶2</span></div>
-  </article>
-
-  <p class="footnote"><span class="dot"></span>Marks were suggested by AI from the evidence in your submission and confirmed or adjusted by your tutor. Every final mark and comment on this page was approved by a person.</p>
+<main id="reportMain">
+  <section class="report"><div class="rh"><div><div class="eyebrow">Mark report</div><h1>Loading report…</h1></div></div></section>
 </main>
 
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
-<script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
+<script src="/js/dialog.js"></script>
+<script src="/js/api.js"></script>
+<script src="account-menu.js"></script><script src="/js/render-report.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

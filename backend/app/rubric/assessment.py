@@ -115,3 +115,28 @@ def normalise_assessment_plan(
             }
         ]
     return mode, supplied
+
+
+EVIDENCE_STANDARDS = ("quality", "presence")
+# Criteria worth this share of the rubric or less only need to be addressed by default.
+_MINOR_WEIGHT_SHARE = 0.05
+
+
+def evidence_standard(criterion: dict[str, Any]) -> str:
+    """What makes an aspect count as supported: shown at the described standard, or addressed.
+
+    A tutor's explicit choice wins. Otherwise two-level met/not-met criteria and very minor
+    criteria only need the aspect to be addressed; every other criterion needs evidence that
+    it meets the standard its best level describes.
+    """
+
+    chosen = str(criterion.get("evidence_standard") or "").lower()
+    if chosen in EVIDENCE_STANDARDS:
+        return chosen
+    mode, _ = normalise_assessment_plan(criterion)
+    if mode == "binary":
+        return "presence"
+    share = criterion.get("weight_share")
+    if share is not None and float(share) <= _MINOR_WEIGHT_SHARE:
+        return "presence"
+    return "quality"

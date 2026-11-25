@@ -1,0 +1,5 @@
+Condition,Criteria,Mean difference,Mean difference 95% CI,Same level,Within one level,QWK,QWK 95% CI
+direct,36,9%,4–14%,72%,97%,0.77,0.54–0.89
+retrieval,36,19%,14–24%,47%,92%,0.33,-0.02–0.59
+full,36,12%,7–16%,61%,97%,0.65,0.33–0.79
+full_tools,36,13%,8–19%,58%,97%,0.67,0.41–0.83

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,23 +18,49 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     data_dir: Path = PROJECT_ROOT / "data"
-    fixtures_dir: Path = PROJECT_ROOT / "fixtures/demo"
     frontend_dir: Path = PROJECT_ROOT / "frontend"
     database_url: str = f"sqlite:///{(PROJECT_ROOT / 'data/db/marker.sqlite3').as_posix()}"
     llm: str = "university"
-    use_mocks: bool = False
     timezone: str = "Australia/Sydney"
     worker_id: str = "local-worker-1"
+    worker_concurrency: int = Field(default=3, ge=1, le=8)
+    local_user_id: str = "usr_jalvarez"
+    # Reload the sample batches on every API start so they can be marked again.
+    reset_samples_on_start: bool = True
     job_lease_seconds: int = 60
     job_max_attempts: int = 3
     ai_base_url: str | None = None
     ai_api_key: str | None = Field(default=None, repr=False)
     ai_model: str = "gpt-4.1"
     ai_timeout_seconds: float = 120.0
+    # Provider calls in flight across all worker slots and criteria (one shared limit).
+    llm_max_in_flight: int = Field(default=6, ge=1, le=32)
+    # Retries inside the LLM client for 429 / 5xx / timeouts; Retry-After is honoured.
+    llm_max_retries: int = Field(default=5, ge=0, le=10)
+    llm_max_backoff_seconds: float = Field(default=60.0, ge=1, le=600)
+    # What the evidence step reads and how:
+    #   "full_tools": the whole submission, with tools that verify each quote as it is cited
+    #                 and a search before an aspect is reported missing (default)
+    #   "full":       the whole submission in one call
+    #   "retrieval":  only the passages retrieved for each criterion (evaluation comparisons)
+    grading_context: Literal["full_tools", "full", "retrieval"] = "full_tools"
+    # Model turns the evidence check may take for one criterion.
+    agent_max_rounds: int = Field(default=4, ge=1, le=8)
+    # Model context window. A submission that cannot fit is routed to manual marking,
+    # never truncated.
+    ai_context_tokens: int = Field(default=128_000, ge=8_000)
+    # Criteria of one submission graded at the same time (still bounded by llm_max_in_flight).
+    criterion_concurrency: int = Field(default=3, ge=1, le=8)
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_threads: int = 2
     retrieval_candidate_limit: int = 12
     evidence_top_k: int = 5
+
+    @property
+    def fake_llm_allowed(self) -> bool:
+        """The deterministic FakeLLM exists for automated tests only."""
+
+        return self.env == "test"
 
     def runtime_paths(self) -> Dict[str, Path]:
         root = self.data_dir.resolve()

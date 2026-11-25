@@ -138,7 +138,10 @@
             var renderViewport=page.getViewport({scale:viewport.scale*pixelScale});
             canvas.width=Math.ceil(renderViewport.width);canvas.height=Math.ceil(renderViewport.height);
             try{
-              await page.render({canvasContext:canvas.getContext('2d',{alpha:false}),viewport:renderViewport}).promise;
+              // PDF pages have a white medium even when the file omits an
+              // explicit background. An opaque canvas otherwise starts black,
+              // which makes transparent PDFs appear as black pages.
+              await page.render({canvasContext:canvas.getContext('2d',{alpha:false}),viewport:renderViewport,background:'#ffffff'}).promise;
               canvas.dataset.rendered='true';rememberRendered(pageNumber);
             }finally{rendering=false;wrapper.classList.remove('rendering');}
           }

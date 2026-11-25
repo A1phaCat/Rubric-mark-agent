@@ -5,24 +5,17 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.canvas import CanvasError
 from app.config import Settings
 from app.db.models.core import AppSetting
 from app.deps import get_db, get_settings
 from app.llm import build_llm
 from app.llm.protocol import ProviderError
-from app.security.secrets import protect_secret, unprotect_secret
+from app.security.secrets import protect_secret
+from app.services import canvas_service
+from app.services.settings_service import load_ai_settings
 
 router = APIRouter(prefix="/settings", tags=["settings"])
-
-
-def load_ai_settings(db: Session, settings: Settings) -> None:
-    values = {item.key: item.value_encrypted for item in db.query(AppSetting).all()}
-    settings.llm = values.get("ai.provider", settings.llm)
-    settings.ai_model = values.get("ai.model", settings.ai_model)
-    settings.ai_base_url = values.get("ai.base_url") or settings.ai_base_url
-    protected_key = values.get("ai.api_key")
-    if protected_key:
-        settings.ai_api_key = unprotect_secret(protected_key)
 
 
 def _store(db: Session, key: str, value: str) -> None:
@@ -38,9 +31,9 @@ def _ai(settings: Settings) -> dict[str, Any]:
         "provider": settings.llm,
         "model": settings.ai_model,
         "base_url": settings.ai_base_url,
-        "uses_university_gateway": settings.llm in {"azure", "university", "fake"},
+        "uses_university_gateway": settings.llm in {"azure", "university"},
         "has_api_key": bool(settings.ai_api_key),
-        "available_models": ["fake-marker-v1"] if settings.llm == "fake" else [],
+        "available_models": [],
     }
 
 
@@ -59,6 +52,17 @@ def put_ai(
     db: Session = Depends(get_db),
 ) -> dict:
     provider = str(payload.get("provider", settings.llm))
+    if provider == "fake" and not settings.fake_llm_allowed:
+        raise HTTPException(
+            422,
+            {
+                "error": {
+                    "code": "validation_error",
+                    "message": "The offline FakeLLM is available only in the test environment",
+                    "details": None,
+                }
+            },
+        )
     model = str(payload.get("model", settings.ai_model))
     base_url = payload.get("base_url", settings.ai_base_url) or None
     api_key = str(payload["api_key"]) if payload.get("api_key") else None
@@ -97,13 +101,20 @@ async def test_ai(
         candidate.ai_api_key = payload.get("api_key") or candidate.ai_api_key
     started = time.perf_counter()
     try:
-        models = list(await build_llm(candidate).list_models())
+        llm = build_llm(candidate)
+        models = list(await llm.list_models())
+        offered = bool(candidate.ai_model) and (not models or candidate.ai_model in models)
+        if offered:
+            # Listing models only proves the key works; one tiny request proves the model accepts
+            # the parameters grading sends.
+            await llm.complete(purpose="connection_test", prompt='Reply with the JSON {"ok": true} only.')
         return {
             "ok": True,
             "latency_ms": int((time.perf_counter() - started) * 1000),
-            "model": candidate.ai_model,
+            "model": candidate.ai_model if offered else None,
             "models": models,
-            "message": "Provider connection succeeded",
+            "message": "Provider connection succeeded" if offered
+            else "Connected. Choose a model from this provider's list, then test again.",
         }
     except (ProviderError, ValueError, NotImplementedError) as exc:
         return {
@@ -116,19 +127,27 @@ async def test_ai(
 
 
 @router.get("/canvas")
-def get_canvas() -> dict:
-    return {"enabled": False, "base_url": None, "has_token": False}
+def get_canvas(db: Session = Depends(get_db)) -> dict:
+    return canvas_service.settings_view(db)
 
 
 @router.put("/canvas")
-def put_canvas() -> None:
-    raise HTTPException(
-        501,
-        {
-            "error": {
-                "code": "feature_not_enabled",
-                "message": "Canvas is not available in the local MVP",
-                "details": None,
-            }
-        },
-    )
+def put_canvas(payload: dict[str, Any], db: Session = Depends(get_db)) -> dict:
+    try:
+        return canvas_service.save_settings(db, payload)
+    except CanvasError as exc:
+        raise HTTPException(422, {"error": {"code": "validation_error", "message": str(exc), "details": None}}) from exc
+
+
+@router.post("/canvas/test")
+async def test_canvas(payload: dict[str, Any] | None = None, db: Session = Depends(get_db)) -> dict:
+    """Check the address and token with Canvas itself (the token's own profile)."""
+
+    payload = payload or {}
+    try:
+        result = await canvas_service.test_connection(db, payload.get("base_url"), payload.get("token"))
+    except CanvasError as exc:
+        return {"ok": False, "user": None, "message": str(exc)}
+    if not payload.get("token") or payload.get("save"):
+        canvas_service.save_settings(db, {"user": result["user"]})
+    return {**result, "message": f"Connected as {result['user']}"}

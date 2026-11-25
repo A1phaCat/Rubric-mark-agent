@@ -16,6 +16,6 @@ class Grader(Protocol):
     async def grade(self, submission_id: str, criterion_id: str) -> GradeResult: ...
 
 
-from .service import grade_criterion  # noqa: E402
+from .service import grade_criterion, prompt_version  # noqa: E402
 
-__all__ = ["GradeResult", "Grader", "grade_criterion"]
+__all__ = ["GradeResult", "Grader", "grade_criterion", "prompt_version"]

@@ -1,0 +1,250 @@
+{
+  "course": {
+    "id": 74325,
+    "name": "ELEC5623 Applied Generative AI in Engineering",
+    "course_code": "ELEC5623 (ND)",
+    "url": "https://canvas.sydney.edu.au/courses/74325"
+  },
+  "assignment": {
+    "id": 725779,
+    "name": "Final Report",
+    "url": "https://canvas.sydney.edu.au/courses/74325/assignments/725779",
+    "points_possible": 20.0,
+    "use_rubric_for_grading": false,
+    "rubric_settings": {
+      "id": 126992,
+      "title": "Report + Code Rubric",
+      "points_possible": 20.0,
+      "free_form_criterion_comments": false,
+      "hide_score_total": false,
+      "hide_points": false
+    }
+  },
+  "rubric": [
+    {
+      "id": "1792542050568",
+      "points": 4.0,
+      "description": "Product completeness and technical implementation",
+      "long_description": "A functional and coherent MVP/research prototype; core requirements are implemented; the assessed source code corresponds to the demonstrated system; the end-to-end workflow works reliably enough to demonstrate the intended product value.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "1",
+          "points": 4.0,
+          "description": "Exceeds",
+          "long_description": ""
+        },
+        {
+          "id": "2",
+          "points": 3.0,
+          "description": "Mastery",
+          "long_description": ""
+        },
+        {
+          "id": "3",
+          "points": 2.0,
+          "description": "Near",
+          "long_description": ""
+        },
+        {
+          "id": "4",
+          "points": 1.0,
+          "description": "Below",
+          "long_description": ""
+        },
+        {
+          "id": "5",
+          "points": 0.0,
+          "description": "No Evidence",
+          "long_description": ""
+        }
+      ]
+    },
+    {
+      "id": "1792542099391",
+      "points": 4.0,
+      "description": "GenAI engineering and system architecture",
+      "long_description": "The role of GenAI is necessary and well justified; model, prompt, context, agent, tool, memory, data and integration choices form a coherent system architecture; the agent/AI component is technically clear; design decisions show strong engineering judgement and appropriate use of current GenAI techniques.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_1001",
+          "points": 4.0,
+          "description": "Exceeds",
+          "long_description": ""
+        },
+        {
+          "id": "_8204",
+          "points": 3.0,
+          "description": "Mastery",
+          "long_description": ""
+        },
+        {
+          "id": "_5777",
+          "points": 2.0,
+          "description": "Near",
+          "long_description": ""
+        },
+        {
+          "id": "_951",
+          "points": 1.0,
+          "description": "Below",
+          "long_description": ""
+        },
+        {
+          "id": "_9655",
+          "points": 0.0,
+          "description": "No Evidence",
+          "long_description": ""
+        }
+      ]
+    },
+    {
+      "id": "1792542127799",
+      "points": 4.0,
+      "description": "Evaluation, evidence and critical analysis",
+      "long_description": "Appropriate baselines, metrics, datasets/test cases and evaluation procedures are used; results are reproducible and clearly reported; failure cases, limitations and trade-offs are analysed critically; claims are supported by evidence rather than demonstrations alone.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_7641",
+          "points": 4.0,
+          "description": "Exceeds",
+          "long_description": ""
+        },
+        {
+          "id": "_265",
+          "points": 3.0,
+          "description": "Mastery",
+          "long_description": ""
+        },
+        {
+          "id": "_5224",
+          "points": 2.0,
+          "description": "Near",
+          "long_description": ""
+        },
+        {
+          "id": "_1272",
+          "points": 1.0,
+          "description": "Below",
+          "long_description": ""
+        },
+        {
+          "id": "_2068",
+          "points": 0.0,
+          "description": "No Evidence",
+          "long_description": ""
+        }
+      ]
+    },
+    {
+      "id": "1792542182111",
+      "points": 3.0,
+      "description": "Novelty and positioning against related work",
+      "long_description": "Relevant prior academic work, products, systems and methods are identified and cited; similarities and differences are analysed rather than merely listed; the project’s specific contribution is clearly distinguished from existing work; novelty claims are credible, evidence-based and consistent with the related-work analysis.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_2637",
+          "points": 3.0,
+          "description": "Excellent",
+          "long_description": ""
+        },
+        {
+          "id": "_4634",
+          "points": 2.0,
+          "description": "Great",
+          "long_description": ""
+        },
+        {
+          "id": "_5691",
+          "points": 1.0,
+          "description": "Below Average",
+          "long_description": ""
+        },
+        {
+          "id": "_6238",
+          "points": 0.0,
+          "description": "No Evidence",
+          "long_description": ""
+        }
+      ]
+    },
+    {
+      "id": "1792542252575",
+      "points": 2.0,
+      "description": "Alignment with selected track",
+      "long_description": "The final project remains clearly aligned with Track A or Track B; the selected track meaningfully shapes the engineering goal and system design; the work goes beyond a generic chatbot, shallow API wrapper or unsupported research claim.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_5943",
+          "points": 2.0,
+          "description": "Excellent",
+          "long_description": ""
+        },
+        {
+          "id": "_9631",
+          "points": 1.0,
+          "description": "Good",
+          "long_description": ""
+        },
+        {
+          "id": "_691",
+          "points": 0.0,
+          "description": "No Evidence",
+          "long_description": ""
+        }
+      ]
+    },
+    {
+      "id": "1792542284919",
+      "points": 2.0,
+      "description": "Product quality and user/system workflow",
+      "long_description": "The final system presents a clear workflow and meaningful outputs; interaction or system behaviour supports the intended use case; the implementation is usable and coherent enough to evaluate the proposed value.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_8354",
+          "points": 2.0,
+          "description": "Excellent",
+          "long_description": ""
+        },
+        {
+          "id": "_5916",
+          "points": 1.0,
+          "description": "Good",
+          "long_description": ""
+        },
+        {
+          "id": "_8",
+          "points": 0.0,
+          "description": "No Evidence",
+          "long_description": ""
+        }
+      ]
+    },
+    {
+      "id": "1792542325696",
+      "points": 1.0,
+      "description": "Documentation and team delivery",
+      "long_description": "The final report and source package are organised, professional and consistent with the assessed implementation; setup information is sufficient; team responsibilities and contributions are clearly documented.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_2569",
+          "points": 1.0,
+          "description": "Good",
+          "long_description": ""
+        },
+        {
+          "id": "_2286",
+          "points": 0.0,
+          "description": "No Evidence",
+          "long_description": ""
+        }
+      ]
+    }
+  ]
+}

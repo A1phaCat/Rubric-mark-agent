@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -49,13 +49,18 @@ class Submission(Base):
     excluded_reason: Mapped[Optional[str]] = mapped_column(Text)
     marker_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id"))
     flags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
-    is_mock: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Reviewed, student-facing summary (summary/strengths/improvements/next_steps).
+    feedback_json: Mapped[Optional[str]] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AIResult(Base):
     __tablename__ = "ai_results"
+    # One AI result per criterion of a submission: two worker slots can never both store one.
+    __table_args__ = (
+        Index("uq_ai_results_submission_criterion", "submission_id", "criterion_id", unique=True),
+    )
     id: Mapped[str] = mapped_column(String, primary_key=True)
     submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.id"), nullable=False)
     criterion_id: Mapped[str] = mapped_column(String, nullable=False)
@@ -73,6 +78,8 @@ class AIResult(Base):
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # The evidence check's steps (tutor view only); null when the step ran in one pass.
+    trace_json: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 

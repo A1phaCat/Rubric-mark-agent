@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SID-40219 — Review — AI-assisted marker</title>
+<title>Review — AI-assisted marker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -55,9 +55,10 @@
   /* Left: submission */
   .doc-pane{ display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; background:#E9E2D9; border-right:1px solid var(--border); }
   .doc-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px; background:var(--surface); border-bottom:1px solid var(--border); flex:none; }
-  .doc-bar .file{ display:flex; align-items:center; gap:10px; min-width:0; }
+  .doc-bar{ flex-wrap:wrap; row-gap:6px; }
+  .doc-bar .file{ display:flex; align-items:center; gap:10px; min-width:0; flex:1 1 220px; overflow:hidden; }
   .doc-bar .file b{ font-weight:500; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .doc-bar .file span{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft); white-space:nowrap; }
+  .doc-bar .file span{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   .doc-tools{ display:flex; align-items:center; gap:10px; flex:none; }
   .switch{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-soft); cursor:pointer; user-select:none; }
   .switch input{ accent-color:var(--primary); width:15px; height:15px; }
@@ -76,7 +77,7 @@
   .pdf-loading span{ width:24px; height:24px; border:3px solid rgba(255,255,255,.28); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
   .pdf-error span{ color:#f0ddd4; max-width:420px; }
   .pdf-page{ width:calc(100% - 32px); aspect-ratio:var(--pdf-ratio); margin:0 auto 18px; position:relative; overflow:hidden; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.34); }
-  .pdf-page canvas{ display:block; width:100%; height:100%; }
+  .pdf-page canvas{ display:block; width:100%; height:100%; background:#fff; }
   .pdf-highlight-layer{ position:absolute; inset:0; pointer-events:none; }
   .pdf-ev{ position:absolute; z-index:2; display:block; opacity:0; transform-origin:0 100%; border-radius:2px; background:rgba(255,181,77,.48); box-shadow:inset 0 -2px 0 rgba(193,76,25,.55); transition:opacity .14s, background .14s, box-shadow .14s; }
   .show-all .pdf-ev{ opacity:.48; }
@@ -139,6 +140,9 @@
   .crit-desc summary{ cursor:pointer; color:var(--ink-soft); font-size:12px; user-select:none; }
   .crit-desc summary:hover{ color:var(--primary); }
   .crit-desc .level-list{ margin-top:8px; padding:10px 12px; border-left:2px solid var(--border-strong); line-height:1.5; }
+  .level-list .is-ai{ background:var(--tint, #F7F2EC); border-radius:4px; margin:0 -6px; padding:0 6px; }
+  .level-list.plain{ display:flex; flex-wrap:wrap; gap:4px 14px; }
+  .crit-about{ margin:0 0 6px; font-size:12.5px; line-height:1.5; color:var(--ink-soft); white-space:pre-line; }
   .crit-desc .level-list div + div{ margin-top:6px; }
   .crit-weight-badge{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--primary); background:var(--primary-soft); padding:3px 10px; border-radius:20px; flex:none; }
   .conf-tag{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; padding:3px 9px; border-radius:20px; font-weight:500; margin-bottom:14px; }
@@ -166,6 +170,28 @@
   .ai-box .reason{ font-size:13px; color:var(--ai-ink); line-height:1.55; }
   .ai-box .reason b{ font-family:'IBM Plex Mono',monospace; font-weight:500; }
   .ai-box .reason a{ color:var(--ai); font-family:'IBM Plex Mono',monospace; font-size:12px; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+  .trace{ margin:-8px 0 16px; border:1px solid var(--border); border-radius:8px; background:var(--surface); font-size:12.5px; }
+  .trace summary{ display:flex; align-items:baseline; gap:10px; padding:9px 14px; cursor:pointer; color:var(--ink); font-weight:500; list-style:none; }
+  .trace summary::-webkit-details-marker{ display:none; }
+  .trace summary::before{ content:'▸'; color:var(--ink-soft); font-size:11px; transition:transform .15s ease; }
+  .trace[open] summary::before{ transform:rotate(90deg); }
+  .trace summary span{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:400; color:var(--ink-soft); }
+  .trace ol{ list-style:none; margin:0; padding:2px 14px 4px 34px; border-top:1px solid var(--border); }
+  .trace li{ position:relative; display:flex; flex-direction:column; gap:1px; padding:6px 0; color:var(--ink); }
+  .trace li::before{ content:''; position:absolute; left:-17px; top:12px; width:7px; height:7px; border-radius:50%; background:var(--border-strong); }
+  .trace li.ok::before{ background:var(--conf-high); }
+  .trace li.bad::before{ background:var(--risk); }
+  .trace li.warn::before{ background:var(--conf-med-dot); }
+  .trace li.info::before{ background:var(--info); }
+  .trace li b{ font-weight:500; }
+  .trace li span{ color:var(--ink-soft); line-height:1.45; overflow-wrap:anywhere; }
+  .trace li.round{ flex-direction:row; justify-content:space-between; padding:9px 0 2px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); }
+  .trace li.round::before{ display:none; }
+  .trace li.round span{ text-transform:none; letter-spacing:0; }
+  .trace li.bad b{ color:var(--risk); }
+  .trace li.aspect{ margin-left:14px; padding:3px 0; font-size:12px; }
+  .trace li.aspect::before{ left:-31px; top:9px; width:6px; height:6px; }
+  .trace-foot{ margin:0; padding:8px 14px 10px; border-top:1px solid var(--border); font-size:11.5px; color:var(--ink-soft); }
 
   .marker-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-top:12px; border-top:1px dashed var(--border); }
   .marker-row label{ font-size:12.5px; color:var(--ink-soft); }
@@ -174,6 +200,9 @@
   .score-max{ font-size:12.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; }
   .accept-btn{ font-size:12.5px; font-weight:500; padding:8px 14px; border-radius:6px; border:1px solid var(--info); background:#fff; color:var(--info); cursor:pointer; }
   .accept-btn:hover{ background:var(--info-bg); }
+  .confirm-btn{ font-size:12.5px; font-weight:500; padding:8px 14px; border-radius:6px; border:1px solid var(--info); background:var(--info); color:#fff; cursor:pointer; }
+  .confirm-btn:hover{ filter:brightness(.95); }
+  .confirm-btn[hidden]{ display:none; }
   .status-text{ font-size:12px; color:var(--ink-soft); margin-left:auto; }
   .status-text.confirmed{ color:var(--info); }
   .comment-field{ margin-top:14px; }
@@ -405,6 +434,7 @@
   .ec-links a, .ec-links button{ color:var(--ink-soft); background:none; border:0; padding:0; font:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
   .ec-links a:hover, .ec-links button:hover{ color:var(--primary); }
   footer.actionbar .btn:disabled{ opacity:.45; cursor:default; }
+  html:not([data-api-state="ready"]) .mark-inner .crit-card, html:not([data-api-state="ready"]) .crit-strip a{ visibility:hidden; }
 </style>
 </head>
 <body>
@@ -417,21 +447,21 @@
       <span class="ab-name">AI-assisted marker</span>
       <span class="ab-proto" title="Internal coursework demo — not an official University of Sydney service">Prototype</span>
     </a>
-    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><a href="02-batch-status.html">ASGN2 Critical Essay</a></li><li><span aria-current="page" id="bcCur">SID-40219</span></li></ol><a class="bc-up" href="02-batch-status.html"><span aria-hidden="true">‹</span><span class="t">ASGN2 Critical Essay</span></a></nav>
+    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><a href="07-batches.html">Batch</a></li><li><span aria-current="page" id="bcCur">Submission</span></li></ol><a class="bc-up" href="07-batches.html"><span aria-hidden="true">‹</span><span class="t">Batch</span></a></nav>
   </div>
   <div class="ab-right">
     <div class="ab-actions">
       <div class="rv-prog" title="Reviewed / ready for review. Submissions still being marked by AI are added to the queue as they finish.">
         <div class="rv-top">
           <span class="rv-lbl">Reviewed</span>
-          <span class="rv-num"><b id="pgDone">15</b><span class="sl">/</span><span id="pgReady">34</span></span>
+          <span class="rv-num"><b id="pgDone">–</b><span class="sl">/</span><span id="pgReady">–</span></span>
           <span class="rv-unit">ready</span>
         </div>
         <div class="rv-bar" aria-hidden="true"><i id="pgFill"></i><s id="pgReadyFill"></s></div>
         <div class="rv-sub" id="pgSub"><span class="dot"></span><span id="pgProc">14</span> still with AI · 48 in batch</div>
       </div>
     </div>
-    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+    <div class="ab-user" title="Local single-user mode"><span class="ab-uname">&nbsp;</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true"></span></div>
   </div>
 </header>
 
@@ -445,7 +475,7 @@
     <div class="doc-bar">
       <div class="file">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E64626" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></svg>
-        <b>SID-40219_ASGN2.pdf</b><span>6 pages · 8 evidence spans</span>
+        <b>Loading…</b><span></span>
       </div>
       <div class="doc-tools">
         <label class="switch"><input type="checkbox" id="showAll" checked>Show all evidence</label>
@@ -461,55 +491,7 @@
       <button type="button" class="n-close" aria-label="Stop highlighting">×</button>
     </div>
     <div class="doc-scroll show-all" id="doc">
-
-      <article class="sheet" data-page="1">
-        <span class="pno">p.1</span>
-        <h1>Decentralised Governance and the Hidden Cost of Coordination</h1>
-        <p class="byline">SID-40219 · ASGN2 Critical Essay · 2,180 words</p>
-        <p data-p="¶1">Over the past decade, decentralised governance has moved from the margins of political theory into the everyday operating models of cooperatives, open-source foundations and blockchain-based organisations. Its appeal is easy to understand: distributing authority promises resilience, legitimacy and a genuine voice for every participant.</p>
-        <p data-p="¶2"><mark class="ev" data-ev="e1"><span class="tag">1</span>This essay argues that decentralised governance models, while promising in theory, consistently underperform in practice due to coordination costs that scale non-linearly with participant count.</mark> Section 2 sets out the theoretical case for decentralisation, Section 3 reviews the empirical evidence, and Section 4 considers an alternative explanation before the conclusion returns to the central claim.</p>
-      </article>
-
-      <article class="sheet" data-page="2">
-        <span class="pno">p.2</span>
-        <h2>2. The theoretical case</h2>
-        <p data-p="¶1">Proponents of decentralisation draw heavily on Ostrom's work on common-pool resources, which showed that communities can govern shared assets without a central authority when rules are designed locally and monitored by the people who use them.</p>
-        <p data-p="¶2">Later advocates extended this argument to digital organisations, claiming that transparent protocols could replace managerial hierarchy altogether. On this view, coordination stops being a social problem and becomes a technical one that better tooling can solve.</p>
-        <p data-p="¶3">These claims deserve to be taken seriously. The evidence for this optimism, however, comes mostly from small and stable communities, <mark class="ev" data-ev="e7"><span class="tag">4</span>which, it should be noted, is not to say that the model does not have merit in certain more smaller-scale contexts where</mark> trust is already established and membership changes slowly.</p>
-      </article>
-
-      <article class="sheet" data-page="3">
-        <span class="pno">p.3</span>
-        <h2>3. What the evidence shows</h2>
-        <p data-p="¶1"><mark class="ev" data-ev="e4"><span class="tag">2</span>Studies of large open-source projects show that decision latency grows sharply as contributor numbers rise.</mark> In one widely cited analysis, the median time to resolve a governance proposal tripled once a project passed two hundred active contributors.</p>
-        <p data-p="¶2">Blockchain-based organisations display a similar pattern. Voter turnout on most proposals falls below ten per cent, and the small group that does vote tends to be the same few large holders each time.</p>
-        <p data-p="¶3">The common thread is that every additional participant adds not one new relationship but many, because each person must, in principle, be informed, consulted and persuaded.</p>
-        <p data-p="¶4"><mark class="ev" data-ev="e3"><span class="tag">2</span>A 2019 study (Kessler &amp; Boone) found similar coordination overhead in cooperative networks, though the sample was limited to twelve organisations.</mark> Even so, its findings point in the same direction as the open-source data.</p>
-      </article>
-
-      <article class="sheet" data-page="4">
-        <span class="pno">p.4</span>
-        <h2>4. An alternative explanation</h2>
-        <p data-p="¶1"><mark class="ev" data-ev="e5"><span class="tag">3</span>Yet this reading understates a second possibility: coordination costs may not be intrinsic to decentralisation itself, but to the specific incentive structures layered on top of it.</mark></p>
-        <p data-p="¶2">Where participants are rewarded for activity rather than outcomes, proposals multiply and attention fragments. Where voting power tracks token holdings, the few who hold the most have little reason to build consensus with everyone else.</p>
-        <p data-p="¶3"><mark class="ev" data-ev="e6"><span class="tag">3</span>If this is right, the underperformance documented in Section 3 says more about how decentralised systems are designed than about decentralisation as such</mark> — and better-designed incentives could narrow the gap considerably.</p>
-      </article>
-
-      <article class="sheet" data-page="5">
-        <span class="pno">p.5</span>
-        <h2>5. A counter-argument</h2>
-        <p data-p="¶1">Some critics respond that hierarchies face coordination costs too, and that the comparison is therefore unfair. Large firms spend heavily on meetings, reporting lines and middle management simply to keep their parts aligned.</p>
-        <p data-p="¶2"><mark class="ev" data-ev="e8"><span class="tag">4</span>It is, perhaps, worth considering that the costs that are borne by hierarchical organisations, which are themselves not insignificant, may in some respects be comparable, although not necessarily in every respect, to those that have been described above.</mark></p>
-        <p data-p="¶3">Hierarchies, however, can choose to cap how many people are involved in a decision. Decentralised systems, by design, cannot.</p>
-      </article>
-
-      <article class="sheet" data-page="6">
-        <span class="pno">p.6</span>
-        <h2>6. Conclusion</h2>
-        <p data-p="¶1"><mark class="ev" data-ev="e2"><span class="tag">1</span>In conclusion, the evidence reviewed here supports the claim that decentralised governance tends to underperform as it scales, because the cost of coordinating many participants grows faster than the benefit of including them.</mark></p>
-        <p data-p="¶2">This does not make decentralisation a failed idea. It suggests that future designs should treat coordination as the central constraint — limiting the size of decision groups, rewarding outcomes over activity, and accepting that some decisions are better delegated than shared.</p>
-      </article>
-
+      <article class="sheet" data-page="1"><p class="byline">Loading submission…</p></article>
     </div>
   </section>
 
@@ -518,109 +500,114 @@
   <!-- ===== Right: marking ===== -->
   <section class="mark-pane" id="markPane" aria-label="Marking">
     <nav class="crit-strip" aria-label="Criteria">
-      <a href="#c1" data-c="c1"><span class="st" id="nav1"></span>Argument structure <span class="w">30%</span></a>
-      <a href="#c2" data-c="c2"><span class="st" id="nav2"></span>Evidence &amp; sources <span class="w">25%</span></a>
-      <a href="#c3" data-c="c3"><span class="st" id="nav3"></span>Critical analysis <span class="w">30%</span></a>
-      <a href="#c4" data-c="c4"><span class="st" id="nav4"></span>Writing clarity <span class="w">15%</span></a>
+      <a href="#c1" data-c="c1"><span class="st" id="nav1"></span>C1 <span class="w"></span></a>
+      <a href="#c2" data-c="c2"><span class="st" id="nav2"></span>C2 <span class="w"></span></a>
+      <a href="#c3" data-c="c3"><span class="st" id="nav3"></span>C3 <span class="w"></span></a>
+      <a href="#c4" data-c="c4"><span class="st" id="nav4"></span>C4 <span class="w"></span></a>
     </nav>
     <div class="mark-inner">
       <div class="doc-header">
         <div>
-          <h1>Review — SID-40219</h1>
-          <p>4 criteria · 8 evidence spans across 6 pages · 1 criterion flagged low-confidence</p>
+          <h1>Review</h1>
+          <p>Loading criteria…</p>
         </div>
         <button class="fold-all" type="button" id="foldAll">Collapse all</button>
       </div>
 
       <section class="crit-card" id="c1">
         <div class="crit-top">
-          <div><h2 class="crit-title">Argument structure</h2><div class="crit-desc">HD band: a clear, well-sequenced thesis carried consistently through each section.</div></div>
-          <span class="crit-weight-badge">30 pts</span>
+          <div><h2 class="crit-title">Criterion 1</h2><div class="crit-desc"></div></div>
+          <span class="crit-weight-badge"></span>
         </div>
-        <span class="conf-tag high"><span class="dot"></span>High confidence</span>
-        <div class="evidence" data-ev="e1"><span class="tab">p.1 ¶2</span><span class="jump">Show in submission ↗</span>
-          <blockquote>"This essay argues that decentralised governance models, while promising in theory, consistently underperform in practice due to coordination costs that scale non-linearly with participant count."</blockquote></div>
-        <div class="also">Also used: <span class="chip" data-ev="e2"><b>p.6 ¶1</b><i>"In conclusion, the evidence reviewed here supports the claim…"</i></span></div>
-        <div class="ai-box"><span class="badge">AI · 26/30</span>
-          <div class="reason">Thesis is stated early and referenced again in the conclusion (<a data-ev="e2">p.6 ¶1</a>). Section transitions are explicit. <b>Minor:</b> the counter-argument in section 5 is introduced without a clear link back to the thesis.</div></div>
+        <span class="conf-tag none"><span class="dot"></span></span>
+        <div class="evidence" data-ev="tpl1a"><span class="tab"></span><span class="jump">Show in submission ↗</span>
+          <blockquote></blockquote></div>
+        <div class="also"></div>
+        <div class="ai-box"><span class="badge"></span>
+          <div class="reason"></div></div>
         <div class="marker-row">
           <label>Your score</label>
-          <input class="score-input" type="number" value="26" data-max="30" data-ai="26">
-          <span class="score-max">/ 30</span>
+          <input class="score-input" type="number" value="" data-max="" data-ai="">
+          <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <button class="confirm-btn" type="button" hidden>Confirm</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
-        <div class="comment-field"><label class="lbl" for="cm1">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm1" placeholder="e.g. Clear thesis throughout — tie the counter-argument in section 5 back to it."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+        <div class="comment-field"><label class="lbl" for="cm1">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm1" placeholder="Feedback for the student on this criterion"></textarea></div>
       </section>
 
-      <section class="crit-card flagged" id="c2">
+      <section class="crit-card" id="c2">
         <div class="crit-top">
-          <div><h2 class="crit-title">Evidence &amp; sources</h2><div class="crit-desc">HD band: sources are current, credible, and integrated — not just listed.</div></div>
-          <span class="crit-weight-badge">25 pts</span>
+          <div><h2 class="crit-title">Criterion 2</h2><div class="crit-desc"></div></div>
+          <span class="crit-weight-badge"></span>
         </div>
-        <span class="conf-tag low"><span class="dot"></span>Low confidence — worth a closer look</span>
-        <div class="evidence" data-ev="e3"><span class="tab">p.3 ¶4</span><span class="jump">Show in submission ↗</span>
-          <blockquote>"A 2019 study (Kessler &amp; Boone) found similar coordination overhead in cooperative networks, though the sample was limited to twelve organisations."</blockquote></div>
-        <div class="also">Also used: <span class="chip" data-ev="e4"><b>p.3 ¶1</b><i>"Studies of large open-source projects show…" — no citation</i></span></div>
-        <div class="ai-box"><span class="badge">AI · 15/25</span>
-          <div class="reason">Only one external source is directly cited with integration; the claim in <a data-ev="e4">p.3 ¶1</a> has no citation, and two other sources appear in the bibliography but aren't referenced in the body. Coverage is thin relative to the HD descriptor.</div></div>
+        <span class="conf-tag none"><span class="dot"></span></span>
+        <div class="evidence" data-ev="tpl2a"><span class="tab"></span><span class="jump">Show in submission ↗</span>
+          <blockquote></blockquote></div>
+        <div class="also"></div>
+        <div class="ai-box"><span class="badge"></span>
+          <div class="reason"></div></div>
         <div class="marker-row">
           <label>Your score</label>
-          <input class="score-input" type="number" value="15" data-max="25" data-ai="15">
-          <span class="score-max">/ 25</span>
+          <input class="score-input" type="number" value="" data-max="" data-ai="">
+          <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <button class="confirm-btn" type="button" hidden>Confirm</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
-        <div class="comment-field"><label class="lbl" for="cm2">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm2" placeholder="e.g. Cite the open-source studies in section 3, and use your bibliography sources in the body."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+        <div class="comment-field"><label class="lbl" for="cm2">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm2" placeholder="Feedback for the student on this criterion"></textarea></div>
       </section>
 
       <section class="crit-card" id="c3">
         <div class="crit-top">
-          <div><h2 class="crit-title">Critical analysis</h2><div class="crit-desc">HD band: goes beyond description to weigh competing explanations.</div></div>
-          <span class="crit-weight-badge">30 pts</span>
+          <div><h2 class="crit-title">Criterion 3</h2><div class="crit-desc"></div></div>
+          <span class="crit-weight-badge"></span>
         </div>
-        <span class="conf-tag high"><span class="dot"></span>High confidence</span>
-        <div class="evidence" data-ev="e5"><span class="tab">p.4 ¶1</span><span class="jump">Show in submission ↗</span>
-          <blockquote>"Yet this reading understates a second possibility: coordination costs may not be intrinsic to decentralisation itself, but to the specific incentive structures layered on top of it."</blockquote></div>
-        <div class="also">Also used: <span class="chip" data-ev="e6"><b>p.4 ¶3</b><i>"If this is right, the underperformance documented in Section 3…"</i></span></div>
-        <div class="ai-box"><span class="badge">AI · 27/30</span>
-          <div class="reason">Presents and weighs an alternative explanation rather than restating the source material, then draws out its consequence (<a data-ev="e6">p.4 ¶3</a>) — the strongest section of the essay against the descriptor.</div></div>
+        <span class="conf-tag none"><span class="dot"></span></span>
+        <div class="evidence" data-ev="tpl3a"><span class="tab"></span><span class="jump">Show in submission ↗</span>
+          <blockquote></blockquote></div>
+        <div class="also"></div>
+        <div class="ai-box"><span class="badge"></span>
+          <div class="reason"></div></div>
         <div class="marker-row">
           <label>Your score</label>
-          <input class="score-input" type="number" value="27" data-max="30" data-ai="27">
-          <span class="score-max">/ 30</span>
+          <input class="score-input" type="number" value="" data-max="" data-ai="">
+          <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <button class="confirm-btn" type="button" hidden>Confirm</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
-        <div class="comment-field"><label class="lbl" for="cm3">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm3" placeholder="e.g. The alternative explanation in section 4 is the strongest part of the essay."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+        <div class="comment-field"><label class="lbl" for="cm3">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm3" placeholder="Feedback for the student on this criterion"></textarea></div>
       </section>
 
       <section class="crit-card" id="c4">
         <div class="crit-top">
-          <div><h2 class="crit-title">Writing clarity</h2><div class="crit-desc">HD band: precise, concise prose with few mechanical errors.</div></div>
-          <span class="crit-weight-badge">15 pts</span>
+          <div><h2 class="crit-title">Criterion 4</h2><div class="crit-desc"></div></div>
+          <span class="crit-weight-badge"></span>
         </div>
-        <span class="conf-tag medium"><span class="dot"></span>Medium confidence</span>
-        <div class="evidence" data-ev="e7"><span class="tab">p.2 ¶3</span><span class="jump">Show in submission ↗</span>
-          <blockquote>"…which, it should be noted, is not to say that the model does not have merit in certain more smaller-scale contexts where…"</blockquote></div>
-        <div class="also">Also used: <span class="chip" data-ev="e8"><b>p.5 ¶2</b><i>"It is, perhaps, worth considering that the costs…"</i></span></div>
-        <div class="ai-box"><span class="badge">AI · 12/15</span>
-          <div class="reason">Generally clear, but the quoted sentence and a similar one in <a data-ev="e8">p.5 ¶2</a> run long with nested qualifiers ("more smaller-scale" is also ungrammatical). No major errors elsewhere.</div></div>
+        <span class="conf-tag none"><span class="dot"></span></span>
+        <div class="evidence" data-ev="tpl4a"><span class="tab"></span><span class="jump">Show in submission ↗</span>
+          <blockquote></blockquote></div>
+        <div class="also"></div>
+        <div class="ai-box"><span class="badge"></span>
+          <div class="reason"></div></div>
         <div class="marker-row">
           <label>Your score</label>
-          <input class="score-input" type="number" value="12" data-max="15" data-ai="12">
-          <span class="score-max">/ 15</span>
+          <input class="score-input" type="number" value="" data-max="" data-ai="">
+          <span class="score-max"></span>
           <button class="accept-btn" type="button">Accept AI suggestion</button>
+          <button class="confirm-btn" type="button" hidden>Confirm</button>
           <span class="status-text">Not yet confirmed</span>
         </div>
-        <div class="comment-field"><label class="lbl" for="cm4">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm4" placeholder="e.g. Shorten long, nested sentences; watch phrasing like “more smaller-scale”."></textarea><span class="cm-hint">You changed the AI score — please say why in your comment.</span></div>
+        <div class="comment-field"><label class="lbl" for="cm4">Comment <span>· saved with this criterion in the record</span></label><textarea id="cm4" placeholder="Feedback for the student on this criterion"></textarea></div>
       </section>
+
     </div>
   </section>
 </div>
 
 <footer class="actionbar">
-  <div class="final">Weighted total <b id="footerTotal">80</b> / 100 <span class="ai-sug" id="aiSug">AI suggested 80</span></div>
+  <div class="final">Weighted total <b id="footerTotal">–</b> / – <span class="ai-sug" id="aiSug"></span></div>
   <span class="hint">Hover to highlight · click to jump · <kbd>↑</kbd><kbd>↓</kbd> step · <kbd>Esc</kbd> clears</span>
   <div class="nav-btns">
     <button class="btn btn-ghost" type="button" id="btnPrev">← Previous</button>
@@ -838,7 +825,7 @@
   // ---- Scoring (same behaviour as the single-column review page) ----
   function recompute(){
     var sum = 0; document.querySelectorAll('.score-input').forEach(function(i){ sum += Number(i.value || 0); });
-    document.getElementById('footerTotal').textContent = sum;
+    document.getElementById('footerTotal').textContent = Math.round(sum * 100) / 100;  /* 0.8 × 10 must not show 7.999999999999999 */
   }
   document.querySelectorAll('.crit-card').forEach(function(card, idx){
     var input = card.querySelector('.score-input'), status = card.querySelector('.status-text');
@@ -863,148 +850,10 @@
   });
   recompute();
 
-  /* ---- Review queue: progress (top right) + Previous / Skip / Confirm & next (footer) ----
-     When nothing is left to review the page shows an end card:
-       • batch complete  → "Batch complete" with View results (no automatic redirect)
-       • others still with the AI → "waiting" card; "Next ready" lights up when one finishes
-     Demo modes (URL):  ?demo=single  one-file batch · ?demo=last  last one of 48 · ?demo=wait  waiting for the AI
-     Default: 48 in batch, 34 marked by AI, 15 reviewed; the AI finishes one every 7 s. */
-  (function(){
-    var liveParams = new URLSearchParams(location.search);
-    if (liveParams.get('submission_id') && liveParams.get('mocks') !== '1' && window.USE_MOCKS !== true) return;
-    var mode = (location.search.match(/[?&]demo=(\w+)/) || [])[1] || '';
-    var CFG = {
-      single: { total:1,  ready:1,  done:0,  tick:0 },
-      last:   { total:48, ready:48, done:47, tick:0 },
-      wait:   { total:48, ready:16, done:15, tick:9000 },
-      '':     { total:48, ready:34, done:15, tick:7000 }
-    }[mode] || { total:48, ready:34, done:15, tick:7000 };
-    var TOTAL = CFG.total, ready = CFG.ready, done = 0;
-    var reviewed = {}, queue = [], history = [];
-    for (var i = 0; i < ready; i++) queue.push('SID-' + (40204 + i));
-    if (mode === 'single') queue = ['SID-40219'];
-    var pos = Math.max(0, queue.indexOf('SID-40219'));
-    // mark CFG.done submissions as already reviewed, never the one on screen
-    for (var j = 0, n = 0; j < queue.length && n < CFG.done; j++){ if (j !== pos){ reviewed[queue[j]] = true; n++; } }
-    done = CFG.done;
-
-    var $ = function(id){ return document.getElementById(id); };
-    var meta = document.getElementById('bcCur'), fileName = document.querySelector('.doc-bar .file b');
-    var toastT;
-    function toast(msg){ var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(function(){ t.classList.remove('show'); }, 2200); }
-    function isComplete(){ return done >= TOTAL; }
-
-    function render(){
-      $('pgDone').textContent = done;
-      $('pgReady').textContent = ready;
-      $('pgFill').style.width = (done / TOTAL * 100) + '%';
-      $('pgReadyFill').style.width = (ready / TOTAL * 100) + '%';
-      var proc = TOTAL - ready;
-      $('pgSub').classList.toggle('done', proc === 0);
-      $('pgSub').innerHTML = isComplete() ? '<span class="dot"></span>All ' + TOTAL + ' reviewed · batch complete'
-        : proc > 0 ? '<span class="dot"></span>' + proc + ' still with AI · ' + TOTAL + ' in batch'
-        : '<span class="dot"></span>All ' + TOTAL + ' marked by AI';
-      $('btnPrev').disabled = history.length === 0;
-      $('btnNext').disabled = isComplete(); $('btnSkip').disabled = isComplete() || !anyOtherUnreviewed();
-      var sid = queue[pos];
-      meta.textContent = sid;
-      fileName.textContent = sid + '_ASGN2.pdf';
-      var h = document.querySelector('.doc-header h1'); if (h) h.textContent = 'Review — ' + sid;
-      document.title = sid + ' — Review — AI-assisted marker';
-    }
-    function anyOtherUnreviewed(){ return queue.some(function(q, k){ return k !== pos && !reviewed[q]; }); }
-    function nextUnreviewed(from){
-      for (var k = 1; k <= queue.length; k++){ var p = (from + k) % queue.length; if (!reviewed[queue[p]]) return p; }
-      return -1;
-    }
-    function go(p, msg){
-      if (p < 0){ showEnd(); return; }
-      history.push(pos); pos = p; render();
-      document.querySelector('.mark-pane') && (document.querySelector('.mark-pane').scrollTop = 0);
-      document.querySelector('.doc-scroll') && (document.querySelector('.doc-scroll').scrollTop = 0);
-      toast(msg + ' — ' + queue[pos] + ' (sample essay shown)');
-    }
-
-    /* ---------- End card ---------- */
-    function adjustedHere(){
-      return Array.prototype.filter.call(document.querySelectorAll('.score-input'), function(i){ return Number(i.value) !== Number(i.dataset.ai); }).length ? 1 : 0;
-    }
-    function showEnd(){
-      var card = $('endCard'), body;
-      if (isComplete()){
-        var adj = adjustedHere() + (TOTAL > 1 ? Math.round((TOTAL - 1) * 0.12) : 0);
-        body =
-          '<div class="ec-icon ok" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg></div>' +
-          '<div class="ec-kicker">Batch complete</div>' +
-          '<h2 id="ecTitle">' + TOTAL + ' of ' + TOTAL + ' reviewed</h2>' +
-          '<p class="ec-sub">ASGN2 — Critical Essay is now marked <b>Complete</b>. Results stay editable until you finalise them.</p>' +
-          '<div class="ec-stats"><span><b>' + TOTAL + '</b>confirmed</span><span><b>' + adj + '</b>adjusted from AI</span><span><b>0</b>still with AI</span></div>' +
-          '<div class="ec-actions">' +
-            '<a class="btn btn-primary" href="04-batch-complete.html">View results →</a>' +
-            '<a class="btn btn-ghost" href="05-mark-report.html">' + (TOTAL === 1 ? 'Mark report' : 'Mark report for ' + queue[pos]) + '</a>' +
-          '</div>' +
-          '<div class="ec-links"><a href="00-home.html">Back to Home</a><button type="button" data-close>Stay on this submission</button></div>';
-        $('pgSub').classList.add('done');
-      } else {
-        var proc = TOTAL - ready;
-        body =
-          '<div class="ec-icon wait" aria-hidden="true"><span class="ec-spin"></span></div>' +
-          '<div class="ec-kicker">Nothing ready right now</div>' +
-          '<h2 id="ecTitle">All ready submissions reviewed</h2>' +
-          '<p class="ec-sub"><b id="ecProc">' + proc + '</b> still with the AI. The next one appears here as soon as it is marked — you don’t need to refresh.</p>' +
-          '<div class="ec-stats"><span><b>' + done + '</b>reviewed</span><span><b id="ecProc2">' + proc + '</b>still with AI</span><span><b>' + TOTAL + '</b>in batch</span></div>' +
-          '<div class="ec-actions">' +
-            '<button class="btn btn-primary" type="button" id="ecNext" disabled>Waiting for the AI…</button>' +
-            '<a class="btn btn-ghost" href="02-batch-status.html">Back to batch</a>' +
-          '</div>' +
-          '<div class="ec-links"><a href="00-home.html">Back to Home</a><button type="button" data-close>Stay on this submission</button></div>';
-      }
-      $('endBody').innerHTML = body;
-      card.hidden = false; card.dataset.kind = isComplete() ? 'done' : 'wait';
-      render();
-      var f = card.querySelector('.btn-primary'); if (f && !f.disabled) f.focus();
-    }
-    function hideEnd(){ $('endCard').hidden = true; }
-    $('endCard').addEventListener('click', function(e){
-      if (e.target.closest('[data-close]')) hideEnd();
-      if (e.target.id === 'ecNext' && !e.target.disabled){ hideEnd(); go(nextUnreviewed(pos), 'Next ready'); }
-    });
-    document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !$('endCard').hidden) hideEnd(); });
-
-    $('btnNext').addEventListener('click', function(){
-      if (isComplete()) { showEnd(); return; }
-      if (!reviewed[queue[pos]]){ reviewed[queue[pos]] = true; done++; }
-      go(nextUnreviewed(pos), 'Saved. Next');
-    });
-    $('btnSkip').addEventListener('click', function(){
-      var p = nextUnreviewed(pos);
-      if (p === pos || p < 0){ toast('Nothing else is ready — this is the only one left to review'); return; }
-      go(p, 'Skipped. Next');
-    });
-    $('btnPrev').addEventListener('click', function(){
-      if (!history.length) return; hideEnd(); pos = history.pop(); render(); toast('Back to ' + queue[pos]);
-    });
-
-    // AI finishes more submissions over time → they join the review queue
-    if (CFG.tick){
-      var tick = setInterval(function(){
-        if (ready >= TOTAL){ clearInterval(tick); return; }
-        ready++; queue.push('SID-' + (40204 + ready - 1)); render();
-        var r = $('pgReady'); r.classList.add('bump'); setTimeout(function(){ r.classList.remove('bump'); }, 900);
-        var card = $('endCard');
-        if (!card.hidden && card.dataset.kind === 'wait'){
-          var b = $('ecNext'), left = TOTAL - ready;
-          b.disabled = false; b.textContent = 'Open ' + queue[queue.length - 1] + ' →'; b.classList.add('pulse');
-          $('ecProc').textContent = left; $('ecProc2').textContent = left;
-          card.querySelector('.ec-kicker').textContent = '1 new submission ready';
-        }
-      }, CFG.tick);
-    }
-    render();
-    if (mode) toast({ single:'Demo: one-file batch', last:'Demo: last submission of 48', wait:'Demo: waiting for the AI' }[mode] || '');
-  })();
+  /* Review queue, Skip/Next and end cards are driven by the API in /js/app-wire.js. */
 </script>
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
-<script src="account-menu.js"></script><script src="/js/pdf-original-viewer.js"></script><script src="/js/app-wire.js"></script>
+<script src="/js/dialog.js"></script>
+<script src="/js/api.js"></script>
+<script src="account-menu.js"></script><script src="/js/pdf-original-viewer.js"></script><script src="/js/evidence-trace.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

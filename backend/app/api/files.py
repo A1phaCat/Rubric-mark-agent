@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import re
-from datetime import datetime, timezone
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi import File as UploadField
 from sqlalchemy.orm import Session
@@ -14,6 +9,8 @@ from app.db.models.batch import Batch
 from app.db.models.submission import File, Submission
 from app.deps import get_db, get_settings
 from app.domain.ids import new_id
+from app.ingest import UnsafeArchive, expand_upload, mime_for
+from app.services.submission_service import store_upload
 
 router = APIRouter(prefix="/batches", tags=["files"])
 
@@ -32,83 +29,58 @@ async def upload_files(
     with db.begin_nested():
         for upload in files:
             content = await upload.read()
-            digest = hashlib.sha256(content).hexdigest()
-            extension = Path(upload.filename or "submission.bin").suffix.lower()
-            if extension not in {".pdf", ".docx", ".txt", ".zip"}:
+            upload_name = upload.filename or "submission"
+            try:
+                candidates = expand_upload(upload_name, content, upload.content_type)
+                if not candidates:
+                    manifest.append(
+                        {
+                            "id": new_id("fil"),
+                            "name": upload_name,
+                            "size": len(content),
+                            "mime_type": mime_for(upload_name, upload.content_type),
+                            "sha256": None,
+                            "sid_guess": None,
+                            "status": "unsupported",
+                            "duplicate_of": None,
+                            "message": "ZIP contains no supported submission files",
+                            "source_archive": upload_name,
+                        }
+                    )
+                for candidate in candidates:
+                    manifest.append(
+                        store_upload(
+                            db,
+                            settings,
+                            batch,
+                            candidate.name,
+                            candidate.content,
+                            candidate.declared_mime,
+                            candidate.source_archive,
+                        )
+                    )
+            except UnsafeArchive as exc:
                 manifest.append(
                     {
                         "id": new_id("fil"),
-                        "name": upload.filename,
+                        "name": upload_name,
                         "size": len(content),
-                        "mime_type": upload.content_type or "application/octet-stream",
-                        "sha256": digest,
+                        "mime_type": mime_for(upload_name, upload.content_type),
+                        "sha256": None,
                         "sid_guess": None,
-                        "pages": None,
-                        "has_text_layer": None,
-                        "status": "unsupported",
+                        "status": "rejected",
                         "duplicate_of": None,
-                        "message": "Unsupported file type",
+                        "message": str(exc),
+                        "source_archive": upload_name,
                     }
                 )
-                continue
-            file_id, submission_id = new_id("fil"), new_id("sub")
-            target_dir = settings.runtime_paths()["files"] / batch_id
-            target_dir.mkdir(parents=True, exist_ok=True)
-            target = target_dir / f"{digest}{extension}"
-            target.write_bytes(content)
-            sid_match = re.search(r"(?i)SID[-_ ]?(\d+)", upload.filename or "")
-            sid_guess = sid_match.group(1) if sid_match else None
-            db.add(
-                File(
-                    id=file_id,
-                    batch_id=batch_id,
-                    original_name=upload.filename or "submission",
-                    path=str(target),
-                    sha256=digest,
-                    size=len(content),
-                    mime=upload.content_type or "application/octet-stream",
-                    pages=None,
-                    text_layer=None,
-                    created_at=datetime.now(timezone.utc),
-                )
-            )
-            db.add(
-                Submission(
-                    id=submission_id,
-                    batch_id=batch_id,
-                    file_id=file_id,
-                    sid=f"SID-{sid_guess}" if sid_guess else None,
-                    status="uploaded",
-                    flags_json="[]",
-                    is_mock=False,
-                    version=1,
-                    updated_at=datetime.now(timezone.utc),
-                )
-            )
-            batch.total_count += 1
-            manifest.append(
-                {
-                    "id": file_id,
-                    "submission_id": submission_id,
-                    "name": upload.filename,
-                    "size": len(content),
-                    "mime_type": upload.content_type or "application/octet-stream",
-                    "sha256": digest,
-                    "sid_guess": f"SID-{sid_guess}" if sid_guess else None,
-                    "pages": None,
-                    "has_text_layer": None,
-                    "status": "accepted",
-                    "duplicate_of": None,
-                    "message": None,
-                }
-            )
     db.commit()
     return {
         "files": manifest,
         "summary": {
             "accepted": sum(i["status"] == "accepted" for i in manifest),
-            "duplicates": 0,
-            "skipped": sum(i["status"] != "accepted" for i in manifest),
+            "duplicates": sum(i["status"] == "duplicate" for i in manifest),
+            "skipped": sum(i["status"] in {"unsupported", "rejected"} for i in manifest),
             "needs_sid": sum(i["sid_guess"] is None for i in manifest if i["status"] == "accepted"),
             "likely_scanned": 0,
         },

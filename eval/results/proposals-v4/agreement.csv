@@ -1,0 +1,4 @@
+Condition,Mean difference from full_tools,Same level,Within one level
+direct,8%,75%,100%
+retrieval,14%,58%,94%
+full,11%,67%,97%

@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import re
+import threading
 from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -18,6 +19,7 @@ _STOP = {
     "criterion", "criteria", "marks", "mark", "points", "level", "evidence", "submission",
 }
 _EMBEDDERS: dict[tuple[str, str], Any] = {}
+_EMBEDDER_LOCK = threading.Lock()
 _CHUNK_WORDS = 220
 _CHUNK_OVERLAP_WORDS = 40
 
@@ -39,7 +41,7 @@ def _tokens(value: str) -> list[str]:
     return [token.lower() for token in _TOKEN.findall(value) if token.lower() not in _STOP]
 
 
-def _passages(document: dict[str, Any]) -> list[RetrievedPassage]:
+def _passages(document: dict[str, Any], chunk_words: int = _CHUNK_WORDS) -> list[RetrievedPassage]:
     passages: list[RetrievedPassage] = []
     running_offset = 0
     current_section = ""
@@ -58,19 +60,19 @@ def _passages(document: dict[str, Any]) -> list[RetrievedPassage]:
         chunk_starts = range(
             0,
             max(len(word_matches), 1),
-            _CHUNK_WORDS - _CHUNK_OVERLAP_WORDS,
+            max(1, chunk_words - _CHUNK_OVERLAP_WORDS),
         )
         for chunk_index, word_start in enumerate(chunk_starts, 1):
             if not word_matches:
                 break
-            word_end = min(word_start + _CHUNK_WORDS, len(word_matches))
+            word_end = min(word_start + chunk_words, len(word_matches))
             char_start = word_matches[word_start].start()
             char_end = word_matches[word_end - 1].end()
             passages.append(
                 RetrievedPassage(
                     id=(
                         f"p{paragraph_index}"
-                        if len(word_matches) <= _CHUNK_WORDS
+                        if len(word_matches) <= chunk_words
                         else f"p{paragraph_index}c{chunk_index}"
                     ),
                     page=int(block.get("page") or 1),
@@ -141,17 +143,19 @@ def _fastembed(settings: Settings) -> Any:
     cache_dir = str(settings.runtime_paths()["cache"] / "fastembed")
     key = (settings.embedding_model, cache_dir)
     if key not in _EMBEDDERS:
-        try:
-            from fastembed import TextEmbedding
-        except ImportError as exc:  # pragma: no cover
-            raise RuntimeError(
-                "Vector RAG requires fastembed; run pip install -e backend"
-            ) from exc
-        _EMBEDDERS[key] = TextEmbedding(
-            model_name=settings.embedding_model,
-            cache_dir=cache_dir,
-            threads=settings.embedding_threads,
-        )
+        with _EMBEDDER_LOCK:
+            if key not in _EMBEDDERS:
+                try:
+                    from fastembed import TextEmbedding
+                except ImportError as exc:  # pragma: no cover
+                    raise RuntimeError(
+                        "Vector RAG requires fastembed; run pip install -e backend"
+                    ) from exc
+                _EMBEDDERS[key] = TextEmbedding(
+                    model_name=settings.embedding_model,
+                    cache_dir=cache_dir,
+                    threads=settings.embedding_threads,
+                )
     return _EMBEDDERS[key]
 
 
@@ -277,3 +281,29 @@ def retrieve_passages(
         )
         for index in final_order
     ]
+
+
+@dataclass(frozen=True)
+class QuoteLocation:
+    page: int
+    paragraph: str
+    start_offset: int
+    end_offset: int
+
+
+def locate_quote(document: dict[str, Any], quote: str) -> QuoteLocation | None:
+    """Find a verbatim quote in an extracted document using the retrieval offsets.
+
+    Offsets use the same running-offset convention as retrieved passages, so evidence
+    recorded here and evidence produced by grading are interchangeable.
+    """
+
+    needle = quote.strip()
+    if not needle:
+        return None
+    for passage in _passages(document):
+        index = passage.text.find(needle)
+        if index >= 0:
+            start = passage.start_offset + index
+            return QuoteLocation(passage.page, passage.paragraph, start, start + len(needle))
+    return None

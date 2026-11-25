@@ -53,7 +53,7 @@
   .group h2{ font-family:'Source Serif 4',serif; font-weight:600; font-size:18px; margin:0 0 10px; display:flex; align-items:baseline; gap:10px; }
   .group h2 small{ font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:400; color:var(--ink-soft); }
   .list{ background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
-  .lhead, .brow{ display:grid; grid-template-columns:minmax(0,2fr) 116px minmax(0,1.1fr) minmax(0,1fr) 126px; gap:20px; align-items:center; padding:0 22px; }
+  .lhead, .brow{ display:grid; grid-template-columns:minmax(220px,2fr) 108px minmax(140px,1.1fr) minmax(0,.9fr) 250px; gap:16px; align-items:center; padding:0 22px; }
   .lhead{ height:40px; background:var(--tint); border-bottom:1px solid var(--border); font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); font-weight:500; }
   .brow{ min-height:76px; padding-top:14px; padding-bottom:14px; border-bottom:1px solid var(--border); color:var(--ink); text-decoration:none; transition:background .1s; }
   .brow:last-child{ border-bottom:0; }
@@ -63,27 +63,38 @@
   .brow[data-href]{ cursor:pointer; }
   .b-name{ font-family:'Source Serif 4',serif; font-weight:600; font-size:16px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .on-home{ font-family:'IBM Plex Mono',monospace; font-weight:400; font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); border:1px solid var(--border-strong); border-radius:4px; padding:1px 6px; }
+  .sample-tag{ color:var(--primary); border-color:var(--primary); margin-left:8px; }
   .b-meta{ font-size:12px; color:var(--ink-soft); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .mono{ font-family:'IBM Plex Mono',monospace; }
   .pill{ display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 10px; border-radius:20px; font-weight:500; white-space:nowrap; }
   .pill .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
   .pill.processing{ background:var(--ai-bg); color:var(--ai); }
-  .pill.processing .dot{ animation:pulse 1.4s ease-in-out infinite; }
+  .brow.is-processing .pill.processing{ animation:batch-breathe 1.65s ease-in-out infinite; }
+  .brow.is-processing .pill.processing .dot{ animation:pulse 1.4s ease-in-out infinite; }
   .pill.reviewing{ background:var(--info-bg); color:var(--info); }
   .pill.done{ background:var(--track); color:var(--ink-soft); }
   .pill.draft{ background:transparent; color:var(--ink-soft); border:1px dashed var(--border-strong); }
   .pill.cancelled{ background:var(--risk-bg); color:var(--risk); }
+  .pill.paused{ background:#FFF3CC; color:#7A5A00; }
   @keyframes pulse{ 50%{ opacity:.25; } }
+  @keyframes batch-breathe{ 50%{ background:#EED8C8; box-shadow:0 0 0 4px rgba(143,63,36,.07); } }
   .bar{ height:6px; background:var(--track); border-radius:3px; overflow:hidden; }
-  .bar span{ display:block; height:100%; border-radius:3px; }
+  .bar span{ position:relative; display:block; height:100%; min-width:3px; border-radius:3px; overflow:hidden; }
+  .brow.is-processing .bar span::after{ content:""; position:absolute; inset:0; width:42%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent); transform:translateX(-120%); animation:batch-flow 1.65s ease-in-out infinite; }
+  @keyframes batch-flow{ to{ transform:translateX(340%); } }
   .b-ptxt{ font-size:12px; color:var(--ink-soft); margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .b-rub{ min-width:0; }
   .rub-link{ font-size:13px; color:var(--ink); text-decoration:underline; text-decoration-color:var(--border-strong); text-underline-offset:3px; cursor:pointer; }
+  .b-rub .rub-link{ display:block; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .rub-link:hover{ color:var(--primary); text-decoration-color:var(--primary); }
   .b-go{ color:var(--ink-soft); font-size:16px; transition:transform .15s, color .15s; }
-  .batch-actions{ display:flex; justify-content:flex-end; gap:6px; }
+  .batch-actions{ min-width:0; display:flex; justify-content:flex-end; gap:6px; white-space:nowrap; }
   .row-action{ border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); color:var(--ink-soft); padding:6px 9px; font:500 12px 'Inter',sans-serif; cursor:pointer; }
   .row-action:hover{ border-color:var(--risk); color:var(--risk); background:var(--risk-bg); }
   .row-action:disabled{ opacity:.55; cursor:wait; }
+  .row-action.calm:hover{ border-color:var(--ink-soft); color:var(--ink); background:var(--tint); }
+  .row-action.go{ border-color:var(--primary); color:var(--primary); }
+  .row-action.go:hover{ background:var(--primary); color:#fff; border-color:var(--primary); }
   .empty{ text-align:center; color:var(--ink-soft); padding:30px 0; }
   @media (max-width:900px){
     main{ padding:24px 16px 60px; }
@@ -92,9 +103,11 @@
     .brow{ grid-template-columns:minmax(0,1fr) auto; gap:8px 12px; padding:14px 16px; }
     .b-main{ grid-column:1 / 2; } .b-st{ grid-column:2; grid-row:1; align-self:start; }
     .b-prog, .b-rub{ grid-column:1 / -1; }
+    .batch-actions{ grid-column:1 / -1; justify-content:flex-start; }
     .b-go{ display:none; }
     .b-meta{ white-space:normal; }
   }
+  @media (prefers-reduced-motion:reduce){ .brow.is-processing .pill.processing, .brow.is-processing .pill.processing .dot, .brow.is-processing .bar span::after{ animation:none; } }
 
   /* ===== Shared top bar (logo · AI-assisted marker · Prototype · user) ===== */
   header.app-bar{ flex-wrap:nowrap; display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:20px; height:68px; min-height:68px; padding:0 28px; background:var(--chrome); }
@@ -157,6 +170,7 @@
   }
   .ab-crumbs .bc-up .t{ overflow:hidden; text-overflow:ellipsis; }
   @media print{ header.app-bar, .ab-steps{ display:none; } }
+  .row-action{ white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -172,7 +186,7 @@
     <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><span aria-current="page" id="bcCur">Batches</span></li></ol><a class="bc-up" href="00-home.html"><span aria-hidden="true">‹</span><span class="t">Home</span></a></nav>
   </div>
   <div class="ab-right">
-    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+    <div class="ab-user" title="Local single-user mode"><span class="ab-uname">&nbsp;</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true"></span></div>
   </div>
 </header>
 
@@ -197,44 +211,36 @@
   </div>
 
   <div id="groups"></div>
-  <p class="empty" id="empty" hidden>No batches match your search.</p>
+  <p class="empty" id="empty">Loading batches…</p>
 </main>
 
 <script>
 (function(){
-  var B = [
-    { name:'ASGN2 — Critical Essay', term:'2026 S2', st:'processing', n:'1,247 submissions', crit:4, rubric:['Critical Essay — HD/D/C/P','critical-essay'], date:'due 24 Oct', prog:[67,'836 / 1,247 processed','var(--primary)'], href:'02-batch-status.html', home:true },
-    { name:'ASGN1 — Literature Review', term:'2026 S2', st:'review', n:'340 submissions', crit:5, rubric:['Literature Review','literature-review'], date:'due 18 Oct', prog:[92,'312 / 340 confirmed','var(--info)'], href:'02-batch-status.html#asgn1', home:true },
-    { name:'Quiz 3 — Short Answers', term:'2026 S2', st:'complete', n:'1,198 submissions', crit:3, rubric:['Short Answer (quiz)','short-answer'], date:'closed 9 Oct', prog:[100,'released to Canvas','var(--ink-soft)'], href:'04-batch-complete.html', home:true },
-    { name:'ASGN3 — Final Project Report', term:'2026 S2', st:'draft', n:'no submissions yet', crit:6, rubric:['Final Project Report','final-project-report'], date:'due 14 Nov', prog:[0,'rubric imported · set-up not finished','var(--track)'], href:'01-upload.html' },
-    { name:'Quiz 2 — Short Answers', term:'2026 S2', st:'complete', n:'1,203 submissions', crit:3, rubric:['Short Answer (quiz)','short-answer'], date:'closed 25 Sep', prog:[100,'released to Canvas','var(--ink-soft)'], href:'04-batch-complete.html' },
-    { name:'Group Presentation', term:'2026 S2', st:'complete', n:'86 groups', crit:4, rubric:['Group Presentation','group-presentation'], date:'closed 12 Sep', prog:[100,'released to Canvas','var(--ink-soft)'], href:'04-batch-complete.html' },
-    { name:'Quiz 1 — Short Answers', term:'2026 S2', st:'complete', n:'1,211 submissions', crit:3, rubric:['Short Answer (quiz)','short-answer'], date:'closed 28 Aug', prog:[100,'released to Canvas','var(--ink-soft)'], href:'04-batch-complete.html' },
-    { name:'Reflective Journal', term:'2026 S1', st:'complete', n:'402 submissions', crit:3, rubric:['Reflective Journal','reflective-journal'], date:'closed 6 Jun', prog:[100,'released to Canvas','var(--ink-soft)'], href:'04-batch-complete.html' }
-  ];
-  var PILL = { processing:['processing','Processing'], review:['reviewing','In review'], draft:['draft','Draft'], complete:['done','Complete'], cancelled:['cancelled','Cancelled'] };
+  var B = [], loaded = false;  /* filled from GET /api/v1/batches by app-wire.js */
+  var PILL = { processing:['processing','Processing'], paused:['paused','Paused'], review:['reviewing','In review'], draft:['draft','Draft'], complete:['done','Complete'], cancelled:['cancelled','Cancelled'] };
   var filter = 'all';
   function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
   function match(b){
-    if (filter === 'active' && !(b.st === 'processing' || b.st === 'review')) return false;
+    if (filter === 'active' && !(b.st === 'processing' || b.st === 'paused' || b.st === 'review')) return false;
     if (filter !== 'all' && filter !== 'active' && b.st !== filter) return false;
     var q = document.getElementById('q').value.trim().toLowerCase();
     return !q || (b.name + ' ' + b.rubric[0] + ' ' + b.term).toLowerCase().indexOf(q) >= 0;
   }
   function row(b){
     var p = PILL[b.st] || PILL.draft;
-    var actions=(b.canCancel?'<button class="row-action" type="button" data-act="cancel" data-id="'+b.id+'" data-version="'+b.version+'">Terminate</button>':'')+(b.canDelete?'<button class="row-action" type="button" data-act="delete" data-id="'+b.id+'" data-version="'+b.version+'">Delete</button>':'');
-    return '<div class="brow" data-href="' + b.href + '">' +
-      '<div class="b-main"><div class="b-name">' + esc(b.name) + (b.home ? '<span class="on-home" title="Shown on Home">On Home</span>' : '') + '</div>' +
+    var flow=b.canPause?'<button class="row-action calm" type="button" data-act="pause" data-id="'+b.id+'" data-version="'+b.version+'" title="Hold back the work not yet sent to the AI; resume any time">❚❚ Pause</button>':b.canResume?'<button class="row-action go" type="button" data-act="resume" data-id="'+b.id+'" data-version="'+b.version+'" title="Continue from where it stopped">▶ Resume</button>':'';
+    var actions=flow+'<button class="row-action calm" type="button" data-act="pin" data-id="'+b.id+'" data-pinned="'+(b.pinned?1:0)+'" title="'+(b.pinned?'Unpin':'Pin to Home (up to 3; pinning a fourth unpins the oldest)')+'">'+(b.pinned?'📌 Pinned':'Pin')+'</button>'+(b.canCancel?'<button class="row-action" type="button" data-act="cancel" data-id="'+b.id+'" data-version="'+b.version+'">Terminate</button>':'')+(b.canDelete?'<button class="row-action" type="button" data-act="delete" data-id="'+b.id+'" data-version="'+b.version+'">Delete</button>':'');
+    return '<div class="brow' + (b.st==='processing'&&b.active>0?' is-processing':'') + '" data-href="' + b.href + '">' +
+      '<div class="b-main"><div class="b-name">' + esc(b.name) + (b.sample ? '<span class="on-home sample-tag" title="Pinned sample batch — reload with: python -m app.sample.seed">Sample</span>' : '') + (b.home && !b.sample ? '<span class="on-home" title="Shown on Home">On Home</span>' : '') + '</div>' +
       '<div class="b-meta mono">' + b.n + ' · ' + b.crit + ' criteria · ' + b.date + '</div></div>' +
       '<div class="b-st"><span class="pill ' + p[0] + '"><span class="dot"></span>' + p[1] + '</span></div>' +
-      '<div class="b-prog"><div class="bar"><span style="width:' + b.prog[0] + '%; background:' + b.prog[2] + '"></span></div><div class="b-ptxt">' + b.prog[1] + '</div></div>' +
+      '<div class="b-prog"><div class="bar"><span style="width:' + b.prog[0] + '%; background:' + b.prog[2] + '"></span></div><div class="b-ptxt" title="' + esc(b.prog[1]) + '">' + esc(b.prog[1]) + '</div></div>' +
       '<div class="b-rub"><span class="rub-link" data-rub="' + b.rubric[1] + '">' + esc(b.rubric[0]) + '</span></div>' +
       '<div class="batch-actions">'+actions+(actions?'':'<span class="b-go" aria-hidden="true">→</span>')+'</div></div>';
   }
   function render(){
     var counts = { all:B.length, active:0, draft:0, complete:0, cancelled:0 };
-    B.forEach(function(b){ if (b.st === 'processing' || b.st === 'review') counts.active++; else if(Object.prototype.hasOwnProperty.call(counts,b.st)) counts[b.st]++; });
+    B.forEach(function(b){ if (b.st === 'processing' || b.st === 'paused' || b.st === 'review') counts.active++; else if(Object.prototype.hasOwnProperty.call(counts,b.st)) counts[b.st]++; });
     document.querySelectorAll('.filters .chip').forEach(function(c){ c.querySelector('span').textContent = counts[c.dataset.f]; });
     var terms = [], html = '';
     B.forEach(function(b){ if (terms.indexOf(b.term) < 0) terms.push(b.term); });
@@ -245,7 +251,9 @@
         '<div class="list"><div class="lhead"><span>Batch</span><span>Status</span><span>Progress</span><span>Rubric</span><span>Actions</span></div>' + rows.map(row).join('') + '</div></section>';
     });
     document.getElementById('groups').innerHTML = html;
-    document.getElementById('empty').hidden = !!html;
+    var empty = document.getElementById('empty');
+    empty.textContent = !loaded ? 'Loading batches…' : B.length ? 'No batches match your search.' : 'No batches yet. Start one with “New marking batch”.';
+    empty.hidden = !!html;
   }
   document.getElementById('q').addEventListener('input', render);
   document.querySelectorAll('.filters .chip').forEach(function(c){
@@ -261,24 +269,23 @@
     var action=e.target.closest('[data-act]');
     if(action){
       e.preventDefault();e.stopPropagation();
-      var id=action.dataset.id,version=Number(action.dataset.version),isCancel=action.dataset.act==='cancel';
-      var message=isCancel?'Terminate this batch? Queued work will stop and partial results will be retained.':'Delete this batch and its uploaded files permanently?';
-      if(!confirm(message))return;
-      action.disabled=true;action.textContent=isCancel?'Terminating…':'Deleting…';
-      var task=isCancel?MarkerAPI.cancelBatch(id,version,'Terminated from batch list'):MarkerAPI.deleteBatch(id,version);
-      task.then(function(){location.reload();}).catch(function(error){action.disabled=false;action.textContent=isCancel?'Terminate':'Delete';alert(error.message);});
+      var id=action.dataset.id,item=B.filter(function(x){return x.id===id;})[0]||{id:id,name:'',version:Number(action.dataset.version)};
+      if(action.dataset.act==='pin'){action.disabled=true;MarkerAPI.pinBatch(id,action.dataset.pinned!=='1').then(function(r){return r.unpinned&&r.unpinned.length?MarkerDialog.alert(MarkerUI.pinnedNotice(r.unpinned)):null;}).then(function(){location.reload();}).catch(function(error){action.disabled=false;MarkerDialog.alert(MarkerUI.actionError('Could not change the pin',error));});return;}
+      /* Pause, resume, terminate and delete share one confirm-then-act flow (app-wire.js). */
+      MarkerUI.batchFlow(action.dataset.act,{id:id,name:item.name,version:Number(action.dataset.version)},action).then(function(done){if(done)location.reload();});
       return;
     }
     var row=e.target.closest('.brow[data-href]');if(row)location.href=row.dataset.href;
   });
   window.BatchListUI = {
-    setItems: function(items){ B = items.slice(); render(); }
+    setItems: function(items){ B = items.slice(); loaded = true; render(); }
   };
   render();
 })();
 </script>
 
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
+<script src="/js/dialog.js"></script>
+<script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

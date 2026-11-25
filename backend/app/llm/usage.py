@@ -22,6 +22,7 @@ class UsageRecord:
     latency_ms: int
     submission_id: str | None
     prompt_version: str
+    cached_tokens: int = 0
 
 
 class UsageSink(Protocol):
@@ -43,7 +44,7 @@ class SQLAlchemyUsageSink:
                 purpose=usage.purpose,
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
-                cached_tokens=0,
+                cached_tokens=usage.cached_tokens,
                 latency_ms=usage.latency_ms,
                 cost_usd=0,
                 submission_id=usage.submission_id,

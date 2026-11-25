@@ -58,9 +58,32 @@
   .progress-top .label{ color:var(--ink-soft); }
   .progress-top .val{ font-family:'IBM Plex Mono',monospace; color:var(--primary); }
   .bar{ height:8px; background:var(--track); border-radius:4px; overflow:hidden; }
-  .bar-fill{ height:100%; width:67%; background:var(--primary); border-radius:4px; }
+  .progress-layers{ position:relative; }
+  .bar-ready, .bar-confirmed{ position:absolute; inset:0 auto 0 0; border-radius:4px; transition:width .35s ease; }
+  .bar-ready{ z-index:1; background:rgba(230,70,38,.34); overflow:hidden; }
+  .bar-confirmed{ z-index:2; background:var(--primary); }
+  .progress-card.is-live .bar-ready::after{ content:""; position:absolute; inset:0; width:28%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.78),transparent); transform:translateX(-120%); animation:work-flow 1.55s ease-in-out infinite; }
+  @keyframes work-flow{ to{ transform:translateX(460%); } }
   .progress-stats{ display:flex; gap:26px; margin-top:14px; font-size:12px; color:var(--ink-soft); }
   .progress-stats b{ color:var(--ink); font-family:'IBM Plex Mono',monospace; font-weight:500;}
+  .progress-stats .eta{ color:var(--ai); font-family:'IBM Plex Mono',monospace; }
+  .live-work{ display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); color:var(--ink-soft); font-size:12.5px; }
+  .live-work strong{ color:var(--ai); font-weight:500; }
+  .live-work .agent-count{ color:var(--ink); }
+  .live-work a{ color:inherit; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(143,63,36,.35); }
+  .live-work a:hover{ color:var(--primary); text-decoration-color:var(--primary); }
+  .chip.resume-chip{ border-color:var(--primary); color:var(--primary); }
+  .chip.resume-chip:hover{ background:var(--primary); color:#fff; }
+  .queue-wait.paused-work{ background:linear-gradient(180deg,transparent,#FFF3CC); }
+  .queue-wait.paused-work strong{ color:#7A5A00; }
+  .queue-wait.paused-work .queue-clock{ color:#D88D00; font-size:11px; letter-spacing:-1px; }
+  .queue-wait{ padding:12px 14px; margin-left:-14px; margin-right:-14px; background:linear-gradient(180deg,transparent,var(--ai-bg)); border-radius:0 0 8px 8px; }
+  .queue-clock{ color:var(--primary); font-size:17px; line-height:1; }
+  .live-bars{ display:inline-flex; align-items:flex-end; gap:2px; width:18px; height:13px; }
+  .live-bars i{ width:3px; height:5px; border-radius:2px; background:var(--primary); animation:work-bars .85s ease-in-out infinite alternate; }
+  .live-bars i:nth-child(2){ height:10px; animation-delay:.14s; }
+  .live-bars i:nth-child(3){ height:7px; animation-delay:.28s; }
+  @keyframes work-bars{ to{ height:13px; opacity:.45; } }
 
   .filters{ display:flex; gap:8px; margin-bottom:14px; }
   .chip{
@@ -86,11 +109,17 @@
   .status-pill{
     display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 10px; border-radius:20px; font-weight:500;
   }
-  .status-pill.ready{ background:var(--info-bg); color:var(--info); }
+  .status-pill.ready{ background:var(--conf-high-bg); color:var(--conf-high); }
+  .status-pill.in-review{ background:var(--info-bg); color:var(--info); }
   .status-pill.reviewed{ background:var(--track); color:var(--ink-soft); }
   .status-pill.processing{ background:var(--ai-bg); color:var(--ai); }
   .status-pill.failed{ background:var(--risk-bg); color:var(--risk); }
   .status-pill .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+  tr.active-work .status-pill.processing{ animation:processing-breathe 1.65s ease-in-out infinite; }
+  tr.active-work .status-pill .dot{ animation:active-dot 1s ease-in-out infinite; box-shadow:0 0 0 0 rgba(143,63,36,.24); }
+  tr.queued-work .status-pill{ opacity:.78; }
+  @keyframes processing-breathe{ 50%{ background:#EED8C8; box-shadow:0 0 0 4px rgba(143,63,36,.08); } }
+  @keyframes active-dot{ 50%{ opacity:.35; box-shadow:0 0 0 4px rgba(143,63,36,0); } }
 
   .flag{ color:var(--risk); font-size:12px; display:inline-flex; align-items:center; gap:4px; }
   .error-msg{ display:block; max-width:360px; margin-top:4px; color:var(--risk); font-size:11px; line-height:1.35; }
@@ -109,6 +138,7 @@
     .progress-stats, .filters{ flex-wrap:wrap; }
     table{ display:block; overflow-x:auto; white-space:nowrap; }
   }
+  @media (prefers-reduced-motion:reduce){ .progress-card.is-live .bar-ready::after, .live-bars i, tr.active-work .status-pill, tr.active-work .status-pill .dot{ animation:none; } }
 
   /* ===== Shared top bar (logo · AI-assisted marker · Prototype · user) ===== */
   header.app-bar{ flex-wrap:nowrap; display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:20px; height:68px; min-height:68px; padding:0 28px; background:var(--chrome); }
@@ -209,159 +239,29 @@
       <span class="ab-name">AI-assisted marker</span>
       <span class="ab-proto" title="Internal coursework demo — not an official University of Sydney service">Prototype</span>
     </a>
-    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><span aria-current="page" id="bcCur">ASGN2 Critical Essay</span></li></ol><a class="bc-up" href="00-home.html"><span aria-hidden="true">‹</span><span class="t">Home</span></a></nav>
+    <nav class="ab-crumbs" aria-label="Breadcrumb"><ol><li class="bc-home"><a href="00-home.html">Home</a></li><li><span aria-current="page" id="bcCur">Batch</span></li></ol><a class="bc-up" href="00-home.html"><span aria-hidden="true">‹</span><span class="t">Home</span></a></nav>
   </div>
   <div class="ab-right">
-    <div class="ab-actions"><div class="bp" title="Your active batches, in the same order as on Home"><div class="bp-top"><span class="bp-lbl">Batch</span><span class="bp-num"><b id="bpN">1</b><span class="sl">/</span>3</span></div><div class="bp-segs" id="bpSegs"><i class="on"></i><i></i><i></i></div><div class="bp-sub"><span class="bp-dot " id="bpDot"></span><span id="bpStatus"><b>411</b> still with AI · ~18 min</span></div></div></div>
-    <div class="ab-user" title="Signed in (placeholder)"><span class="ab-uname">J. Alvarez</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true">JA</span></div>
+    <div class="ab-actions"><div class="bp" title="Your active batches, in the same order as on Home"><div class="bp-top"><span class="bp-lbl">Batch</span><span class="bp-num"><b id="bpN">–</b><span class="sl">/</span><span id="bpTotal">–</span></span></div><div class="bp-segs" id="bpSegs"></div><div class="bp-sub"><span class="bp-dot " id="bpDot"></span><span id="bpStatus">Loading…</span></div></div></div>
+    <div class="ab-user" title="Local single-user mode"><span class="ab-uname">&nbsp;</span><span class="ab-role">Tutor</span><span class="ab-avatar" aria-hidden="true"></span></div>
   </div>
 </header>
 <div class="ab-steps"><div class="ab-steps-in"><div class="step-track" id="stepTrack">
-    1. Set up batch — <span class="current">2. Processing</span> — 3. Review
+    1. Set up batch — 2. Processing — 3. Review
   </div></div></div>
 
 <main id="batchMain">
-  <div class="top">
-    <div>
-      <h1>ASGN2 — Critical Essay, 2026 S2</h1>
-      <p class="sub">1,247 submissions · 4 criteria · started 14 min ago</p>
-    </div>
-    <div class="top-actions"><a class="start-btn" href="03b-review-split.html">Start reviewing →</a></div>
-  </div>
-
-  <div class="progress-card">
-    <div class="progress-top">
-      <span class="label">Batch progress</span>
-      <span class="val">836 / 1,247 processed</span>
-    </div>
-    <div class="bar"><div class="bar-fill"></div></div>
-    <div class="progress-stats">
-      <span><b>792</b> ready for review</span>
-      <span><b>44</b> flagged low-confidence</span>
-      <span><b>11</b> awaiting OCR</span>
-      <span><b>~18 min</b> remaining</span>
-    </div>
-  </div>
-
-  <div class="filters">
-    <span class="chip active">All (1,247)</span>
-    <span class="chip">Ready for review (792)</span>
-    <span class="chip">Low confidence (44)</span>
-    <span class="chip">Reviewed (0)</span>
-    <span class="chip">Processing (411)</span>
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Submission</th>
-        <th>Status</th>
-        <th>AI suggested total</th>
-        <th>Flags</th>
-        <th>Tutor</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr onclick="location.href='03b-review-split.html'">
-        <td class="sid">SID-40218</td>
-        <td><span class="status-pill ready"><span class="dot"></span>Ready for review</span></td>
-        <td class="score">74 / 100</td>
-        <td>—</td>
-        <td>J. Alvarez</td>
-      </tr>
-      <tr onclick="location.href='03b-review-split.html'">
-        <td class="sid">SID-40219</td>
-        <td><span class="status-pill ready"><span class="dot"></span>Ready for review</span></td>
-        <td class="score">80 / 100</td>
-        <td><span class="flag">⚑ low confidence</span></td>
-        <td>J. Alvarez</td>
-      </tr>
-      <tr onclick="location.href='03b-review-split.html'">
-        <td class="sid">SID-40220</td>
-        <td><span class="status-pill ready"><span class="dot"></span>Ready for review</span></td>
-        <td class="score">88 / 100</td>
-        <td>—</td>
-        <td>M. Okafor</td>
-      </tr>
-      <tr>
-        <td class="sid">SID-40221</td>
-        <td><span class="status-pill processing"><span class="dot"></span>Processing</span></td>
-        <td class="score pending">—</td>
-        <td>—</td>
-        <td>M. Okafor</td>
-      </tr>
-      <tr onclick="location.href='03b-review-split.html'">
-        <td class="sid">SID-40222</td>
-        <td><span class="status-pill ready"><span class="dot"></span>Ready for review</span></td>
-        <td class="score">55 / 100</td>
-        <td><span class="flag">⚑ low confidence</span></td>
-        <td>J. Alvarez</td>
-      </tr>
-      <tr>
-        <td class="sid">SID-40223</td>
-        <td><span class="status-pill processing"><span class="dot"></span>Processing</span></td>
-        <td class="score pending">—</td>
-        <td><span class="flag">⚑ scanned PDF</span></td>
-        <td>M. Okafor</td>
-      </tr>
-    </tbody>
-  </table>
+  <div class="top"><div><h1>Loading batch…</h1><p class="sub">Reading this batch from the local database.</p></div></div>
 </main>
 
 <footer class="batchbar" aria-label="Batch navigation">
   <a class="bb-btn prev" aria-disabled="true" id="bbPrev"><span class="k">← Previous batch</span><span class="n">None</span></a>
-  <a class="bb-btn next" id="bbNext" href="02-batch-status.html#asgn1" title="ASGN1 — Literature Review"><span class="k">Next batch →</span><span class="n">ASGN1 — Literature Review</span></a>
+  <a class="bb-btn next" aria-disabled="true" id="bbNext"><span class="k">Next batch →</span><span class="n">None</span></a>
 </footer>
 
-<script>
-/* Batch switcher (demo): ASGN2 is the default view, #asgn1 shows ASGN1. Quiz 3 lives on its own page. */
-(function(){
-  var main = document.getElementById('batchMain');
-  var ASGN2 = { html: main.innerHTML, crumb: 'ASGN2 Critical Essay', step: '1. Set up batch — <span class="current">2. Processing</span> — 3. Review',
-    status: '<b>411</b> still with AI · ~18 min', dot: '', pos: 1,
-    prev: null, next: ['02-batch-status.html#asgn1','ASGN1 — Literature Review'], primary: ['03b-review-split.html','Start reviewing →'], title: 'ASGN2 — Batch in progress' };
-  function row(sid, st, score, flag, tutor){
-    var pill = st === 'reviewed' ? '<span class="status-pill reviewed"><span class="dot"></span>Reviewed</span>' : '<span class="status-pill ready"><span class="dot"></span>Ready for review</span>';
-    return '<tr onclick="location.href=\'03b-review-split.html\'"><td class="sid">' + sid + '</td><td>' + pill + '</td><td class="score">' + score + ' / 100</td><td>' + (flag ? '<span class="flag">⚑ ' + flag + '</span>' : '—') + '</td><td>' + tutor + '</td></tr>';
-  }
-  var ASGN1 = { crumb: 'ASGN1 Literature Review', step: '1. Set up batch — 2. Processing — <span class="current">3. Review</span>',
-    status: 'In review · <b>28</b> left', dot: 'review', pos: 2,
-    prev: ['02-batch-status.html','ASGN2 — Critical Essay'], next: ['04-batch-complete.html','Quiz 3 — Short Answers'], primary: ['03b-review-split.html','Continue reviewing →'], title: 'ASGN1 — Batch in review',
-    html:
-    '<div class="top"><div><h1>ASGN1 — Literature Review, 2026 S2</h1><p class="sub">340 submissions · 5 criteria · due 18 Oct · AI marking finished 2 days ago</p></div>' +
-    '<div class="top-actions"><a class="start-btn" href="03b-review-split.html">Continue reviewing →</a></div></div>' +
-    '<div class="progress-card"><div class="progress-top"><span class="label">Review progress</span><span class="val">312 / 340 confirmed</span></div>' +
-    '<div class="bar"><div class="bar-fill" style="width:92%; background:var(--info)"></div></div>' +
-    '<div class="progress-stats"><span><b>340</b> marked by AI</span><span><b>28</b> left to review</span><span><b>9</b> adjusted from AI</span><span><b>6</b> flagged low-confidence</span></div></div>' +
-    '<div class="filters"><span class="chip active">All (340)</span><span class="chip">Ready for review (28)</span><span class="chip">Low confidence (6)</span><span class="chip">Reviewed (312)</span><span class="chip">Processing (0)</span></div>' +
-    '<table><thead><tr><th>Submission</th><th>Status</th><th>AI suggested total</th><th>Flags</th><th>Tutor</th></tr></thead><tbody>' +
-    row('SID-31004','reviewed',68,'', 'J. Alvarez') + row('SID-31005','reviewed',77,'', 'M. Okafor') + row('SID-31006','ready',59,'low confidence','J. Alvarez') +
-    row('SID-31007','reviewed',82,'', 'J. Alvarez') + row('SID-31008','ready',71,'', 'M. Okafor') + row('SID-31009','reviewed',64,'', 'M. Okafor') +
-    '</tbody></table>' };
-  function setBtn(id, item){
-    var a = document.getElementById(id);
-    if (!item){ a.setAttribute('aria-disabled','true'); a.removeAttribute('href'); a.removeAttribute('title'); a.querySelector('.n').textContent = 'None'; return; }
-    a.removeAttribute('aria-disabled'); a.href = item[0]; a.title = item[1]; a.querySelector('.n').textContent = item[1];
-  }
-  function render(){
-    var b = location.hash === '#asgn1' ? ASGN1 : ASGN2;
-    main.innerHTML = b.html;
-    document.getElementById('bcCur').textContent = b.crumb;
-    document.getElementById('stepTrack').innerHTML = b.step;
-    document.getElementById('bpStatus').innerHTML = b.status;
-    document.getElementById('bpDot').className = 'bp-dot ' + b.dot;
-    document.getElementById('bpN').textContent = b.pos;
-    document.querySelectorAll('#bpSegs i').forEach(function(x, i){ x.classList.toggle('on', i < b.pos); });
-    setBtn('bbPrev', b.prev); setBtn('bbNext', b.next);
-    document.title = b.title + ' — AI-assisted marker';
-    window.scrollTo(0, 0);
-  }
-  window.addEventListener('hashchange', render);
-  render();
-})();
-</script>
 
-<script src="/js/mock-adapter.js"></script><script src="/js/api.js"></script>
+<script src="/js/dialog.js"></script>
+<script src="/js/api.js"></script>
 <script src="account-menu.js"></script><script src="/js/app-wire.js"></script>
 </body>
 </html>

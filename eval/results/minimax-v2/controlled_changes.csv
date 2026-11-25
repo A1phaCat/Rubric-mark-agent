@@ -1,0 +1,5 @@
+Condition,Truncated: total fell,Truncated: mean change,Evidence removed: mark fell,Evidence removed: mean change,Decoy: mean mark (content criteria),Decoy: at or near the bottom (content criteria),Decoy: mean mark (general criteria)
+direct,100%,-26%,78%,-33%,27%,74%,55%
+retrieval,75%,-11%,56%,-12%,35%,59%,58%
+full,89%,-16%,67%,-19%,39%,62%,51%
+full_tools,100%,-16%,78%,-22%,37%,56%,53%
