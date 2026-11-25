@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AI-assisted marking with criterion-level evidence, confidence flags and tutor-controlled final marks.">
+  <meta name="theme-color" content="#272421">
+  <meta property="og:title" content="AI-assisted marker — evidence first, tutor final">
+  <meta property="og:description" content="A local-first marking workflow that pairs every score suggestion with evidence from the submission.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://a1phacat.github.io/Rubric-mark-agent/assets/review-workspace.png">
+  <title>AI-assisted marker — evidence first, tutor final</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #272421;
+      --muted: #6f665f;
+      --paper: #f4eee7;
+      --cream: #fbf8f3;
+      --surface: #fffdf9;
+      --line: #d9cec4;
+      --accent: #e64626;
+      --accent-dark: #a53620;
+      --rust: #8f3f24;
+      --green: #2f7a45;
+      --yellow: #f2a900;
+      --shadow: 0 28px 80px rgba(64, 46, 36, .18);
+      --serif: "Fraunces", Georgia, serif;
+      --sans: "DM Sans", Arial, sans-serif;
+      --mono: "IBM Plex Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    img { display: block; max-width: 100%; }
+    .wrap { width: min(1180px, calc(100% - 40px)); margin-inline: auto; }
+    .skip {
+      position: fixed; left: 16px; top: -64px; z-index: 99;
+      background: var(--ink); color: white; padding: 10px 14px; border-radius: 7px;
+    }
+    .skip:focus { top: 12px; }
+
+    header {
+      position: absolute; z-index: 10; inset: 0 0 auto;
+      height: 84px; color: white;
+    }
+    .nav { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 28px; }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font-weight: 600; }
+    .brand-mark {
+      width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.42); border-radius: 9px;
+      display: grid; place-items: center; color: #fff;
+    }
+    .brand-mark svg { width: 20px; height: 20px; }
+    .nav-links { display: flex; align-items: center; gap: 26px; font-size: 14px; }
+    .nav-links a { color: rgba(255,255,255,.72); text-decoration: none; }
+    .nav-links a:hover { color: #fff; }
+    .nav-links .repo-link {
+      color: #fff; border: 1px solid rgba(255,255,255,.35); padding: 9px 14px; border-radius: 7px;
+    }
+
+    .hero {
+      position: relative; overflow: hidden; color: white;
+      background:
+        radial-gradient(circle at 82% 18%, rgba(230,70,38,.26), transparent 31%),
+        linear-gradient(135deg, #252220 0%, #38312c 58%, #2b2724 100%);
+      padding: 150px 0 114px;
+    }
+    .hero::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .16;
+      background-image: linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px);
+      background-size: 52px 52px;
+      mask-image: linear-gradient(to bottom, black, transparent 88%);
+    }
+    .hero-grid { position: relative; display: grid; grid-template-columns: 1fr 1.28fr; gap: 72px; align-items: center; }
+    .eyebrow {
+      display: inline-flex; gap: 9px; align-items: center; margin-bottom: 24px;
+      color: #f7b9aa; font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: .09em;
+    }
+    .eyebrow::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px rgba(230,70,38,.17); }
+    h1 {
+      font: 600 clamp(48px, 5.3vw, 76px)/1.02 var(--serif); letter-spacing: -.045em;
+      margin: 0 0 25px; max-width: 720px;
+    }
+    .hero-copy > p { color: rgba(255,255,255,.72); font-size: 18px; max-width: 560px; margin: 0; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+    .button {
+      display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+      min-height: 48px; padding: 0 20px; border-radius: 8px; font-weight: 600; font-size: 14px;
+      text-decoration: none; transition: transform .18s ease, background .18s ease, border-color .18s ease;
+    }
+    .button:hover { transform: translateY(-2px); }
+    .button.primary { background: var(--accent); color: white; }
+    .button.primary:hover { background: #f05232; }
+    .button.secondary { border: 1px solid rgba(255,255,255,.32); color: white; }
+    .button.secondary:hover { border-color: rgba(255,255,255,.7); background: rgba(255,255,255,.05); }
+    .arrow { width: 17px; height: 17px; }
+
+    .product-shot { position: relative; margin-right: -170px; }
+    .product-shot::after {
+      content: ""; position: absolute; inset: 18% 9% -13%; z-index: -1;
+      background: var(--accent); filter: blur(70px); opacity: .2;
+    }
+    .window { overflow: hidden; background: #fff; border: 1px solid rgba(255,255,255,.22); border-radius: 13px; box-shadow: var(--shadow); }
+    .window-bar { height: 36px; background: #ece7e2; display: flex; align-items: center; padding: 0 13px; gap: 7px; border-bottom: 1px solid #d8d0c8; }
+    .window-bar i { width: 9px; height: 9px; border-radius: 50%; background: #d2c8bf; }
+    .window-bar i:first-child { background: #e76a52; }
+    .window-bar i:nth-child(2) { background: #e6b447; }
+    .window-bar i:nth-child(3) { background: #6ca878; }
+    .window-bar span { margin-left: 10px; color: #6f665f; font: 10px var(--mono); }
+    .window img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; }
+    .shot-note {
+      position: absolute; left: -24px; bottom: -30px; width: 230px;
+      background: #fffaf4; color: var(--ink); border: 1px solid #e9d9cc; border-radius: 10px;
+      padding: 14px 16px; box-shadow: 0 16px 40px rgba(29,22,18,.22); font-size: 13px;
+    }
+    .shot-note b { display: block; color: var(--green); font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+
+    .proof-strip { background: var(--surface); border-bottom: 1px solid var(--line); }
+    .proof-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .proof-item { padding: 22px 28px; border-right: 1px solid var(--line); }
+    .proof-item:first-child { padding-left: 0; }
+    .proof-item:last-child { border-right: 0; }
+    .proof-item span { display: block; color: var(--muted); font: 11px var(--mono); text-transform: uppercase; letter-spacing: .07em; }
+    .proof-item strong { display: block; margin-top: 3px; font: 500 16px var(--serif); }
+
+    section { padding: 112px 0; }
+    .section-label { color: var(--accent-dark); font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 15px; }
+    h2 { font: 600 clamp(36px, 4vw, 54px)/1.08 var(--serif); letter-spacing: -.035em; margin: 0; }
+    .section-intro { color: var(--muted); font-size: 18px; max-width: 640px; margin: 20px 0 0; }
+
+    .workflow { background: var(--cream); }
+    .workflow-head { display: flex; justify-content: space-between; gap: 50px; align-items: end; margin-bottom: 58px; }
+    .workflow-head .section-intro { max-width: 470px; margin: 0; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); }
+    .step { position: relative; padding: 34px 42px 0 0; }
+    .step + .step { padding-left: 42px; border-left: 1px solid var(--line); }
+    .step-no { color: var(--accent); font: 500 12px var(--mono); }
+    .step h3 { font: 500 24px/1.25 var(--serif); margin: 20px 0 12px; }
+    .step p { color: var(--muted); margin: 0; font-size: 15px; }
+
+    .focus { background: var(--paper); }
+    .focus-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: 90px; align-items: center; }
+    .feature-list { margin-top: 38px; border-top: 1px solid var(--line); }
+    .feature { display: grid; grid-template-columns: 34px 1fr; gap: 13px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+    .feature .icon { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; background: #f8ded5; color: var(--rust); font: 500 12px var(--mono); }
+    .feature b { display: block; font-size: 15px; margin-bottom: 4px; }
+    .feature span { display: block; color: var(--muted); font-size: 14px; }
+    .evidence-card { position: relative; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 30px; box-shadow: 0 22px 60px rgba(67,49,38,.11); }
+    .evidence-card::before { content: ""; position: absolute; width: 96px; height: 7px; left: 30px; top: 0; background: var(--accent); border-radius: 0 0 4px 4px; }
+    .criterion-row { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+    .criterion-row strong { font: 500 18px var(--serif); }
+    .criterion-row em { margin-left: auto; background: #e4f1e6; color: var(--green); padding: 4px 9px; border-radius: 99px; font: normal 10px var(--mono); }
+    blockquote { margin: 0; padding: 24px 26px; background: #fbf6ef; border-left: 3px solid var(--accent); font: 500 19px/1.55 var(--serif); color: #4f4038; }
+    .score-line { display: flex; align-items: center; gap: 12px; padding-top: 22px; color: var(--muted); font-size: 13px; }
+    .score-line b { color: var(--ink); font: 500 16px var(--mono); }
+    .score-line .ai-pill { margin-left: auto; color: var(--rust); background: #f6e7dc; padding: 5px 9px; border-radius: 5px; font: 500 11px var(--mono); }
+
+    .principles { background: #292623; color: white; }
+    .principles .section-label { color: #f7a792; }
+    .principles h2 { max-width: 700px; }
+    .principle-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 56px; }
+    .principle { min-height: 240px; padding: 28px; border: 1px solid rgba(255,255,255,.14); border-radius: 11px; background: rgba(255,255,255,.035); }
+    .principle svg { width: 30px; height: 30px; color: #f27859; }
+    .principle h3 { font: 500 22px var(--serif); margin: 45px 0 10px; }
+    .principle p { margin: 0; color: rgba(255,255,255,.64); font-size: 14px; }
+
+    .pipeline { background: #e9dfd6; padding: 92px 0; }
+    .pipeline-box { display: grid; grid-template-columns: .72fr 1.28fr; gap: 70px; align-items: center; }
+    .pipeline h2 { font-size: 38px; }
+    .pipeline-flow { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; gap: 10px; }
+    .pipe-item { position: relative; text-align: center; padding: 16px 7px; border: 1px solid #cdbeb2; border-radius: 8px; background: rgba(255,255,255,.55); font: 500 11px var(--mono); }
+    .pipe-item:not(:last-child)::after { content: "→"; position: absolute; right: -17px; top: 16px; color: var(--accent-dark); z-index: 2; }
+
+    .cta { background: var(--surface); text-align: center; }
+    .cta-inner { max-width: 760px; margin: 0 auto; }
+    .cta .section-intro { margin-inline: auto; }
+    .cta .hero-actions { justify-content: center; }
+    .cta .button.secondary { color: var(--ink); border-color: var(--line); }
+    .cta .button.secondary:hover { background: var(--cream); border-color: #bfaea1; }
+
+    footer { background: var(--surface); border-top: 1px solid var(--line); padding: 30px 0; color: var(--muted); font-size: 13px; }
+    .footer-row { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+    .footer-row a { text-underline-offset: 3px; }
+    .footer-note { font-family: var(--mono); font-size: 11px; }
+
+    :focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
+    @media (max-width: 980px) {
+      .hero { padding-top: 132px; }
+      .hero-grid { grid-template-columns: 1fr; gap: 66px; }
+      .hero-copy { max-width: 720px; }
+      .product-shot { margin-right: -90px; margin-left: 38px; }
+      .workflow-head, .focus-grid, .pipeline-box { grid-template-columns: 1fr; display: grid; gap: 36px; }
+      .workflow-head .section-intro { margin-top: 0; }
+      .focus-grid { gap: 60px; }
+      .pipeline-flow { grid-template-columns: repeat(5, minmax(95px, 1fr)); overflow-x: auto; padding: 5px 3px 12px; }
+    }
+    @media (max-width: 720px) {
+      .wrap { width: min(100% - 28px, 1180px); }
+      header { height: 72px; }
+      .nav-links a:not(.repo-link) { display: none; }
+      .hero { padding: 120px 0 88px; }
+      h1 { font-size: clamp(46px, 14vw, 64px); }
+      .hero-copy > p { font-size: 16px; }
+      .product-shot { margin: 0 -44px 0 8px; }
+      .window { border-radius: 8px; }
+      .window img { aspect-ratio: 1.33; }
+      .shot-note { left: -6px; bottom: -48px; }
+      .proof-grid { grid-template-columns: repeat(2, 1fr); }
+      .proof-item { padding: 18px 14px; border-bottom: 1px solid var(--line); }
+      .proof-item:first-child { padding-left: 14px; }
+      .proof-item:nth-child(2) { border-right: 0; }
+      section { padding: 82px 0; }
+      .workflow-head { margin-bottom: 40px; }
+      .steps, .principle-grid { grid-template-columns: 1fr; }
+      .step, .step + .step { padding: 28px 0; border-left: 0; border-bottom: 1px solid var(--line); }
+      .principle-grid { gap: 12px; }
+      .principle { min-height: 190px; }
+      .principle h3 { margin-top: 28px; }
+      .evidence-card { padding: 23px; }
+      blockquote { padding: 20px; font-size: 17px; }
+      .pipeline { padding: 70px 0; }
+      .footer-row { align-items: flex-start; flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header>
+    <nav class="nav wrap" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="AI-assisted marker home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 12h5M8 15h7"/></svg>
+        </span>
+        <span>AI-assisted marker</span>
+      </a>
+      <div class="nav-links">
+        <a href="#workflow">Workflow</a>
+        <a href="#principles">Principles</a>
+        <a class="repo-link" href="https://github.com/A1phaCat/Rubric-mark-agent">View repository</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-grid wrap">
+        <div class="hero-copy">
+          <div class="eyebrow">Local-first · human-controlled</div>
+          <h1>Evidence first.<br>Tutor final.</h1>
+          <p>An AI-assisted marking workspace that pairs every suggested score with the exact passage behind it—so tutors can verify, adjust and confirm with confidence.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="https://github.com/A1phaCat/Rubric-mark-agent">
+              Explore the project
+              <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </a>
+            <a class="button secondary" href="#workflow">See how it works</a>
+          </div>
+        </div>
+        <div class="product-shot" aria-label="Product preview">
+          <div class="window">
+            <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i><span>criterion review workspace</span></div>
+            <img src="assets/review-workspace.png" alt="AI-assisted marker split-screen review workspace, showing the original submission beside criterion evidence, score suggestions and tutor controls">
+          </div>
+          <div class="shot-note"><b>Verifiable by design</b>Quoted evidence stays beside the score it supports.</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="proof-strip" aria-label="Product principles">
+      <div class="proof-grid wrap">
+        <div class="proof-item"><span>01 · Grounding</span><strong>Verbatim evidence</strong></div>
+        <div class="proof-item"><span>02 · Control</span><strong>Tutor confirmation</strong></div>
+        <div class="proof-item"><span>03 · Awareness</span><strong>Confidence flags</strong></div>
+        <div class="proof-item"><span>04 · Traceability</span><strong>Criterion-level record</strong></div>
+      </div>
+    </div>
+
+    <section class="workflow" id="workflow">
+      <div class="wrap">
+        <div class="workflow-head">
+          <div><div class="section-label">The workflow</div><h2>From rubric to reviewed report.</h2></div>
+          <p class="section-intro">The system handles the searching and organising. The tutor keeps the judgement.</p>
+        </div>
+        <div class="steps">
+          <article class="step"><span class="step-no">01</span><h3>Bring the rubric and submissions</h3><p>Import an existing rubric, review its criteria, then add PDF, DOCX or text submissions as a marking batch.</p></article>
+          <article class="step"><span class="step-no">02</span><h3>Inspect evidence with each suggestion</h3><p>The marker retrieves and verifies passages against each criterion before proposing a score, rationale and confidence level.</p></article>
+          <article class="step"><span class="step-no">03</span><h3>Confirm the final decision</h3><p>Tutors compare the submission and evidence side by side, adjust marks or comments, and explicitly confirm the result.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="focus">
+      <div class="focus-grid wrap">
+        <div>
+          <div class="section-label">Designed for review</div>
+          <h2>The reason is never hidden behind the score.</h2>
+          <p class="section-intro">Every criterion is a small, inspectable decision rather than a single opaque total.</p>
+          <div class="feature-list">
+            <div class="feature"><span class="icon">A</span><div><b>Evidence stays in context</b><span>Jump from a cited quote to the matching place in the original submission.</span></div></div>
+            <div class="feature"><span class="icon">B</span><div><b>Uncertainty is visible</b><span>Low-confidence work rises in the queue for closer tutor attention.</span></div></div>
+            <div class="feature"><span class="icon">C</span><div><b>Edits remain accountable</b><span>Scores and criterion comments are stored as part of the review record.</span></div></div>
+          </div>
+        </div>
+        <div class="evidence-card">
+          <div class="criterion-row"><strong>C1 · Argument structure</strong><em>High confidence</em></div>
+          <blockquote>“This essay argues that decentralised governance models, while promising in theory, consistently underperform in practice…”</blockquote>
+          <div class="score-line"><span>Suggested score</span><b>26 / 30</b><span class="ai-pill">AI · HD</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="principles" id="principles">
+      <div class="wrap">
+        <div class="section-label">What matters</div>
+        <h2>Assistance without surrendering academic judgement.</h2>
+        <div class="principle-grid">
+          <article class="principle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+            <h3>Inspectable</h3><p>Evidence, rationale, coverage and confidence are surfaced where the tutor makes the decision.</p>
+          </article>
+          <article class="principle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3h10v4H7zM5 7h14v14H5z"/><path d="m8 14 2.3 2.3L16 10.6"/></svg>
+            <h3>Human-controlled</h3><p>Nothing becomes a final mark until a tutor has reviewed and confirmed the submission.</p>
+          </article>
+          <article class="principle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v18M4 8h16M4 16h16"/><path d="M6.5 3 4 8l2.5 8L9 21M17.5 3 20 8l-2.5 8L15 21"/></svg>
+            <h3>Rubric-aware</h3><p>Each criterion is evaluated against its own levels and evidence requirements, not a generic grade prompt.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="pipeline">
+      <div class="pipeline-box wrap">
+        <div><div class="section-label">Local-first pipeline</div><h2>One traceable path from file to feedback.</h2></div>
+        <div class="pipeline-flow" aria-label="System pipeline">
+          <div class="pipe-item">Submission</div>
+          <div class="pipe-item">Retrieval</div>
+          <div class="pipe-item">Evidence check</div>
+          <div class="pipe-item">Suggestion</div>
+          <div class="pipe-item">Tutor confirms</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="cta-inner wrap">
+        <div class="section-label">Open project</div>
+        <h2>Explore the complete marking workflow.</h2>
+        <p class="section-intro">The repository includes the FastAPI backend, browser interface, sample batches, evaluation harness and setup instructions.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/A1phaCat/Rubric-mark-agent">Open on GitHub <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          <a class="button secondary" href="https://github.com/A1phaCat/Rubric-mark-agent#quick-start">Read quick start</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-row wrap"><span>AI-assisted marker · ELEC5632 project</span><span class="footer-note">Evidence first · tutor final</span></div>
+  </footer>
+</body>
+</html>
