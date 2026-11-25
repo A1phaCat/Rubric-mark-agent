@@ -4,19 +4,19 @@ Local-first skeleton for a University of Sydney tutor workflow: create a batch, 
 
 The product contract is [contracts/openapi.yaml](contracts/openapi.yaml), the module map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and the frozen UI baseline is `prototype/`. Do not edit the prototype.
 
-## Product preview
+## Product walkthrough
 
-### Tutor dashboard
+### Workflow overview
 
-See active marking batches, confidence flags, manual-review work and the next submissions requiring attention.
+The Home page surfaces batch confidence and puts low-confidence work first, while the numbered walkthrough shows the path from a new marking batch to reviewed results.
 
-![Tutor dashboard showing active batches, confidence levels and the review queue](docs/images/product-home.png)
+![Annotated workflow overview showing the Home dashboard, marking queue and the four main steps](docs/images/product-home.png)
 
 ### Evidence-linked criterion review
 
-Compare the original submission with criterion-level evidence, score suggestions and tutor controls in one workspace.
+Read one criterion at a time, jump between verified quotes and the original submission, inspect how the evidence was found, then edit and confirm as the tutor.
 
-![Split-screen criterion review showing the original submission beside evidence and score controls](docs/images/product-review.png)
+![Annotated review workspace showing criterion levels, verified evidence, scoring rationale and tutor controls](docs/images/product-review.png)
 
 ## Quick start
 
