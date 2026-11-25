@@ -4,6 +4,20 @@ Local-first skeleton for a University of Sydney tutor workflow: create a batch, 
 
 The product contract is [contracts/openapi.yaml](contracts/openapi.yaml), the module map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and the frozen UI baseline is `prototype/`. Do not edit the prototype.
 
+## Product preview
+
+### Tutor dashboard
+
+See active marking batches, confidence flags, manual-review work and the next submissions requiring attention.
+
+![Tutor dashboard showing active batches, confidence levels and the review queue](docs/images/product-home.png)
+
+### Evidence-linked criterion review
+
+Compare the original submission with criterion-level evidence, score suggestions and tutor controls in one workspace.
+
+![Split-screen criterion review showing the original submission beside evidence and score controls](docs/images/product-review.png)
+
 ## Quick start
 
 Requirements: Python 3.9+ (Python 3.11 recommended), Node 20+ for browser tests, and GNU Make optionally.
